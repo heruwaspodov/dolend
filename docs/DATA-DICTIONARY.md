@@ -64,7 +64,7 @@ Constraints:
 | --- | --- | --- | --- |
 | id | uuid | NO | gen_random_uuid() |
 | event_id | uuid | NO | — |
-| person_id | uuid | NO | — |
+| user_id | uuid | NO | — |
 | joined_as | text | NO | — |
 | status | text | NO | — |
 | hold_expires_at | timestamp with time zone | YES | — |
@@ -81,9 +81,9 @@ Constraints:
 - `event_participants_status_check`: CHECK ((status = ANY (ARRAY['held'::text, 'confirmed'::text, 'attended'::text, 'no_show'::text, 'expired'::text, 'cancelled'::text])))
 - `event_participants_check`: CHECK (((status <> 'held'::text) OR (hold_expires_at IS NOT NULL)))
 - `event_participants_pkey`: PRIMARY KEY (id)
-- `event_participants_event_id_person_id_key`: UNIQUE (event_id, person_id)
 - `event_participants_event_id_fkey`: FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE RESTRICT
-- `event_participants_person_id_fkey`: FOREIGN KEY (person_id) REFERENCES people(id) ON DELETE RESTRICT
+- `event_participants_user_id_fkey`: FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT
+- `event_participants_event_id_user_id_key`: UNIQUE (event_id, user_id)
 
 ## event_payment_methods
 
@@ -165,7 +165,7 @@ Constraints:
 | Column | Type | Nullable | Default |
 | --- | --- | --- | --- |
 | id | uuid | NO | gen_random_uuid() |
-| person_id | uuid | NO | — |
+| user_id | uuid | NO | — |
 | scope_event_id | uuid | NO | — |
 | token_hash | text | NO | — |
 | scope | text | NO | 'participation'::text |
@@ -180,8 +180,8 @@ Constraints:
 - `guest_sessions_scope_check`: CHECK ((scope = 'participation'::text))
 - `guest_sessions_pkey`: PRIMARY KEY (id)
 - `guest_sessions_token_hash_key`: UNIQUE (token_hash)
-- `guest_sessions_person_id_fkey`: FOREIGN KEY (person_id) REFERENCES people(id) ON DELETE RESTRICT
 - `guest_sessions_scope_event_id_fkey`: FOREIGN KEY (scope_event_id) REFERENCES events(id) ON DELETE RESTRICT
+- `guest_sessions_user_id_fkey`: FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT
 
 ## idempotency_records
 
@@ -207,7 +207,7 @@ Constraints:
 | Column | Type | Nullable | Default |
 | --- | --- | --- | --- |
 | id | uuid | NO | gen_random_uuid() |
-| person_id | uuid | NO | — |
+| user_id | uuid | NO | — |
 | auth_user_id | uuid | NO | — |
 | challenge_id | uuid | NO | — |
 | status | text | NO | 'pending'::text |
@@ -219,11 +219,11 @@ Constraints:
 Constraints:
 
 - `identity_claims_challenge_id_key`: UNIQUE (challenge_id)
-- `identity_claims_person_id_fkey`: FOREIGN KEY (person_id) REFERENCES people(id) ON DELETE RESTRICT
 - `identity_claims_auth_user_id_fkey`: FOREIGN KEY (auth_user_id) REFERENCES auth.users(id) ON DELETE RESTRICT
 - `identity_claims_challenge_id_fkey`: FOREIGN KEY (challenge_id) REFERENCES verification_challenges(id) ON DELETE RESTRICT
 - `identity_claims_status_check`: CHECK ((status = ANY (ARRAY['pending'::text, 'resolved'::text, 'rejected'::text])))
 - `identity_claims_pkey`: PRIMARY KEY (id)
+- `identity_claims_user_id_fkey`: FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT
 
 ## invoices
 
@@ -340,7 +340,7 @@ Constraints:
 | storage_path | text | NO | — |
 | mime_type | text | NO | — |
 | size_bytes | bigint | NO | — |
-| submitted_by | uuid | NO | — |
+| submitted_by_user_id | uuid | NO | — |
 | reviewed_at | timestamp with time zone | YES | — |
 | created_at | timestamp with time zone | NO | now() |
 | updated_at | timestamp with time zone | NO | now() |
@@ -352,7 +352,7 @@ Constraints:
 - `payment_evidence_pkey`: PRIMARY KEY (id)
 - `payment_evidence_storage_path_key`: UNIQUE (storage_path)
 - `payment_evidence_attempt_id_fkey`: FOREIGN KEY (attempt_id) REFERENCES payment_attempts(id) ON DELETE RESTRICT
-- `payment_evidence_submitted_by_fkey`: FOREIGN KEY (submitted_by) REFERENCES people(id) ON DELETE RESTRICT
+- `payment_evidence_submitted_by_user_id_fkey`: FOREIGN KEY (submitted_by_user_id) REFERENCES users(id) ON DELETE RESTRICT
 
 ## payment_ledger
 
@@ -378,32 +378,12 @@ Constraints:
 - `payment_ledger_invoice_id_fkey`: FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE RESTRICT
 - `payment_ledger_attempt_id_fkey`: FOREIGN KEY (attempt_id) REFERENCES payment_attempts(id) ON DELETE RESTRICT
 
-## people
-
-| Column | Type | Nullable | Default |
-| --- | --- | --- | --- |
-| id | uuid | NO | gen_random_uuid() |
-| display_name | text | NO | — |
-| phone_normalized | text | NO | — |
-| phone_verified_at | timestamp with time zone | YES | — |
-| state | text | NO | 'active'::text |
-| created_at | timestamp with time zone | NO | now() |
-| updated_at | timestamp with time zone | NO | now() |
-
-Constraints:
-
-- `people_display_name_check`: CHECK (((length(TRIM(BOTH FROM display_name)) >= 1) AND (length(TRIM(BOTH FROM display_name)) <= 120)))
-- `people_phone_normalized_check`: CHECK ((phone_normalized ~ '^62[1-9][0-9]{6,12}$'::text))
-- `people_state_check`: CHECK ((state = ANY (ARRAY['active'::text, 'suspended'::text, 'anonymized'::text])))
-- `people_pkey`: PRIMARY KEY (id)
-- `people_phone_normalized_key`: UNIQUE (phone_normalized)
-
 ## profiles
 
 | Column | Type | Nullable | Default |
 | --- | --- | --- | --- |
 | id | uuid | NO | — |
-| person_id | uuid | NO | — |
+| user_id | uuid | NO | — |
 | avatar_path | text | YES | — |
 | bio | text | YES | — |
 | default_timezone | text | NO | 'Asia/Jakarta'::text |
@@ -414,10 +394,10 @@ Constraints:
 
 - `profiles_bio_check`: CHECK ((length(bio) <= 1000))
 - `profiles_pkey`: PRIMARY KEY (id)
-- `profiles_person_id_key`: UNIQUE (person_id)
 - `profiles_id_fkey`: FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE RESTRICT
-- `profiles_person_id_fkey`: FOREIGN KEY (person_id) REFERENCES people(id) ON DELETE RESTRICT
 - `profile_avatar_path_length`: CHECK ((length(avatar_path) <= 512))
+- `profiles_user_id_key`: UNIQUE (user_id)
+- `profiles_user_id_fkey`: FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT
 
 ## rate_limit_counters
 
@@ -464,6 +444,26 @@ Constraints:
 - `refunds_invoice_id_fkey`: FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE RESTRICT
 - `refunds_attempt_id_fkey`: FOREIGN KEY (attempt_id) REFERENCES payment_attempts(id) ON DELETE RESTRICT
 - `refunds_approved_by_fkey`: FOREIGN KEY (approved_by) REFERENCES profiles(id) ON DELETE RESTRICT
+
+## users
+
+| Column | Type | Nullable | Default |
+| --- | --- | --- | --- |
+| id | uuid | NO | gen_random_uuid() |
+| display_name | text | NO | — |
+| phone_normalized | text | NO | — |
+| phone_verified_at | timestamp with time zone | YES | — |
+| state | text | NO | 'active'::text |
+| created_at | timestamp with time zone | NO | now() |
+| updated_at | timestamp with time zone | NO | now() |
+
+Constraints:
+
+- `users_pkey`: PRIMARY KEY (id)
+- `users_display_name_check`: CHECK (((length(TRIM(BOTH FROM display_name)) >= 1) AND (length(TRIM(BOTH FROM display_name)) <= 120)))
+- `users_phone_normalized_check`: CHECK ((phone_normalized ~ '^62[1-9][0-9]{6,12}$'::text))
+- `users_phone_normalized_key`: UNIQUE (phone_normalized)
+- `users_state_check`: CHECK ((state = ANY (ARRAY['active'::text, 'suspended'::text, 'anonymized'::text])))
 
 ## venues
 

@@ -3,16 +3,16 @@
   "all_rls": true,
   "unindexed_foreign_keys": 0,
   "service_only_rpc": [
-    "apply_provider_payment",
     "join_event",
     "create_payment_attempt",
-    "claim_guest_identity",
     "submit_manual_evidence",
+    "apply_provider_payment",
+    "record_refund",
     "approve_manual_payment",
     "expire_holds",
     "cancel_participation",
     "request_refund",
-    "record_refund",
+    "claim_guest_identity",
     "cancel_event"
   ],
   "migration_versions": [
@@ -21,6 +21,8 @@
     "20261027060200",
     "20261027060300",
     "20261027060400",
-    "20261027060500"
+    "20261027060500",
+    "20261027060600",
+    "20261027060700"
   ]
 }

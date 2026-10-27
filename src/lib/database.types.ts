@@ -144,9 +144,9 @@ export type Database = {
           hold_expires_at: string | null
           id: string
           joined_as: string
-          person_id: string
           status: string
           updated_at: string
+          user_id: string
         }
         Insert: {
           attendance_at?: string | null
@@ -158,9 +158,9 @@ export type Database = {
           hold_expires_at?: string | null
           id?: string
           joined_as: string
-          person_id: string
           status: string
           updated_at?: string
+          user_id: string
         }
         Update: {
           attendance_at?: string | null
@@ -172,9 +172,9 @@ export type Database = {
           hold_expires_at?: string | null
           id?: string
           joined_as?: string
-          person_id?: string
           status?: string
           updated_at?: string
+          user_id?: string
         }
         Relationships: [
           {
@@ -192,10 +192,10 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "event_participants_person_id_fkey"
-            columns: ["person_id"]
+            foreignKeyName: "event_participants_user_id_fkey"
+            columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: "people"
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]
@@ -359,43 +359,36 @@ export type Database = {
           created_at: string
           expires_at: string
           id: string
-          person_id: string
           revoked_at: string | null
           scope: string
           scope_event_id: string
           token_hash: string
           updated_at: string
+          user_id: string
         }
         Insert: {
           created_at?: string
           expires_at: string
           id?: string
-          person_id: string
           revoked_at?: string | null
           scope?: string
           scope_event_id: string
           token_hash: string
           updated_at?: string
+          user_id: string
         }
         Update: {
           created_at?: string
           expires_at?: string
           id?: string
-          person_id?: string
           revoked_at?: string | null
           scope?: string
           scope_event_id?: string
           token_hash?: string
           updated_at?: string
+          user_id?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "guest_sessions_person_id_fkey"
-            columns: ["person_id"]
-            isOneToOne: false
-            referencedRelation: "people"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "guest_sessions_scope_event_id_fkey"
             columns: ["scope_event_id"]
@@ -408,6 +401,13 @@ export type Database = {
             columns: ["scope_event_id"]
             isOneToOne: false
             referencedRelation: "public_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "guest_sessions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]
@@ -455,10 +455,10 @@ export type Database = {
           created_at: string
           expires_at: string
           id: string
-          person_id: string
           resolved_at: string | null
           status: string
           updated_at: string
+          user_id: string
         }
         Insert: {
           auth_user_id: string
@@ -466,10 +466,10 @@ export type Database = {
           created_at?: string
           expires_at: string
           id?: string
-          person_id: string
           resolved_at?: string | null
           status?: string
           updated_at?: string
+          user_id: string
         }
         Update: {
           auth_user_id?: string
@@ -477,10 +477,10 @@ export type Database = {
           created_at?: string
           expires_at?: string
           id?: string
-          person_id?: string
           resolved_at?: string | null
           status?: string
           updated_at?: string
+          user_id?: string
         }
         Relationships: [
           {
@@ -491,10 +491,10 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "identity_claims_person_id_fkey"
-            columns: ["person_id"]
+            foreignKeyName: "identity_claims_user_id_fkey"
+            columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: "people"
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]
@@ -726,7 +726,7 @@ export type Database = {
           reviewed_at: string | null
           size_bytes: number
           storage_path: string
-          submitted_by: string
+          submitted_by_user_id: string
           updated_at: string
         }
         Insert: {
@@ -737,7 +737,7 @@ export type Database = {
           reviewed_at?: string | null
           size_bytes: number
           storage_path: string
-          submitted_by: string
+          submitted_by_user_id: string
           updated_at?: string
         }
         Update: {
@@ -748,7 +748,7 @@ export type Database = {
           reviewed_at?: string | null
           size_bytes?: number
           storage_path?: string
-          submitted_by?: string
+          submitted_by_user_id?: string
           updated_at?: string
         }
         Relationships: [
@@ -760,10 +760,10 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "payment_evidence_submitted_by_fkey"
-            columns: ["submitted_by"]
+            foreignKeyName: "payment_evidence_submitted_by_user_id_fkey"
+            columns: ["submitted_by_user_id"]
             isOneToOne: false
-            referencedRelation: "people"
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]
@@ -819,36 +819,6 @@ export type Database = {
           },
         ]
       }
-      people: {
-        Row: {
-          created_at: string
-          display_name: string
-          id: string
-          phone_normalized: string
-          phone_verified_at: string | null
-          state: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          display_name: string
-          id?: string
-          phone_normalized: string
-          phone_verified_at?: string | null
-          state?: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          display_name?: string
-          id?: string
-          phone_normalized?: string
-          phone_verified_at?: string | null
-          state?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
       profiles: {
         Row: {
           avatar_path: string | null
@@ -856,8 +826,8 @@ export type Database = {
           created_at: string
           default_timezone: string
           id: string
-          person_id: string
           updated_at: string
+          user_id: string
         }
         Insert: {
           avatar_path?: string | null
@@ -865,8 +835,8 @@ export type Database = {
           created_at?: string
           default_timezone?: string
           id: string
-          person_id: string
           updated_at?: string
+          user_id: string
         }
         Update: {
           avatar_path?: string | null
@@ -874,15 +844,15 @@ export type Database = {
           created_at?: string
           default_timezone?: string
           id?: string
-          person_id?: string
           updated_at?: string
+          user_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "profiles_person_id_fkey"
-            columns: ["person_id"]
+            foreignKeyName: "profiles_user_id_fkey"
+            columns: ["user_id"]
             isOneToOne: true
-            referencedRelation: "people"
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]
@@ -983,6 +953,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      users: {
+        Row: {
+          created_at: string
+          display_name: string
+          id: string
+          phone_normalized: string
+          phone_verified_at: string | null
+          state: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          display_name: string
+          id?: string
+          phone_normalized: string
+          phone_verified_at?: string | null
+          state?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string
+          id?: string
+          phone_normalized?: string
+          phone_verified_at?: string | null
+          state?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       venues: {
         Row: {
@@ -1272,9 +1272,9 @@ export type Database = {
           hold_expires_at: string | null
           id: string
           joined_as: string
-          person_id: string
           status: string
           updated_at: string
+          user_id: string
         }
         SetofOptions: {
           from: "*"
@@ -1291,8 +1291,8 @@ export type Database = {
           created_at: string
           default_timezone: string
           id: string
-          person_id: string
           updated_at: string
+          user_id: string
         }
         SetofOptions: {
           from: "*"
@@ -1342,7 +1342,7 @@ export type Database = {
           p_actor_profile_id?: string
           p_event_id: string
           p_guest_session_hash?: string
-          p_person_id: string
+          p_user_id: string
         }
         Returns: {
           attendance_at: string | null
@@ -1354,9 +1354,9 @@ export type Database = {
           hold_expires_at: string | null
           id: string
           joined_as: string
-          person_id: string
           status: string
           updated_at: string
+          user_id: string
         }
         SetofOptions: {
           from: "*"

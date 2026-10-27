@@ -13,25 +13,8 @@
     "refund cannot exceed original receipt",
     "member/organizer RLS, cross-user privacy, ledger write denial and privileged RPC denial",
     "anonymous projection hides unlisted events and private identity tables",
-    "real hold expiry is idempotent; late paid receipt recorded without overbooking",
-    "hosted rollback regression preserves attended history and queues cancellation refund review"
+    "real hold expiry is idempotent; late paid receipt recorded without overbooking"
   ],
   "status": "passed",
-  "cleanup_verified": true,
-  "cleanup_counts": {
-    "activity_categories": 7,
-    "attempts": 0,
-    "audit": 0,
-    "events": 0,
-    "fixture_auth_users": 0,
-    "guest_sessions": 0,
-    "invoices": 0,
-    "ledger": 0,
-    "outbox": 0,
-    "participants": 0,
-    "people": 0,
-    "profiles": 0,
-    "refunds": 0
-  },
-  "migrations_applied": 6
+  "cleanup_verified": true
 }

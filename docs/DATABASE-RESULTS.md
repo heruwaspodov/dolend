@@ -4,7 +4,7 @@
 
 ## Artefak
 
-- Enam migration versioned pada `supabase/migrations/`, diterapkan melalui Supabase CLI `db push` dan dicatat dalam migration history resmi.
+- Delapan migration versioned pada `supabase/migrations/`, diterapkan melalui Supabase CLI `db push` dan dicatat dalam migration history resmi. Migration ketujuh mengganti identitas bisnis `people/person_id` menjadi `public.users/user_id` tanpa mengubah UUID atau riwayat; migration kedelapan memastikan perilaku refund-review terbaru tetap aktif setelah routine refresh.
 - 22 tabel dengan UUID primary keys, RLS, constraints, indeks, dan trigger; public safe projection `public_events`.
 - 11 service-only domain RPC serta helper di schema non-exposed `dolend_private`.
 - [Schema, ERD, akses, transaksi dan prosedur pemulihan](DATABASE.md).
@@ -16,6 +16,7 @@
 | Pemeriksaan | Hasil |
 | --- | --- |
 | Fresh migration replay | Lulus pada PostgreSQL WASM/PGlite dengan Auth stubs minimal; hosted awal tidak memiliki tabel bisnis |
+| Identity rename | Hosted dan fresh install memakai `public.users`, `user_id`, `p_user_id`, `my_user`, serta `submitted_by_user_id`; `auth.users` tetap namespace autentikasi |
 | Local invariant tests | 38 kelompok pemeriksaan lulus; join idempotent, actor mismatch, capacity, pre/postpay, invoice snapshot, evidence review, refund limits/idempotency, late payment, guest claim, phone uniqueness, RLS dan RPC grants |
 | Local snapshot export/import | Lulus; invoice/ledger count dan RLS bertahan setelah load snapshot ke instance baru |
 | Hosted contention | 20 join untuk 5 kursi → 5 confirmed, 15 EVENT_FULL; 10 retry join tidak menambah peserta |
@@ -26,7 +27,7 @@
 | Hosted authorization | Member/organizer dapat membaca invoice sesuai scope; identitas lintas-user, ledger write dan browser privileged RPC ditolak; public projection menyembunyikan unlisted |
 | Hosted cancellation regression | Transaksi rollback membuktikan peserta attended tetap tercatat dan penerimaan yang belum dikembalikan masuk refund review saat event dibatalkan |
 | Catalog | Semua 22 tabel RLS; 0 foreign key tanpa leading index; 11 domain RPC tidak executable oleh anon/authenticated |
-| Cleanup | Event, person, Auth user, guest session, participant, invoice, attempt, receipt/refund, audit dan outbox fixture dihapus secara scoped; hanya 7 kategori referensi tersisa |
+| Cleanup | Event, business user, Auth user, guest session, participant, invoice, attempt, receipt/refund, audit dan outbox fixture dihapus secara scoped; hanya 7 kategori referensi tersisa |
 | Frontend regression | ESLint, TypeScript, normal static build lulus setelah generated database contracts ditambahkan |
 
 Hosted suite berisi 12 kelompok pemeriksaan, ditambah 1 regresi SQL rollback. Semua provider/receipt/refund adalah fixture database; tidak ada email/SMS atau transaksi uang sungguhan. Runtime ledger/audit/history append-only lewat grants; cleanup dilakukan sebagai operator database terprivilegiasi khusus fixture yang dilacak, bukan melalui role aplikasi.

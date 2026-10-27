@@ -22,7 +22,7 @@ const cleanup=async()=>{
  for(const id of state.events){ const event=ok(await admin.from('events').select('description').eq('id',id).maybeSingle(),'verify fixture event'); if(event)assert.equal(event.description,state.runId); }
  const uuid=value=>{assert.match(value,/^[0-9a-f-]{36}$/);return `'${value}'::uuid`;};
  const events=state.events.length?state.events.map(uuid).join(','):'null::uuid';
- const people=state.people.length?state.people.map(uuid).join(','):'null::uuid';
+ const businessUsers=state.businessUsers.length?state.businessUsers.map(uuid).join(','):'null::uuid';
  const users=state.users.length?state.users.map(u=>uuid(u.id)).join(','):'null::uuid';
  const sql=`begin;
  create temporary table dolend_test_cleanup_ids(id uuid primary key) on commit drop;
@@ -45,7 +45,7 @@ const cleanup=async()=>{
  delete from public.event_payment_methods where event_id in (${events});
  delete from public.events where id in (${events});
  delete from public.profiles where id in (${users});
- delete from public.people where id in (${people});
+ delete from public.users where id in (${businessUsers});
  commit;`;
  const path='.env.database-cleanup.sql';await writeFile(path,sql,{mode:0o600});
  try{await cli('db','query','--linked','--project-ref',project,'--file',path,'--output','json');}finally{await unlink(path).catch(()=>{});}
@@ -60,7 +60,7 @@ const cleanup=async()=>{
 };
 if(process.argv[2]==='cleanup'){await cleanup();process.exit(0);}
 assert(!state,'Existing fixture state. Run cleanup before starting another run.');
-state={runId:randomUUID(),project,events:[],people:[],users:[]};await save();
+state={runId:randomUUID(),project,events:[],businessUsers:[],users:[]};await save();
 const report={date:'2026-10-27',project,checks:[]};
 const record=name=>{report.checks.push(name);console.log(`PASS ${name}`);};
 const newPhone=()=>`62819${randomBytes(6).readUIntBE(0,6).toString().slice(0,9).padEnd(9,'0')}`;
@@ -70,12 +70,12 @@ try{
   const email=`schema-${randomUUID()}@dolend.example`,password=randomBytes(32).toString('base64url'),phone=newPhone();
   const user=ok(await admin.auth.admin.createUser({email,password,phone,phone_confirm:true,email_confirm:true,app_metadata:{dolend_schema_fixture:state.runId}}),'create fixture user').user;
   state.users.push({id:user.id});await save();
-  const person=ok(await admin.from('people').insert({display_name:'Dolend schema fixture',phone_normalized:phone,phone_verified_at:new Date().toISOString()}).select('id').single(),'create person');
-  state.people.push(person.id);await save();
-  ok(await admin.from('profiles').insert({id:user.id,person_id:person.id}),'create profile');
+  const domainUser=ok(await admin.from('users').insert({display_name:'Dolend schema fixture',phone_normalized:phone,phone_verified_at:new Date().toISOString()}).select('id').single(),'create business user');
+  state.businessUsers.push(domainUser.id);await save();
+  ok(await admin.from('profiles').insert({id:user.id,user_id:domainUser.id}),'create profile');
   const client=createClient(url,anon,{auth:{persistSession:false,autoRefreshToken:false}});
   ok(await client.auth.signInWithPassword({email,password}),'login fixture');
-  users.push({id:user.id,person:person.id,client});
+  users.push({id:user.id,userId:domainUser.id,client});
  }
  const [owner,member]=users;
  const activity=ok(await admin.from('activity_types').select('id').eq('slug','walking').single(),'category');
@@ -91,20 +91,20 @@ try{
   return {...event,method:method.id};
  };
  const late=await makeEvent('before_event',1,'unlisted',1);
- const lateP=await rpc('join_event',{p_event_id:late.id,p_person_id:member.person,p_actor_profile_id:member.id});
+ const lateP=await rpc('join_event',{p_event_id:late.id,p_user_id:member.userId,p_actor_profile_id:member.id});
  const lateI=ok(await admin.from('invoices').select('id').eq('participant_id',lateP.id).single(),'late invoice');
  const lateA=await rpc('create_payment_attempt',{p_invoice_id:lateI.id,p_method_id:late.method,p_key:'late',p_actor_profile_id:member.id});
  ok(await admin.from('payment_attempts').update({provider_reference:`late-${state.runId}`}).eq('id',lateA.id),'provider reference');
  const free=await makeEvent('free',5,'public');
  const guests=[];
  for(let n=0;n<20;n++){
-  const person=ok(await admin.from('people').insert({display_name:'Fixture guest',phone_normalized:newPhone(),phone_verified_at:new Date().toISOString()}).select('id').single(),'guest person');
-  state.people.push(person.id);await save();
+  const domainUser=ok(await admin.from('users').insert({display_name:'Fixture guest',phone_normalized:newPhone(),phone_verified_at:new Date().toISOString()}).select('id').single(),'guest business user');
+  state.businessUsers.push(domainUser.id);await save();
   const hash=createHash('sha256').update(randomBytes(32)).digest('hex');
-  ok(await admin.from('guest_sessions').insert({person_id:person.id,scope_event_id:free.id,token_hash:hash,expires_at:new Date(Date.now()+3600000).toISOString()}),'guest session');
-  guests.push({person:person.id,hash});
+  ok(await admin.from('guest_sessions').insert({user_id:domainUser.id,scope_event_id:free.id,token_hash:hash,expires_at:new Date(Date.now()+3600000).toISOString()}),'guest session');
+  guests.push({userId:domainUser.id,hash});
  }
- const joinArgs=guest=>({p_event_id:free.id,p_person_id:guest.person,p_guest_session_hash:guest.hash});
+ const joinArgs=guest=>({p_event_id:free.id,p_user_id:guest.userId,p_guest_session_hash:guest.hash});
  const joins=await Promise.all(guests.map(guest=>admin.rpc('join_event',joinArgs(guest))));
  const winners=joins.map((result,index)=>({result,index})).filter(x=>!x.result.error);
  assert.equal(winners.length,5);assert(joins.filter(r=>r.error).every(r=>r.error.message==='EVENT_FULL'));
@@ -117,7 +117,7 @@ try{
  const loser=guests[joins.findIndex(r=>r.error)];await rpc('join_event',joinArgs(loser));
  assert.equal(ok(await admin.from('event_participants').select('id').eq('event_id',free.id).eq('status','confirmed'),'roster after replacement').length,5);record('cancellation releases one seat and replacement preserves capacity');
  const paid=await makeEvent('before_event',1);
- const paidP=await rpc('join_event',{p_event_id:paid.id,p_person_id:member.person,p_actor_profile_id:member.id});
+ const paidP=await rpc('join_event',{p_event_id:paid.id,p_user_id:member.userId,p_actor_profile_id:member.id});
  const paidI=ok(await admin.from('invoices').select('id').eq('participant_id',paidP.id).single(),'invoice');
  const attempt=await rpc('create_payment_attempt',{p_invoice_id:paidI.id,p_method_id:paid.method,p_key:'gateway',p_actor_profile_id:member.id});
  const reference=`payment-${state.runId}`;
@@ -133,19 +133,19 @@ try{
  const refunds=await Promise.all(Array.from({length:10},()=>admin.rpc('record_refund',{p_refund_id:refund.id,p_actor_profile_id:owner.id,p_reference:`refund-${state.runId}`})));
  assert(refunds.every(r=>!r.error&&r.data.status==='succeeded'));assert.equal(ok(await admin.from('payment_ledger').select('id').eq('attempt_id',attempt.id).eq('entry_type','refund'),'refunds').length,1);record('10 concurrent refund confirmations create one refund ledger entry');
  const over=await admin.rpc('request_refund',{p_attempt_id:attempt.id,p_actor_profile_id:owner.id,p_amount:1,p_reason:'over',p_key:'over'});assert(over.error);record('refund cannot exceed original receipt');
- assert.equal(ok(await member.client.from('people').select('id'),'member RLS').length,1);
- assert.equal(ok(await member.client.from('people').select('id').eq('id',owner.person),'cross person').length,0);
+ assert.equal(ok(await member.client.from('users').select('id'),'member RLS').length,1);
+ assert.equal(ok(await member.client.from('users').select('id').eq('id',owner.userId),'cross business user').length,0);
  assert.equal(ok(await owner.client.from('invoices').select('id').eq('id',paidI.id),'organizer invoice').length,1);
  assert.equal(ok(await member.client.from('invoices').select('id').eq('id',paidI.id),'participant invoice').length,1);
  assert((await member.client.from('payment_ledger').update({amount:1}).eq('attempt_id',attempt.id)).error);
- assert((await member.client.rpc('join_event',{p_event_id:free.id,p_person_id:member.person,p_actor_profile_id:member.id})).error);record('member/organizer RLS, cross-user privacy, ledger write denial and privileged RPC denial');
+ assert((await member.client.rpc('join_event',{p_event_id:free.id,p_user_id:member.userId,p_actor_profile_id:member.id})).error);record('member/organizer RLS, cross-user privacy, ledger write denial and privileged RPC denial');
  const publicClient=createClient(url,anon,{auth:{persistSession:false,autoRefreshToken:false}});
  const projection=ok(await publicClient.from('public_events').select('*'),'public projection');assert(projection.some(row=>row.id===free.id));assert(!projection.some(row=>row.id===paid.id));
- assert((await publicClient.from('people').select('id')).error);record('anonymous projection hides unlisted events and private identity tables');
+ assert((await publicClient.from('users').select('id')).error);record('anonymous projection hides unlisted events and private identity tables');
  const remaining=new Date(lateP.hold_expires_at).getTime()-Date.now()+300;
  if(remaining>0){console.log(`Waiting ${Math.ceil(remaining/1000)}s for genuine fixture hold expiry (no trigger bypass).`);await new Promise(resolve=>setTimeout(resolve,remaining));}
  assert.equal(await rpc('expire_holds',{p_event_id:late.id}),1);assert.equal(await rpc('expire_holds',{p_event_id:late.id}),0);
- await rpc('join_event',{p_event_id:late.id,p_person_id:owner.person,p_actor_profile_id:owner.id});
+ await rpc('join_event',{p_event_id:late.id,p_user_id:owner.userId,p_actor_profile_id:owner.id});
  const latePaid=await rpc('apply_provider_payment',{p_attempt_id:lateA.id,p_provider:'fixture',p_provider_reference:`late-${state.runId}`,p_amount:10000,p_currency:'IDR'});
  assert.equal(latePaid.exception_reason,'late_payment_no_seat');assert.equal(latePaid.status,'succeeded');
  const lateRows=ok(await admin.from('event_participants').select('status').eq('event_id',late.id),'late roster');assert.equal(lateRows.filter(p=>p.status==='held'||p.status==='confirmed').length,1);record('real hold expiry is idempotent; late paid receipt recorded without overbooking');

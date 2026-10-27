@@ -1,18 +1,18 @@
 # Dolend database foundation (T04)
 
-Schema source: `supabase/migrations/`. Data dictionary: [DATA-DICTIONARY.md](DATA-DICTIONARY.md). Generated SDK contracts: `src/lib/database.types.ts`.
+Schema source: `supabase/migrations/`. Data dictionary: [DATA-DICTIONARY.md](DATA-DICTIONARY.md). Generated SDK contracts: `src/lib/database.types.ts`. `public.users` is the stable business identity for guests and members; `auth.users` remains Supabase's login identity. `profiles.user_id` binds the two UUIDs after verification.
 
 ## Data model
 
 ```mermaid
 erDiagram
-  people ||--o| profiles : account
-  people ||--o{ guest_sessions : proves
+  users ||--o| profiles : account
+  users ||--o{ guest_sessions : proves
   profiles ||--o{ events : organizes
   activity_types ||--o{ events : categorizes
   venues |o--o{ events : location
   events ||--o{ event_participants : roster
-  people ||--o{ event_participants : joins
+  users ||--o{ event_participants : joins
   event_participants ||--o| invoices : owes
   invoices ||--o{ payment_attempts : retries
   events ||--o{ event_payment_methods : allows
@@ -23,9 +23,9 @@ erDiagram
   event_participants ||--o{ participant_history : records
 ```
 
-Twenty-two business tables use UUID primary keys; `profiles.id` reuses the Supabase Auth UUID. A unique canonical Indonesian phone (`62...`, stored as text) identifies a person across guest/member participation. PostgreSQL enforces shape/uniqueness; full phone validation/normalization with library metadata remains T08. It is not a login credential or a primary key.
+Twenty-two business tables use UUID primary keys; `profiles.id` reuses the Supabase Auth UUID. A unique canonical Indonesian phone (`62...`, stored as text) identifies one `public.users` row across guest/member participation. PostgreSQL enforces shape/uniqueness; full phone validation/normalization with library metadata remains T08. It is not a login credential or a primary key.
 
-Identity tables: people, profiles, verification_challenges, identity_claims, guest_sessions. Event tables: activity_types, venues, events, event_invites, event_participants, participant_history, event_payment_methods. Billing tables: invoices, payment_attempts, payment_evidence, payment_ledger, refunds, webhook_events. Operations: idempotency_records, audit_logs, outbox_jobs, rate_limit_counters.
+Identity tables: users, profiles, verification_challenges, identity_claims, guest_sessions. Event tables: activity_types, venues, events, event_invites, event_participants, participant_history, event_payment_methods. Billing tables: invoices, payment_attempts, payment_evidence, payment_ledger, refunds, webhook_events. Operations: idempotency_records, audit_logs, outbox_jobs, rate_limit_counters.
 
 All mutable tables have updated_at triggers. Money is integer IDR, bounded to 1e12 rupiah per row; timestamps are timestamptz, event timezone is an IANA name validated against PostgreSQL. Profiles/financial relations use restrict foreign keys, preventing accidental history loss through cascading account deletion. Audit/outbox entity IDs are intentionally polymorphic and not foreign keys.
 
@@ -35,7 +35,7 @@ All mutable tables have updated_at triggers. Money is integer IDR, bounded to 1e
 | --- | --- | --- | --- |
 | activity_types | Active rows | Active rows | Manage reference data |
 | public_events view | Public published/completed safe fields | Same projection | Same projection |
-| people / profiles | Denied | Own identity/profile only | Resolve verified identity and scoped roster DTO |
+| users / profiles | Denied | Own identity/profile only | Resolve verified identity and scoped roster DTO |
 | profile bio/avatar/timezone | Denied | Update own permitted columns | Identity binding through trusted flow |
 | events / venues | Denied raw table | Own venue; organizer/participant-related event | Ownership-checked domain operations |
 | participants/history | Denied | Own participation or organized event | Transactional roster RPC |
@@ -45,15 +45,15 @@ All mutable tables have updated_at triggers. Money is integer IDR, bounded to 1e
 
 All 22 tables have RLS. Every foreign key has a leading-column index. Public domain RPC EXECUTE is revoked from PUBLIC/anon/authenticated and granted to service_role only. RLS helpers live in non-exposed `dolend_private`, use fixed empty search_path and explicit relation qualification. Do not add that schema to the Data API schema list.
 
-`public_events` is intentionally a **definer-owned security-barrier view** with explicit column allowlist and visibility/status filter; it is not a generic select-* view. This can be flagged by automated advisors as a definer view and must be reviewed in that context. It never exposes phone, guest/invite tokens, bank instructions, arbitrary venue JSON, evidence, or ledger rows. Raw people read remains own-only even for organizers; future roster API must return only the fields justified for the organizer.
+`public_events` is intentionally a **definer-owned security-barrier view** with explicit column allowlist and visibility/status filter; it is not a generic select-* view. This can be flagged by automated advisors as a definer view and must be reviewed in that context. It never exposes phone, guest/invite tokens, bank instructions, arbitrary venue JSON, evidence, or ledger rows. Raw users read remains own-only even for organizers; future roster API must return only the fields justified for the organizer.
 
-Guest session rows are not readable from a browser. Elysia must hash the bearer token, pass it to a service-only RPC, and never accept arbitrary actor/profile/person IDs from client input. Service-role bypasses RLS; never expose its key and never treat RLS as a substitute for API authorization. Mutating schemas, roles, triggers, or ledger through privileged database maintenance is outside the runtime boundary.
+Guest session rows are not readable from a browser. Elysia must hash the bearer token, pass it to a service-only RPC, and never accept arbitrary actor/profile/user IDs from client input. Service-role bypasses RLS; never expose its key and never treat RLS as a substitute for API authorization. Mutating schemas, roles, triggers, or ledger through privileged database maintenance is outside the runtime boundary.
 
 ## Domain transactions
 
 | RPC | Main invariants |
 | --- | --- |
-| join_event | Registered verified actor or event-scoped verified guest; event deadline/lifecycle; lock event; capacity; unique person/event; one invoice; replay returns same active participant |
+| join_event | Registered verified actor or event-scoped verified guest; event deadline/lifecycle; lock event; capacity; unique user/event; one invoice; replay returns same active participant |
 | create_payment_attempt | Owner proof, event-enabled method, invoice amount/currency, invoice/key idempotency; overdue postpay can still create a future-expiring attempt |
 | submit_manual_evidence | Owner proof; manual-only; bounded review deadline; metadata constraints; temporary hold extension bounded by event start |
 | approve_manual_payment | Verified organizer; evidence required; reason mandatory; invoice/receipt/participant updated atomically; late receipt can become an exception |
@@ -61,7 +61,7 @@ Guest session rows are not readable from a browser. Elysia must hash the bearer 
 | expire_holds | Event lock, bounded event scope, state-based replay; expired holds no longer occupy seats |
 | cancel_participation / cancel_event | Ownership proof, release seats, unpaid invoice void, paid receipt retains ledger and queues refund review |
 | request_refund / record_refund | Organizer proof; bounded refundable amount; request idempotency; receipt-backed refund; manual refund evidence required; duplicate completion is safe |
-| claim_guest_identity | Account+challenge binding, verified unexpired single-use proof, Auth phone matches person, collision rejection, historical joined_as retained |
+| claim_guest_identity | Account+challenge binding, verified unexpired single-use proof, Auth phone matches business user, collision rejection, historical joined_as retained |
 
 The common lock order is event → participant → invoice → attempt/refund; some paths can omit unneeded locks. Capacity edits acquire the event row lock as part of UPDATE. Server code should use the supplied RPCs; direct participant updates may encounter deadlocks with conflicting operations and should not be used to implement business transitions. Any future mutation RPC (for example attendance) must preserve the lock convention.
 
@@ -82,7 +82,7 @@ Migrations are append-only once applied. Reference activity categories are seede
 
 Local verification uses PGlite with minimal Auth table/function stubs, then replays migrations from empty schema. It tests database logic, not Supabase Auth's internal implementation or real concurrency. A PGlite datadir export/import verifies local snapshot recovery and data/RLS preservation; this format is not a production PostgreSQL backup.
 
-Hosted verification uses disposable Auth accounts, synthetic people and scoped events. It exercises actual RPC/RLS/parallel Postgres transactions, real hold expiry, and duplicate payment/refund callbacks without contacting any payment provider. Credentials are held in memory; cleanup state IDs are stored in gitignored `.env.database-state.json`. Temporary SQL cleanup runs as a privileged database operator, deletes only tracked fixtures in FK order, then removes fixture users. If cleanup fails, keep that state and run:
+Hosted verification uses disposable Auth accounts, synthetic users and scoped events. It exercises actual RPC/RLS/parallel Postgres transactions, real hold expiry, and duplicate payment/refund callbacks without contacting any payment provider. Credentials are held in memory; cleanup state IDs are stored in gitignored `.env.database-state.json`. Temporary SQL cleanup runs as a privileged database operator, deletes only tracked fixtures in FK order, then removes fixture users. If cleanup fails, keep that state and run:
 
 ```sh
 DATABASE_TEST_PROJECT_REF=fpbefabsqryxmnmxufjw npm run db:test:hosted -- cleanup

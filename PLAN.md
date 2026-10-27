@@ -43,11 +43,11 @@ MVP harus mencakup semua jalur pembayaran yang disebutkan, bukan berhenti pada t
 
 ### 3.1 Identitas, guest, dan autentikasi
 
-- Semua orang berada di `people`; `profiles` menghubungkan orang dengan `auth.users`. Guest memiliki person dan partisipasi tetapi belum memiliki profile.
+- Semua identitas bisnis berada di `public.users`; `profiles` menghubungkan user tersebut dengan `auth.users`. Guest memiliki user dan partisipasi tetapi belum memiliki profile.
 - Normalisasi server: `081234567890`, `+6281234567890`, dan `6281234567890` menjadi `6281234567890`. Hapus separator yang diizinkan, validasi dengan library metadata telepon yang dipin versinya; reject nomor non-Indonesia atau tidak valid. Jangan sekadar menerima regex sebagai validasi penuh.
 - Simpan `phone_normalized text NOT NULL UNIQUE`, bukan tipe angka. Format tampilan boleh `+62`; database tetap `62...`. Adapter OTP mengubahnya menjadi E.164 `+62...` jika provider memerlukan.
 - OTP melalui Supabase Auth dengan provider SMS yang dikonfigurasi; jalur guest memakai challenge OTP server-side tanpa memaksa pembuatan akun permanen. Pemilihan provider dan bukti delivery Indonesia adalah gate M0. Jangan membuat OTP sendiri tanpa expiry, hashing, attempt limit, dan throttling.
-- Nomor yang sudah terdaftar tidak boleh dibuat ulang sebagai person baru. Input nomor saja tidak boleh membuka profil/riwayat, mengubah identitas, atau membuat impersonasi. Respons pencarian nomor tidak mengekspos keberadaan akun.
+- Nomor yang sudah terdaftar tidak boleh dibuat ulang sebagai user baru. Input nomor saja tidak boleh membuka profil/riwayat, mengubah identitas, atau membuat impersonasi. Respons pencarian nomor tidak mengekspos keberadaan akun.
 - Perubahan nomor perlu verifikasi ulang dan pemeriksaan collision. UUID tetap sama, event/history tetap terhubung. Recycled number memerlukan proses recovery yang tidak menyerahkan riwayat lama secara otomatis.
 - Istilah member berarti pengguna berakun Dolend; pada Phase 2 keanggotaan komunitas memakai entitas terpisah.
 
@@ -67,7 +67,7 @@ MVP harus mencakup semua jalur pembayaran yang disebutkan, bukan berhenti pada t
 - Lifecycle event: `draft → published → completed`; `draft/published → cancelled`. Event selesai jika waktu berakhir dan organizer/Cron menyelesaikannya. Event dengan tagihan outstanding tetap dapat completed.
 - Partisipasi: `held → confirmed → attended | no_show`; `held → expired`; `held/confirmed → cancelled`. Kehadiran diisi organizer setelah event dimulai. Waitlist ditunda kecuali disetujui sebagai penambahan scope.
 - Kapasitas terpakai = held yang belum expired + confirmed + attended + no_show. Pembatalan/expiry melepas slot; tidak otomatis menghapus kewajiban/refund.
-- Join dilakukan dalam transaksi PostgreSQL dengan lock baris event, pemeriksaan ulang lifecycle/deadline/kapasitas dan unique `(event_id, person_id)`. Seluruh jalur edit kapasitas memakai lock yang sama. Dilarang count-then-insert di client.
+- Join dilakukan dalam transaksi PostgreSQL dengan lock baris event, pemeriksaan ulang lifecycle/deadline/kapasitas dan unique `(event_id, user_id)`. Seluruh jalur edit kapasitas memakai lock yang sama. Dilarang count-then-insert di client.
 - Prepay default hold 15 menit, dapat dikonfigurasi per event. Pengajuan bukti manual mendapat review window terpisah yang eksplisit (default 24 jam, dibatasi waktu event); tidak boleh menahan slot tanpa batas.
 - Cron dan callback menggunakan lock dan aturan expiry sama. Pembayaran sukses yang terlambat mencoba konfirmasi hanya jika kursi masih tersedia; jika tidak, masuk exception/refund review, tidak overbook.
 - Turun kapasitas di bawah slot terpakai ditolak. Perubahan jadwal/venue setelah publish dicatat, terlihat oleh peserta, dan tersedia teks pemberitahuan untuk dibagikan organizer.
@@ -143,21 +143,21 @@ Schema MVP telah diterapkan pada T04 melalui `supabase/migrations/`; tabel di ba
 
 | Tabel | Kolom dan constraint penting | Relasi / akses |
 | --- | --- | --- |
-| `people` | id, display_name, phone_normalized UNIQUE NOT NULL, phone_verified_at, state | Satu orang lintas guest/member; nomor private |
-| `profiles` | id UUID PK = auth.users.id, person_id UNIQUE FK people, avatar_path, bio, default_timezone | Satu akun per person; safe public projection terpisah |
-| `identity_claims` | person_id, auth_user_id, challenge_id, status, expires_at, resolved_at | Claim/merge hanya setelah proof; audit dan transaksi |
-| `guest_sessions` | person_id, scope_event_id FK events, token_hash UNIQUE, scope, expires_at, revoked_at | Akses terbatas; token mentah tidak disimpan |
+| `users` | id, display_name, phone_normalized UNIQUE NOT NULL, phone_verified_at, state | Satu orang lintas guest/member; nomor private |
+| `profiles` | id UUID PK = auth.users.id, user_id UNIQUE FK public.users, avatar_path, bio, default_timezone | Satu akun Auth per user bisnis; safe public projection terpisah |
+| `identity_claims` | user_id, auth_user_id, challenge_id, status, expires_at, resolved_at | Claim/merge hanya setelah proof; audit dan transaksi |
+| `guest_sessions` | user_id, scope_event_id FK events, token_hash UNIQUE, scope, expires_at, revoked_at | Akses terbatas; token mentah tidak disimpan |
 | `verification_challenges` | phone_normalized, auth_user_id, purpose, provider_ref, secret_hash jika diperlukan, attempts, verified_at, expires_at, consumed_at | Internal; throttle, single-use, cleanup |
 | `activity_types` | slug UNIQUE, name, active | Kategori extensible tanpa enum olahraga yang kaku |
 | `venues` | created_by, name, address, city, latitude, longitude, maps_url, place_id nullable | Master venue; lokasi tervalidasi |
 | `events` | organizer_profile_id FK profiles, activity_type_id, venue_id nullable, venue_snapshot jsonb, title, description, starts_at, ends_at, timezone, capacity, registration_closes_at, visibility, status, payment_mode, price_amount, currency, payment_due_at, hold_minutes, cancellation_policy, version | CHECK ends_at > starts_at, capacity > 0, currency=IDR, amount>=0; hanya organizer mutate |
 | `event_invites` | event_id, token_hash UNIQUE, expires_at nullable, revoked_at, created_by | Grant view/join; bukan grant pengelolaan |
-| `event_participants` | event_id, person_id, joined_as guest/member, status, hold_expires_at, confirmed_at, attendance_at, cancelled_at, cancellation_reason | UNIQUE(event_id,person_id); history joined_as tidak berubah ketika guest claim |
+| `event_participants` | event_id, user_id, joined_as guest/member, status, hold_expires_at, confirmed_at, attendance_at, cancelled_at, cancellation_reason | UNIQUE(event_id,user_id); history joined_as tidak berubah ketika guest claim |
 | `participant_history` | participant_id, from_status, to_status, reason, actor_type, actor_id | Append-only transisi roster |
 | `event_payment_methods` | event_id, method_type, provider nullable, provider_method nullable, enabled, instruction_snapshot | Rekening/instruksi private sesuai akses peserta; secret bukan di tabel ini |
 | `invoices` | participant_id, invoice_number UNIQUE, amount_due, currency, due_at, status, pricing_snapshot | Satu invoice utama per partisipasi di MVP; UNIQUE(participant_id); waiver perlu alasan |
 | `payment_attempts` | invoice_id, payment_method_id FK event_payment_methods, method_type, provider, provider_reference, amount, currency, status, expires_at, review_deadline, idempotency_key, checkout_url, reviewed_by, review_reason | Partial unique(provider,provider_reference) saat non-null; unique scoped idempotency |
-| `payment_evidence` | attempt_id, storage_path UNIQUE, mime_type, size_bytes, submitted_by, reviewed_at | Private Storage; participant/organizer terkait |
+| `payment_evidence` | attempt_id, storage_path UNIQUE, mime_type, size_bytes, submitted_by_user_id, reviewed_at | Private Storage; participant/organizer terkait |
 | `payment_ledger` | invoice_id, attempt_id, entry_type, amount, currency, source_reference, occurred_at | Append-only penerimaan/refund/penyesuaian; unique source; koreksi lewat entry kompensasi |
 | `refunds` | invoice_id, attempt_id, amount, status, reason, provider_reference, evidence_path, approved_by, idempotency_key | Total refund tidak boleh melampaui penerimaan refundable; lock transaksi |
 | `webhook_events` | provider, external_event_id, payload_hash, payload_private, processed_at, status, retry_count | UNIQUE(provider,external_event_id); raw payload dibatasi retensi |
@@ -166,7 +166,7 @@ Schema MVP telah diterapkan pada T04 melalui `supabase/migrations/`; tabel di ba
 | `outbox_jobs` | kind, aggregate_id, dedupe_key UNIQUE, payload, status, attempts, next_attempt_at, locked_until | Retry side effect setelah commit |
 | `rate_limit_counters` | bucket_key, window_start, count, expires_at | Unique(bucket_key,window_start), atomic upsert |
 
-Indeks: events(status, starts_at), events(organizer_profile_id, starts_at), events(activity_type_id, starts_at), participants(event_id,status,hold_expires_at), participants(person_id,created_at), invoices(status,due_at), attempts(invoice_id,created_at), outbox(status,next_attempt_at), invites(token_hash), webhook(status,created_at). Query public mengembalikan jumlah kursi dan profil aman, tidak melakukan select seluruh row people.
+Indeks: events(status, starts_at), events(organizer_profile_id, starts_at), events(activity_type_id, starts_at), participants(event_id,status,hold_expires_at), participants(user_id,created_at), invoices(status,due_at), attempts(invoice_id,created_at), outbox(status,next_attempt_at), invites(token_hash), webhook(status,created_at). Query public mengembalikan jumlah kursi dan profil aman, tidak melakukan select seluruh row users.
 
 RPC/transaksi domain: `join_event`, `cancel_participation`, `expire_holds`, `approve_manual_payment`, `apply_provider_payment`, `cancel_event`, `record_refund`, `claim_guest_identity`. Seluruh RPC memeriksa actor, transisi, amount, dan lock; public tidak mendapat execute langsung ke RPC privileged.
 
@@ -203,7 +203,7 @@ Prefix `/v1` pada function Elysia. JSON response `{ data, meta?: { next_cursor }
 | GET/PATCH `/me` | Member | Profil sendiri; ganti nomor melalui verifikasi |
 | POST `/identity/challenges` | Rate-limited | Kirim challenge, respons generik anti-enumerasi |
 | POST `/identity/verify` | Challenge | Single-use OTP; member binding atau guest session scoped |
-| POST `/identity/claim` | Member + proof | Klaim person guest atomik; collision → recovery |
+| POST `/identity/claim` | Member + proof | Klaim user guest atomik; collision → recovery |
 | GET `/activity-types` | Public | Kategori aktif |
 | GET `/events` | Public/member | Public discovery atau filter organizer=me; tidak bocor unlisted |
 | POST `/events` | Verified member | Buat draft; organizer dari JWT, bukan body |
@@ -243,7 +243,7 @@ Phase 2 API: follow/unfollow, follow requests, community CRUD/membership/invites
 | T01 | Selesai untuk sumber tersedia | `docs/PRODUCT.md`: brief, persona, glossary, scope, keputusan merek. Rekonsiliasi rencana lama tetap terbuka sampai sumber tersedia. |
 | T02 | Selesai — compatibility GO | Hosted Elysia lulus user JWT valid/invalid/deleted identity, 20 RPC write konkuren dengan RLS, private multipart Storage/signed URL, raw-text HMAC webhook + 20 duplicate callbacks, CORS/validation/errors, 100 smoke read, bundle diagnostic, dan instalasi bersih. First request 3698.24 ms; warm p95 396.80 ms. Fixture dibersihkan; bukti `docs/POC-RESULTS.md` dan ADR 0001. |
 | T03 | Selesai — static Hosting GO | Project `dolend-apps`, site `dolend`, target `web`, channel `t03`. Event query-route + client fetch, auth/payment return shell, post-build public fixture, clean export tanpa fixture, 12 browser test lokal + 12 hosted (desktop/360 px), headers/direct-link/refresh lulus. Bukti `docs/HOSTING-RESULTS.md`. |
-| T04 | Selesai | Enam migration diterapkan ke Supabase, 22 tabel ber-RLS, 11 service-only RPC, 0 FK tanpa indeks, 7 kategori seed. 38 kelompok test lokal + 13 hosted/regression lulus; fresh replay/snapshot lokal serta cleanup fixture terbukti. Generated types/ERD/dictionary/runbook tersedia; lihat `docs/DATABASE-RESULTS.md`. |
+| T04 | Selesai | Delapan migration diterapkan ke Supabase; identitas bisnis kini `public.users/user_id`. Ada 22 tabel ber-RLS, 11 service-only RPC, 0 FK tanpa indeks, dan 7 kategori seed. 38 kelompok test lokal + 13 hosted/regression lulus; fresh replay/snapshot lokal serta cleanup fixture terbukti. Generated types/ERD/dictionary/runbook tersedia; lihat `docs/DATABASE-RESULTS.md`. |
 | T05 | Ditunda atas permintaan pengguna | Provider SMS dan payment gateway belum dipilih/diaktifkan. Tidak menghalangi landing page publik dan CI frontend; fitur OTP/payment nyata tetap menunggu keputusan berikutnya. |
 | T06 | Selesai — baseline CI/CD frontend | Push main menjalankan checks → verified artifact → OIDC live deploy ke dolend.web.app; run GitHub 40465855465 sukses dan SHA live cocok. Node 24, pinned actions/CLI, tanpa long-lived key, release metadata, isolated preview dan runbook tersedia. API/migration tetap prosedur manual; lihat `docs/CI-CD.md` dan `docs/ci-results.json`. |
 | T07 | Sebagian selesai — landing page live | Referensi HTML pengguna diadaptasi ke React/Tailwind/shadcn: hero hijau/navy, kategori, simulator patungan, FAQ, menu mobile. Live di `https://dolend.web.app/`; 18 browser checks lokal + 18 live lulus, lebar 360/768/1440 px diperiksa. Kalkulator/DP ilustratif/status peserta/tautan simulasi diuji; alur event, Auth, dashboard dan pembayaran nyata belum selesai. Bukti `docs/LANDING-PAGE.md`. |
@@ -281,7 +281,7 @@ Setiap task adalah pekerjaan yang dapat ditinjau. Dependencies menyebut ID task 
 
 ### T04 — Schema, migration, transaksi, dan RLS
 
-**Status: Selesai, 27 Oktober 2026.** Enam migration resmi diterapkan ke project `fpbefabsqryxmnmxufjw`. Schema/RLS/grants/indexes, transaksi kapasitas dan billing, fresh replay serta snapshot restore lokal lulus. Uji hosted membuktikan 20 join/5 kursi, duplicate callbacks/refunds, expiry nyata dan RLS; semua fixture dibersihkan. Restore produksi tetap release drill T20/T21, bukan klaim hasil snapshot lokal.
+**Status: Selesai, 27 Oktober 2026.** Delapan migration resmi diterapkan ke project `fpbefabsqryxmnmxufjw`. Model identitas bisnis telah diseragamkan menjadi `public.users` dengan FK `user_id`; `auth.users` dan `auth_user_id` tetap khusus autentikasi. Migration koreksi kedelapan mempertahankan refund-review pada pembatalan setelah routine refresh. Schema/RLS/grants/indexes, transaksi kapasitas dan billing, fresh replay serta snapshot restore lokal lulus. Uji hosted pasca-rename membuktikan 20 join/5 kursi, duplicate callbacks/refunds, expiry nyata dan RLS; semua fixture dibersihkan. Restore produksi tetap release drill T20/T21, bukan klaim hasil snapshot lokal.
 
 - **Description:** terjemahkan schema MVP ke migration berversi, seed kategori, constraints, indeks, dan RPC atomik.
 - **Deliverables:** migrations, ERD/data dictionary, RLS matrix, seed, migration/restore procedure, uji integritas dan authorization.
@@ -322,7 +322,7 @@ Setiap task adalah pekerjaan yang dapat ditinjau. Dependencies menyebut ID task 
 - **Description:** implementasi signup/login/logout/refresh, verified phone, normalisasi, unique identity, recovery, dan profile ownership.
 - **Deliverables:** Auth integration, normalization utility, profile API/UI, OTP throttle, nomor-change flow, identity tests.
 - **Dependencies:** T04, T05, T06, T07.
-- **Acceptance criteria:** variasi 08/+62/62 menuju person yang sama; invalid/non-ID ditolak; UUID tidak berubah saat nomor berubah; user tanpa nomor verified tidak dapat create event; input nomor orang lain tidak memberi akses; expired/reused OTP ditolak; refresh/logout benar di static app.
+- **Acceptance criteria:** variasi 08/+62/62 menuju user yang sama; invalid/non-ID ditolak; UUID tidak berubah saat nomor berubah; user tanpa nomor verified tidak dapat create event; input nomor orang lain tidak memberi akses; expired/reused OTP ditolak; refresh/logout benar di static app.
 
 ### T09 — Venue dan Google Maps
 
@@ -492,7 +492,7 @@ MVP indikatif 7–11 minggu setelah pekerjaan dimulai, dipengaruhi kapasitas tim
 | Area | Skenario wajib | Hasil yang diharapkan |
 | --- | --- | --- |
 | Static hosting | Event baru, direct open, refresh, auth callback, return payment | Berjalan tanpa rebuild/Next server dan tanpa 404 hosting |
-| Identity | 08/+62/62, collision, nomor invalid, OTP replay, claim guest | Satu person per nomor valid; akses selalu membutuhkan proof |
+| Identity | 08/+62/62, collision, nomor invalid, OTP replay, claim guest | Satu user bisnis per nomor valid; akses selalu membutuhkan proof |
 | Authorization | Guest/member/organizer lain mencoba akses event/invoice/evidence | Tidak ada kebocoran atau mutasi lintas owner |
 | Concurrency | 20 join untuk 5 kursi, duplicate join, cancel race | Occupancy maksimal 5, invoice/participant tidak ganda |
 | Time | WIB/WITA/WIT, UTC boundaries, deadline, end before start | Tampilan konsisten dan validasi server benar |

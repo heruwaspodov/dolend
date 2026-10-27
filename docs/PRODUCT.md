@@ -10,7 +10,7 @@ Dolend adalah social activity network untuk merencanakan, mengikuti, dan membagi
 
 ## Terminologi
 
-Event adalah rencana aktivitas. Activity adalah catatan aktivitas pada fase sosial. Person adalah identitas orang dengan UUID dan nomor Indonesia unique berbentuk 62..., sedangkan profile menghubungkan person dengan akun Auth. Member bukan berarti anggota komunitas. Organizer dihitung sebagai peserta hanya jika ikut mendaftar. Status peserta dan status pembayaran dipisahkan.
+Event adalah rencana aktivitas. Activity adalah catatan aktivitas pada fase sosial. User adalah identitas bisnis dengan UUID dan nomor Indonesia unique berbentuk 62..., sedangkan profile menghubungkan user tersebut dengan akun Supabase Auth. Member bukan berarti anggota komunitas. Organizer dihitung sebagai peserta hanya jika ikut mendaftar. Status peserta dan status pembayaran dipisahkan.
 
 ## Scope
 
