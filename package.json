@@ -28,7 +28,8 @@
     "hosting:deploy": "firebase deploy --only hosting:web --project dolend-apps",
     "ci:stamp": "node scripts/ci/stamp-release.mjs",
     "ci:verify-export": "node scripts/ci/verify-export.mjs",
-    "ci:verify-live": "node scripts/ci/verify-live.mjs"
+    "ci:verify-live": "node scripts/ci/verify-live.mjs",
+    "test:demo": "playwright test tests/demo.spec.ts"
   },
   "engines": {
     "node": ">=22.14.0 <23 || >=24.0.0"

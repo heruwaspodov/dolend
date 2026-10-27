@@ -308,6 +308,8 @@ Setiap task adalah pekerjaan yang dapat ditinjau. Dependencies menyebut ID task 
 
 ### T07 — UI dasar dan alur mobile
 
+**Tambahan T07:** playground `/demo/` menyediakan form aktivitas, detail venue/Maps, jadwal WIB, kapasitas, biaya sebelum/sesudah, join tamu, roster, dashboard dan simulasi full/expired. Data in-memory hilang saat refresh; bukan integrasi Auth/API/payment. Dua browser checks desktop/mobile memeriksa alur lengkap; CI ikut menjalankannya. T07 tetap sebagian selesai: integrasi nyata, share undangan, loading/error jaringan dan QA aksesibilitas menyeluruh belum selesai.
+
 **Progres:** setup React + Tailwind CSS + shadcn/ui serta landing page referensi pengguna dikerjakan pada 27 Oktober 2026. Referensi `docs/references/dolend_landing_page_demo.html` diadaptasi menjadi komponen React dengan aset/font lokal, simulator/FAQ/menu mobile dan penanda demo. T07 secara keseluruhan belum selesai; form/join/dashboard/payment dan QA alur penuh tetap wajib.
 
 - **Description:** rancang navigasi Dolend, event card/detail/form, join, roster, pembayaran, dan dashboard dengan Bahasa Indonesia.
