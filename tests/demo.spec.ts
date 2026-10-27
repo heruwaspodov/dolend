@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
 
 test('demo create, join, full, dashboard, expired and refresh', async ({ page }) => {
   await page.goto('/demo/');
@@ -12,10 +13,20 @@ test('demo create, join, full, dashboard, expired and refresh', async ({ page })
   await page.getByRole('button', { name: 'Buat aktivitas demo', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Badminton bareng' })).toBeVisible();
   await expect(page.getByText(/^Rp\s*50\.000$/)).toBeVisible();
+  await expect(page.getByTestId('whatsapp-share')).toHaveAttribute('href', /wa\.me\/\?text=.*Badminton/);
   await page.getByLabel('Nama panggilan demo').fill('Teman demo');
   await page.getByRole('button', { name: 'Gabung demo', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Sudah penuh', exact: true })).toBeDisabled();
-  await page.getByRole('button', { name: 'Lihat dashboard', exact: true }).click();
+  await page.getByRole('button', { name: 'Pembayaran', exact: true }).click();
+  await page.getByRole('button', { name: 'Simulasikan transfer manual', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('Tidak ada uang dipindahkan');
+  await expect(page.getByText('1 orang', { exact: true }).first()).toBeVisible();
+  await page.getByRole('button', { name: 'Dashboard', exact: true }).click();
+  await page.getByRole('button', { name: 'Loading', exact: true }).click();
+  await expect(page.getByLabel('Memuat ringkasan aktivitas')).toHaveAttribute('aria-busy', 'true');
+  await page.getByRole('button', { name: 'Error', exact: true }).click();
+  await expect(page.getByRole('alert').filter({ hasText: 'Ringkasan gagal dimuat' })).toBeVisible();
+  await page.getByRole('button', { name: 'Coba lagi', exact: true }).click();
   await expect(page.getByText('Teman demo', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Simulasikan berakhir', exact: true }).click();
   await page.getByRole('button', { name: 'Buka detail', exact: true }).click();
@@ -25,4 +36,16 @@ test('demo create, join, full, dashboard, expired and refresh', async ({ page })
   await page.reload();
   await page.getByRole('button', { name: 'Dashboard', exact: true }).click();
   await expect(page.getByText('Belum ada aktivitas', { exact: true })).toBeVisible();
+});
+
+test('demo has no detectable accessibility violations', async ({ page }) => {
+  await page.goto('/demo/');
+  await page.getByLabel('Nama aktivitas').fill('Jalan pagi');
+  await page.getByLabel('Venue atau alamat').fill('Taman kota');
+  await page.getByLabel('Jadwal (WIB, UTC+7)').fill('2099-12-12T07:00');
+  await page.getByRole('button', { name: 'Buat aktivitas demo', exact: true }).click();
+  const results = await new AxeBuilder({ page }).analyze();
+  expect(results.violations).toEqual([]);
+  await page.keyboard.press('Tab');
+  await expect(page.locator(':focus')).toBeVisible();
 });
