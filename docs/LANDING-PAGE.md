@@ -51,4 +51,4 @@ HOSTING_BASE_URL=https://dolend.web.app npm run test:landing
 
 Firebase CLI harus terautentikasi. Jangan menggunakan `build:preview`/fixture event untuk rilis live. `test:hosting` tetap untuk suite POC T03 dengan fixture khusus; `test:landing` tidak membutuhkan fixture tersebut. Browser default adalah Chrome lokal; Chromium Playwright dapat dipakai melalui `PLAYWRIGHT_CHANNEL=chromium` setelah instalasinya.
 
-Rilis awal dilakukan manual sesuai permintaan publikasi. GitHub Actions auto-deploy tetap pekerjaan T06; credential/workflow CI belum diaktifkan pada rilis landing ini. T07 juga belum selesai seluruhnya: form event bisnis, Auth, dashboard, dan transaksi nyata masih task lanjutan.
+Rilis landing pertama dilakukan manual. T06 kemudian mengaktifkan dan membuktikan auto-deploy GitHub Actions melalui OIDC; detail pada [CI-CD.md](CI-CD.md). T07 juga belum selesai seluruhnya: form event bisnis, Auth, dashboard, dan transaksi nyata masih task lanjutan.

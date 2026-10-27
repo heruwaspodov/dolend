@@ -2,7 +2,7 @@
 
 Target: `https://dolend.web.app/` • repository `heruwaspodov/dolend` • workflow `.github/workflows/firebase-hosting.yml`.
 
-Status awal: workflow dan identitas OIDC dikonfigurasi; run GitHub pertama sedang dipersiapkan. Status terverifikasi dicatat di PLAN.md setelah workflow benar-benar selesai.
+Status: **baseline CI/CD frontend selesai**. [Run pertama 40465855465](https://github.com/heruwaspodov/dolend/actions/runs/40465855465) sukses pada commit `4e3dd77`, termasuk autentikasi OIDC, deploy dan SHA live yang cocok. [Bukti mesin](ci-results.json).
 
 ## Urutan pipeline
 
@@ -46,6 +46,6 @@ Jangan menyimpan Supabase service-role key dalam NEXT_PUBLIC_* atau workflow fro
 - Untuk rollback cepat, gunakan riwayat release Hosting di Firebase Console. Untuk perbaikan permanen, revert kode frontend lewat commit baru dan biarkan checks/deploy berjalan. Database/ledger tidak di-reset atau di-rollback oleh pipeline ini.
 - Workflow dapat dijalankan ulang melalui Actions atau `gh workflow run firebase-hosting.yml --ref main`. Rerun membangun dan menguji artefak lagi; upload mendukung overwrite untuk run yang sama.
 
-Firebase CLI 15.34.1 dipin sebagai dev dependency. Audit npm saat setup melaporkan advisory moderate pada dependency CLI; tidak ada high/critical setelah upgrade dari CLI lama. Advisory tersebut bukan endpoint server aplikasi, dan tidak menjadi alasan memakai npm audit fix --force yang menurunkan/merusak dependency. Pembaruan CLI/transitif tetap perlu dipantau; job deploy memasang dependency dengan lifecycle scripts dimatikan.
+Firebase CLI 15.34.1 dipin sebagai dev dependency. Audit dependency runtime (`npm audit --omit=dev`) bersih. Audit penuh saat setup melaporkan 6 advisory moderate pada dependency CLI; tidak ada high/critical setelah upgrade dari CLI lama. Advisory tersebut bukan endpoint server aplikasi, dan tidak menjadi alasan memakai npm audit fix --force yang menurunkan/merusak dependency. Pembaruan CLI/transitif tetap perlu dipantau; job deploy memasang dependency dengan lifecycle scripts dimatikan.
 
 Referensi: [GitHub OIDC Google Auth](https://github.com/google-github-actions/auth), [Google WIF deployment pipelines](https://docs.cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines), [Firebase deploy targets](https://firebase.google.com/docs/cli/targets).

@@ -1,0 +1,32 @@
+{
+  "date": "2026-10-27",
+  "workflow": ".github/workflows/firebase-hosting.yml",
+  "run_id": 40465855465,
+  "run_url": "https://github.com/heruwaspodov/dolend/actions/runs/40465855465",
+  "commit": "4e3dd7715ec6d8d13620209b796125dd786bd75d",
+  "conclusion": "success",
+  "jobs": [
+    {
+      "name": "Build and test",
+      "conclusion": "success"
+    },
+    {
+      "name": "Deploy dolend.web.app",
+      "conclusion": "success"
+    }
+  ],
+  "live_release": {
+    "commit": "4e3dd7715ec6d8d13620209b796125dd786bd75d",
+    "repository": "heruwaspodov/dolend",
+    "run_id": "40465855465",
+    "built_at": "2026-10-27T07:15:33.681Z"
+  },
+  "api_handler_tests": 6,
+  "probe_tests": 2,
+  "database_check_groups": 38,
+  "landing_browser_tests": 18,
+  "runtime_dependency_audit_total": 0,
+  "authentication": "OIDC/WIF; no service-account key",
+  "deploy_gate": "needs: checks + main-only condition",
+  "preview_deploy": "manual isolated channel t03; POC flag false on live"
+}

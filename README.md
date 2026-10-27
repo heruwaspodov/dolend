@@ -44,7 +44,7 @@ Versi dependency dipin dalam `package.json` dan `package-lock.json`. Elysia sert
 
 ## Persiapan
 
-Gunakan Node.js **22.14 atau lebih baru pada seri 22**, atau **24 ke atas**, sesuai `engines` di `package.json`, beserta npm. Deno dan Supabase CLI sudah menjadi dependency lokal; keduanya tidak perlu dipasang global. Docker diperlukan hanya untuk menjalankan Supabase lokal melalui CLI, bukan untuk API Deno langsung.
+Gunakan **Node.js 24 LTS** seperti `.node-version`, beserta npm. Seri Node 22 mulai 22.14 juga didukung aplikasi; CI memakai Node 24. Deno, Supabase CLI, dan Firebase CLI sudah menjadi dependency lokal; keduanya tidak perlu dipasang global. Docker diperlukan hanya untuk menjalankan Supabase lokal melalui CLI, bukan untuk API Deno langsung.
 
 ```sh
 cd /Users/wspdv/Works/dolend
@@ -149,7 +149,7 @@ Frontend memakai `output: 'export'` dan konfigurasi `firebase.json` yang menunju
 
 ## Preview Firebase dan uji static hosting
 
-Firebase CLI yang terautentikasi diperlukan (`firebase --version`; versi sesi pengujian 14.27.0). Script Hosting menggunakan CLI tersebut. Untuk preview T03:
+Firebase CLI yang dipin dipasang oleh `npm ci`. Untuk deploy manual, login melalui `npx firebase login`; CI menggunakan OIDC tanpa login browser. Untuk preview T03:
 
 ```sh
 npm run build:preview
@@ -168,7 +168,7 @@ HOSTING_BASE_URL=https://dolend--t03-pnd1m1mh.web.app npm run test:hosting
 
 Preview channel bersifat publik dan berumur terbatas; jangan memasukkan data pribadi ke fixture. Deployment ini ditujukan ke preview, bukan live channel. Metadata/preview WhatsApp tetap umum Dolend; SEO event dinamis terbatas karena konten diambil setelah halaman dibuka.
 
-GitHub Actions untuk **https://dolend.web.app/** disiapkan pada T06: checks → verified static artifact → OIDC deploy ke live saat push main. Hasil run pertama masih diverifikasi. Lihat [CI-CD.md](docs/CI-CD.md). Preview manual tetap terpisah dari live deployment.
+GitHub Actions untuk **https://dolend.web.app/** sudah aktif dan terbukti: checks → verified static artifact → OIDC deploy ke live saat push main. PR hanya menjalankan checks; build gagal tidak mencapai job deploy. Lihat [CI-CD.md](docs/CI-CD.md). Preview manual tetap terpisah dari live deployment.
 
 ## Struktur proyek
 

@@ -43,4 +43,4 @@ Hosted suite berisi 12 kelompok pemeriksaan, ditambah 1 regresi SQL rollback. Se
 
 ## Berikutnya
 
-T05 provider SMS/payment ditunda atas instruksi pengguna setelah T04; T06 CI/CD dan landing publik dapat dilanjutkan. Permintaan pengguna sudah dimasukkan ke T06: GitHub Actions pada `heruwaspodov/dolend` melakukan build normal dan auto-deploy live Hosting ke **https://dolend.web.app/** (project `dolend-apps`, site `dolend`, target `web`) setelah checks lulus. Workflow dan credential CI belum dibuat di T04.
+T05 provider SMS/payment ditunda atas instruksi pengguna setelah T04; T06 CI/CD dan landing publik dapat dilanjutkan. Permintaan pengguna sudah dimasukkan ke T06: GitHub Actions pada `heruwaspodov/dolend` melakukan build normal dan auto-deploy live Hosting ke **https://dolend.web.app/** (project `dolend-apps`, site `dolend`, target `web`) setelah checks lulus. Workflow belum dibuat pada T04; setelahnya T06 mengaktifkan auto-deploy frontend berbasis OIDC, tanpa menyimpan credential database di CI.
