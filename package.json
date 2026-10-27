@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:all": "node scripts/dev-all.mjs",
     "build": "next build",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
@@ -31,7 +32,9 @@
     "ci:verify-live": "node scripts/ci/verify-live.mjs",
     "env:check": "node --env-file=.env.local scripts/check-env.mjs",
     "env:check:ci": "node scripts/check-env.mjs",
-    "test:demo": "playwright test tests/demo.spec.ts"
+    "test:demo": "playwright test tests/demo.spec.ts",
+    "test:account": "playwright test tests/account.spec.ts",
+    "test:phone": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test src/lib/phone.test.ts"
   },
   "engines": {
     "node": ">=22.14.0 <23 || >=24.0.0"

@@ -40,13 +40,14 @@ jobs:
       - run: npm ci
       - run: npm run env:check:ci
       - run: npm run lint
+      - run: npm run test:phone
       - run: npm run api:check && npm run api:test
       - run: npm run poc:check && npm run poc:test
       - run: npm run db:test
       - run: npm run build
       - run: npm run typecheck
       - run: npx playwright install --with-deps chromium
-      - run: npm run test:landing && npm run test:demo
+      - run: npm run test:landing && npm run test:demo && npm run test:account
       - run: npm run ci:stamp && npm run ci:verify-export
       - name: Retain the verified static build
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

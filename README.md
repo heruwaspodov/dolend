@@ -8,10 +8,11 @@ Direktori kerja proyek: `/Users/wspdv/Works/dolend`.
 
 Brief produk T01 selesai untuk sumber yang tersedia dan **T02 kompatibilitas Elysia/Supabase sudah GO**. **T03 static Hosting juga sudah GO**: query-route serta auth/payment return shell lulus pengujian browser pada preview Firebase.
 
-- Next.js menghasilkan static export untuk beranda, `/event/`, `/auth/callback/`, dan `/payment/`. Target Hosting: project `dolend-apps`, site `dolend`.
+- Next.js menghasilkan static export untuk beranda, `/account/`, `/event/`, `/auth/callback/`, dan `/payment/`. Target Hosting: project `dolend-apps`, site `dolend`.
 - Elysia sudah di-deploy ke Supabase. Enam test lokal dan smoke HTTP hosted 120 request lulus pada 27 Oktober 2026.
 - Hosted user JWT, RPC/RLS dengan 20 write konkuren, private Storage, raw-signature webhook/deduplication, dan instalasi source bersih sudah lulus. Probe serta fixture sementara telah dihapus.
 - T04 sudah menerapkan 22 tabel, RLS, dan RPC transaksi bisnis ke Supabase; fitur event/Auth/payment belum dihubungkan ke API/UI. Hasil test dan batasnya ada di docs/DATABASE-RESULTS.md.
+- T08 sudah memiliki normalisasi nomor Indonesia dan fondasi session browser di `/account/`; pengiriman OTP, write profil, SMS, dan payment provider tetap belum diaktifkan.
 
 Detail progres dan kriteria penerimaan ada di [PLAN.md](PLAN.md) dan [hasil POC](docs/POC-RESULTS.md).
 
@@ -56,7 +57,13 @@ cp .env.example .env.local
 
 ## Menjalankan aplikasi
 
-Frontend, pada terminal pertama:
+Frontend dan API sekaligus (disarankan):
+
+```sh
+npm run dev:all
+```
+
+Log diberi awalan `[web]` dan `[api]`. Menekan `Ctrl+C` menghentikan keduanya. Jika ingin menjalankannya terpisah, frontend pada terminal pertama:
 
 ```sh
 npm run dev
@@ -87,6 +94,7 @@ Untuk `/me` lokal, set `SUPABASE_URL` dan `SUPABASE_PUBLISHABLE_KEY` (atau `SUPA
 
 | Perintah | Kegunaan |
 | --- | --- |
+| `npm run dev:all` | Frontend dan API paralel dalam satu terminal |
 | `npm run dev` | Frontend dengan live reload |
 | `npm run env:check` | Validasi `.env.local` tanpa mencetak key |
 | `npm run build` | Build frontend menjadi folder `out/` |
@@ -95,6 +103,8 @@ Untuk `/me` lokal, set `SUPABASE_URL` dan `SUPABASE_PUBLISHABLE_KEY` (atau `SUPA
 | `npm run api:dev` | API Deno dengan watch mode |
 | `npm run api:check` | Pemeriksaan tipe API |
 | `npm run api:test` | Test handler API lokal, tanpa layanan Supabase |
+| `npm run test:phone` | Unit test normalisasi nomor Indonesia |
+| `npm run test:account` | Browser test fondasi akun pada desktop dan mobile |
 | `npm run api:smoke` | Smoke HTTP ke `API_BASE_URL` yang ditentukan |
 | `npm run supabase -- <command>` | Supabase CLI lokal |
 | `npm run ui -- add <component>` | Menambah komponen shadcn/ui |
