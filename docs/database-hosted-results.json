@@ -1,0 +1,37 @@
+{
+  "date": "2026-10-27",
+  "project": "fpbefabsqryxmnmxufjw",
+  "checks": [
+    "20 hosted joins for 5 seats: exactly 5 confirmations and 15 EVENT_FULL",
+    "10 concurrent join retries retain one participant",
+    "capacity cannot shrink below occupied seats",
+    "cancellation releases one seat and replacement preserves capacity",
+    "success status requires matching ledger receipt",
+    "wrong provider amount rejected",
+    "20 concurrent provider callbacks: one receipt and one confirmed seat",
+    "10 concurrent refund confirmations create one refund ledger entry",
+    "refund cannot exceed original receipt",
+    "member/organizer RLS, cross-user privacy, ledger write denial and privileged RPC denial",
+    "anonymous projection hides unlisted events and private identity tables",
+    "real hold expiry is idempotent; late paid receipt recorded without overbooking",
+    "hosted rollback regression preserves attended history and queues cancellation refund review"
+  ],
+  "status": "passed",
+  "cleanup_verified": true,
+  "cleanup_counts": {
+    "activity_categories": 7,
+    "attempts": 0,
+    "audit": 0,
+    "events": 0,
+    "fixture_auth_users": 0,
+    "guest_sessions": 0,
+    "invoices": 0,
+    "ledger": 0,
+    "outbox": 0,
+    "participants": 0,
+    "people": 0,
+    "profiles": 0,
+    "refunds": 0
+  },
+  "migrations_applied": 6
+}

@@ -1,0 +1,26 @@
+{
+  "date": "2026-10-27",
+  "url": "https://dolend.web.app/",
+  "project": "dolend-apps",
+  "site": "dolend",
+  "channel": "live",
+  "version": "bff06a0a1f5820f9",
+  "status": 200,
+  "headers_verified": true,
+  "local_browser_checks": 18,
+  "local_failures": 0,
+  "source_html_sha256": "88f62542fb5ab6da4914efe1d879d169f1a2b1572de48cf07d1aa9328361d4c2",
+  "sms_provider": "deferred_by_user",
+  "payment_gateway": "deferred_by_user",
+  "payment_behavior": "browser-only simulation",
+  "poc_event_data_in_release": false,
+  "live_browser_checks": 18,
+  "live_failures": 0,
+  "viewports_checked": [
+    360,
+    768,
+    1440
+  ],
+  "visual_review": true,
+  "shared_link_fresh_tab_and_reload_passed": true
+}

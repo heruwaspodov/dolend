@@ -1,0 +1,135 @@
+import { PGlite } from '@electric-sql/pglite';
+import { readFile, readdir, writeFile } from 'node:fs/promises';
+import assert from 'node:assert/strict';
+const db = new PGlite();
+let checks = 0;
+const query = async (sql, params=[]) => (await db.query(sql, params)).rows;
+const expectFailure = async (sql, params, pattern) => {
+  await assert.rejects(db.query(sql,params),pattern); checks++;
+};
+try {
+  await db.exec(`create role anon; create role authenticated; create role service_role bypassrls;
+    create schema auth; grant usage on schema auth to anon,authenticated,service_role;
+    create table auth.users(id uuid primary key,phone text,phone_confirmed_at timestamptz,deleted_at timestamptz,banned_until timestamptz);
+    create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
+    grant execute on function auth.uid() to public;`);
+  for (const file of (await readdir('supabase/migrations')).filter(f=>f.endsWith('.sql')).sort()) {
+    await db.exec(await readFile(`supabase/migrations/${file}`,'utf8'));
+  }
+  console.log('PASS migration replay on empty PostgreSQL-compatible database'); checks++;
+  const organizer='10000000-0000-4000-8000-000000000001', other='10000000-0000-4000-8000-000000000002';
+  const ownerPerson='20000000-0000-4000-8000-000000000001',otherPerson='20000000-0000-4000-8000-000000000002';
+  await db.query(`insert into auth.users(id,phone,phone_confirmed_at) values($1,'628123450001',now()),($2,'628123450002',now())`,[organizer,other]);
+  await db.query(`insert into public.people(id,display_name,phone_normalized,phone_verified_at) values($1,'Organizer fixture','628123450001',now()),($2,'Member fixture','628123450002',now())`,[ownerPerson,otherPerson]);
+  await db.query(`insert into public.profiles(id,person_id) values($1,$2),($3,$4)`,[organizer,ownerPerson,other,otherPerson]);
+  const event=async(mode='free',capacity=2,visibility='public')=>{
+    const [{id}]=await query(`insert into public.events(organizer_profile_id,activity_type_id,title,venue_snapshot,starts_at,ends_at,registration_closes_at,capacity,visibility,payment_mode,price_amount,payment_due_at)
+    values($1,(select id from public.activity_types limit 1),'Fixture event','{"name":"Venue fixture","address":"Jakarta","maps_url":"https://www.google.com/maps/search/?api=1&query=Jakarta","private_note":"not public"}',now()+interval '1 day',now()+interval '1 day 1 hour',now()+interval '23 hours',$2,$3,$4,$5,now()+interval '2 days') returning id`,[organizer,capacity,visibility,mode,mode==='free'?0:10000]);
+    const [{id:method}]=await query(`insert into public.event_payment_methods(event_id,method_type) values($1,'manual_bank_transfer') returning id`,[id]);
+    const [{id:gateway}]=await query(`insert into public.event_payment_methods(event_id,method_type,provider,provider_method) values($1,'qris','fixture','qris') returning id`,[id]);
+    await db.query(`update public.events set status='published' where id=$1`,[id]);
+    return {id,method,gateway};
+  };
+  const join=async(e,person=otherPerson,actor=other)=> (await query('select * from public.join_event($1,$2,$3)',[e.id,person,actor]))[0];
+  const free=await event(); const participant=await join(free);
+  assert.equal(participant.status,'confirmed'); assert.equal((await join(free)).id,participant.id);
+  assert.equal((await query('select count(*)::int n from public.invoices'))[0].n,0); checks++;
+  await expectFailure('select * from public.join_event($1,$2,$3)',[free.id,otherPerson,organizer],/ACTOR_MISMATCH/);
+  await expectFailure('update public.events set capacity=0 where id=$1',[free.id],/CAPACITY_BELOW_OCCUPANCY|check constraint/);
+  const before=await event('before_event',1); const held=await join(before);
+  assert.equal(held.status,'held'); checks++;
+  const invoice=(await query('select * from public.invoices where participant_id=$1',[held.id]))[0];
+  await expectFailure('update public.invoices set amount_due=999 where id=$1',[invoice.id],/IMMUTABLE_INVOICE_PRICE/);
+  await expectFailure('update public.event_participants set status=\'confirmed\' where id=$1',[held.id],/PAYMENT_REQUIRED/);
+  const attempt=(await query('select * from public.create_payment_attempt($1,$2,$3,$4)',[invoice.id,before.method,'manual-1',other]))[0];
+  await expectFailure("update public.payment_attempts set status='succeeded' where id=$1",[attempt.id],/RECEIPT_REQUIRED/);
+  assert.equal((await query('select * from public.create_payment_attempt($1,$2,$3,$4)',[invoice.id,before.method,'manual-1',other]))[0].id,attempt.id); checks++;
+  await expectFailure('select * from public.create_payment_attempt($1,$2,$3,$4)',[invoice.id,before.gateway,'manual-1',other],/IDEMPOTENCY_MISMATCH/);
+  await expectFailure('select * from public.approve_manual_payment($1,$2,$3,$4)',[attempt.id,organizer,'approve','verified'],/EVIDENCE_REQUIRED/);
+  await db.query('select * from public.submit_manual_evidence($1,$2,$3,$4,$5)',[attempt.id,'fixture/proof.png','image/png',10,other]);
+  await db.query('select * from public.approve_manual_payment($1,$2,$3,$4)',[attempt.id,organizer,'approve','verified']);
+  await db.query('select * from public.approve_manual_payment($1,$2,$3,$4)',[attempt.id,organizer,'approve','verified']);
+  assert.equal((await query('select status from public.event_participants where id=$1',[held.id]))[0].status,'confirmed');
+  assert.equal((await query("select count(*)::int n from public.payment_ledger where invoice_id=$1 and entry_type='receipt'",[invoice.id]))[0].n,1); checks++;
+  await expectFailure('select * from public.request_refund($1,$2,$3,$4,$5)',[attempt.id,organizer,10001,'fixture','over'],/INVALID_REFUND_AMOUNT/);
+  const refund=(await query('select * from public.request_refund($1,$2,$3,$4,$5)',[attempt.id,organizer,10000,'fixture','refund-1']))[0];
+  await expectFailure('select * from public.record_refund($1,$2,$3)',[refund.id,organizer,'manual-refund'],/REFUND_EVIDENCE_REQUIRED/);
+  await db.query('select * from public.record_refund($1,$2,$3,$4)',[refund.id,organizer,'manual-refund','fixture/refund.png']);
+  await db.query('select * from public.record_refund($1,$2,$3,$4)',[refund.id,organizer,'manual-refund','fixture/refund.png']);
+  assert.equal((await query("select count(*)::int n from public.payment_ledger where invoice_id=$1 and entry_type='refund'",[invoice.id]))[0].n,1); checks++;
+  const post=await event('after_event');const postP=await join(post);
+  assert.equal(postP.status,'confirmed');assert.equal((await query('select status from public.invoices where participant_id=$1',[postP.id]))[0].status,'open'); checks++;
+  const postInvoice=(await query('select id from public.invoices where participant_id=$1',[postP.id]))[0];
+  const postAttempt=(await query('select * from public.create_payment_attempt($1,$2,$3,$4)',[postInvoice.id,post.gateway,'postpay',other]))[0];
+  await db.query("update public.payment_attempts set provider_reference='postpay-ref' where id=$1",[postAttempt.id]);
+  await db.query('select * from public.apply_provider_payment($1,$2,$3,$4,$5)',[postAttempt.id,'fixture','postpay-ref',10000,'IDR']);
+  await db.query("update public.events set starts_at=now()-interval '1 hour',ends_at=now()+interval '1 hour',registration_closes_at=now()-interval '2 hours' where id=$1",[post.id]);
+  await db.query("update public.event_participants set status='attended',attendance_at=now() where id=$1",[postP.id]);
+  await db.query('select public.cancel_event($1,$2,$3)',[post.id,organizer,'fixture cancellation after start']);
+  assert.equal((await query("select count(*)::int n from public.outbox_jobs where aggregate_id=$1 and kind='refund_review'",[postInvoice.id]))[0].n,1);checks++;
+  const late=await event('before_event',1);const lateP=await join(late);
+  const lateI=(await query('select * from public.invoices where participant_id=$1',[lateP.id]))[0];
+  const lateA=(await query('select * from public.create_payment_attempt($1,$2,$3,$4)',[lateI.id,late.gateway,'gateway-1',other]))[0];
+  await db.query("update public.payment_attempts set provider_reference='fixture-ref' where id=$1",[lateA.id]);
+  await db.query("update public.event_participants set hold_expires_at=now()-interval '1 second' where id=$1",[lateP.id]).catch(async()=>{
+    // Expired holds are represented directly for clock-boundary tests; normal writes cannot extend them unchecked.
+    await db.exec('alter table public.event_participants disable trigger guard_participant');
+    try{await db.query("update public.event_participants set hold_expires_at=now()-interval '1 second' where id=$1",[lateP.id]);}finally{await db.exec('alter table public.event_participants enable trigger guard_participant');}
+  });
+  await db.query('select public.expire_holds($1)',[late.id]);
+  await join(late,ownerPerson,organizer);
+  await expectFailure('select * from public.apply_provider_payment($1,$2,$3,$4,$5)',[lateA.id,'fixture','fixture-ref',999,'IDR'],/PAYMENT_MISMATCH/);
+  const received=(await query('select * from public.apply_provider_payment($1,$2,$3,$4,$5)',[lateA.id,'fixture','fixture-ref',10000,'IDR']))[0];
+  assert.equal(received.exception_reason,'late_payment_no_seat');assert.equal(received.status,'succeeded');checks++;
+  await db.query('select * from public.apply_provider_payment($1,$2,$3,$4,$5)',[lateA.id,'fixture','fixture-ref',10000,'IDR']);
+  assert.equal((await query('select count(*)::int n from public.payment_ledger where invoice_id=$1',[lateI.id]))[0].n,1); checks++;
+  await db.query('select public.cancel_event($1,$2,$3)',[before.id,organizer,'fixture cancellation']);
+  assert.equal((await query('select status from public.events where id=$1',[before.id]))[0].status,'cancelled');checks++;
+  const guestPerson='20000000-0000-4000-8000-000000000003',guestAuth='10000000-0000-4000-8000-000000000003';
+  await db.query("insert into auth.users(id,phone,phone_confirmed_at) values($1,'628123450003',now())",[guestAuth]);
+  await db.query("insert into public.people(id,display_name,phone_normalized,phone_verified_at) values($1,'Guest fixture','628123450003',now())",[guestPerson]);
+  await expectFailure("insert into public.people(display_name,phone_normalized) values('Duplicate','628123450003')",[],/unique constraint/);
+  const guestEvent=await event();const hash='1'.repeat(64);
+  await db.query("insert into public.guest_sessions(person_id,scope_event_id,token_hash,expires_at) values($1,$2,$3,now()+interval '1 hour')",[guestPerson,guestEvent.id,hash]);
+  await expectFailure('select * from public.join_event($1,$2,null,$3)',[guestEvent.id,guestPerson,'2'.repeat(64)],/VERIFIED_GUEST_REQUIRED/);
+  const guest=(await query('select * from public.join_event($1,$2,null,$3)',[guestEvent.id,guestPerson,hash]))[0];
+  assert.equal(guest.joined_as,'guest');checks++;
+  const challenge=(await query("insert into public.verification_challenges(phone_normalized,auth_user_id,purpose,verified_at,expires_at) values('628123450003',$1,'claim',now(),now()+interval '1 hour') returning id",[guestAuth]))[0];
+  await expectFailure('select * from public.claim_guest_identity($1,$2)',[other,challenge.id],/INVALID_IDENTITY_PROOF/);
+  const claimed=(await query('select * from public.claim_guest_identity($1,$2)',[guestAuth,challenge.id]))[0];
+  assert.equal(claimed.person_id,guestPerson);assert.equal((await query('select joined_as from public.event_participants where id=$1',[guest.id]))[0].joined_as,'guest');checks++;
+  await expectFailure('select * from public.claim_guest_identity($1,$2)',[guestAuth,challenge.id],/INVALID_IDENTITY_PROOF/);
+  await db.exec('set role service_role');
+  await expectFailure('update public.payment_ledger set amount=1',[],/permission denied/);
+  await expectFailure('delete from public.audit_logs',[],/permission denied/);
+  await db.exec('reset role');
+  const unlisted=await event('free',2,'unlisted');
+  await db.exec(`set role anon`);
+  const projection=await query('select * from public.public_events');
+  assert(!projection.some(row=>row.id===unlisted.id));assert(projection.every(row=>!('phone_normalized' in row)&&!('private_note' in row.venue)));checks++;
+  await expectFailure('select * from public.people',[],/permission denied/);
+  await expectFailure('select * from public.join_event($1,$2,$3)',[free.id,otherPerson,other],/permission denied/);
+  await db.exec('reset role');
+  await db.query("select set_config('request.jwt.claim.sub',$1,false)",[other]); await db.exec('set role authenticated');
+  assert.equal((await query('select * from public.people')).length,1);
+  assert.equal((await query('select * from public.profiles'))[0].id,other);
+  const ownEvents=await query('select id from public.events');
+  assert(ownEvents.some(row=>row.id===free.id));assert(!ownEvents.some(row=>row.id===unlisted.id));checks++;
+  await expectFailure("update public.event_participants set status='confirmed'",[],/permission denied/);
+  await expectFailure("update public.profiles set person_id=$1 where id=$2",[ownerPerson,other],/permission denied/);
+  await db.exec('reset role');
+  const tables=await query("select relname from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind='r' and not c.relrowsecurity");
+  assert.equal(tables.length,0);checks++;
+  const leaks=await query("select routine_name from information_schema.role_routine_grants where routine_schema='public' and grantee in ('PUBLIC','anon','authenticated')");
+  assert.equal(leaks.length,0);checks++;
+  const beforeRestore=(await query('select (select count(*)::int from public.invoices) invoices,(select count(*)::int from public.payment_ledger) ledger'))[0];
+  const snapshot=await db.dumpDataDir('gzip');
+  const restored=new PGlite({loadDataDir:snapshot});
+  try {
+    assert.deepEqual((await restored.query('select (select count(*)::int from public.invoices) invoices,(select count(*)::int from public.payment_ledger) ledger')).rows[0],beforeRestore);
+    assert.equal((await restored.query("select count(*)::int n from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind='r' and not c.relrowsecurity")).rows[0].n,0);
+    checks++;
+  } finally { await restored.close(); }
+  console.log(`PASS ${checks} migration, transaction, integrity and authorization assertions`);
+  await writeFile('docs/database-local-results.json',JSON.stringify({passed:checks,failed:0,engine:'PGlite (PostgreSQL WASM); concurrency must be proven separately on hosted PostgreSQL',migrations:(await readdir('supabase/migrations')).filter(f=>f.endsWith('.sql')).length,restore_round_trip:true,restore_scope:'PGlite datadir only; production Supabase restore remains a release drill'},null,2)+'\n');
+} catch (error) { console.error('FAIL', error.message, error.where ?? ''); process.exitCode=1; } finally { await db.close(); }

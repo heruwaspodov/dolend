@@ -1,0 +1,53 @@
+{
+  "date": "2026-10-27",
+  "project": "dolend-apps",
+  "site": "dolend",
+  "target": "web",
+  "channel": "t03",
+  "preview_url": "https://dolend--t03-pnd1m1mh.web.app",
+  "expires_at": "2026-11-03T04:48:59.887Z",
+  "fixture_id": "ee6eb97c-3327-42b7-901f-dac995e7a726",
+  "created_after_build": true,
+  "event_data_not_in_exported_html": true,
+  "http_routes": [
+    {
+      "path": "/",
+      "status": 200
+    },
+    {
+      "path": "/event/?id=ee6eb97c-3327-42b7-901f-dac995e7a726",
+      "status": 200
+    },
+    {
+      "path": "/auth/callback/",
+      "status": 200
+    },
+    {
+      "path": "/payment/",
+      "status": 200
+    }
+  ],
+  "header_checks_passed": true,
+  "browser_checks": {
+    "local_passed": 12,
+    "hosted_passed": 12,
+    "failed": 0,
+    "mobile_viewport": "360x800",
+    "desktop_viewport": "1280x800",
+    "coverage": [
+      "runtime event fetch and reload",
+      "unknown event",
+      "missing/malformed IDs",
+      "loading/error/retry",
+      "auth callback route and query cleanup",
+      "payment return never confirms paid from query"
+    ],
+    "duration_ms": 15714.560000000001
+  },
+  "clean_normal_export_passed": true,
+  "normal_build_contains_no_fixture": true,
+  "visual_review": {
+    "mobile": true,
+    "desktop": true
+  }
+}

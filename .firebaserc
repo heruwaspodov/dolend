@@ -1,0 +1,15 @@
+{
+  "projects": {
+    "default": "dolend-apps"
+  },
+  "targets": {
+    "dolend-apps": {
+      "hosting": {
+        "web": [
+          "dolend"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}

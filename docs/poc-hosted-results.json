@@ -1,0 +1,76 @@
+{
+  "date": "2026-10-27",
+  "project": "fpbefabsqryxmnmxufjw",
+  "checks": [
+    "probe requires run token",
+    "hosted Elysia runtime and secrets",
+    "main API validates real user JWT",
+    "invalid JWT and anon identity rejected",
+    "hosted JSON validation envelope",
+    "hosted CORS deny and preflight",
+    "hosted safe error path",
+    "20 concurrent hosted transactional RPC writes without lost updates",
+    "RLS cross-user read and insert denied",
+    "multipart upload, private storage, signed download and cross-user denial",
+    "raw HMAC webhook, signature/expiry rejection, 20 duplicate callbacks and payload conflict",
+    "deleted user JWT rejected",
+    "100 hosted smoke requests",
+    "wrong MIME rejected",
+    "oversize rejected",
+    "cross-user upload denied",
+    "anonymous RPC denied",
+    "expired signed download denied"
+  ],
+  "timings": {
+    "first_ms": 2533.222218000001,
+    "warm_read": {
+      "p50_ms": 289.36,
+      "p95_ms": 396.8
+    },
+    "concurrent_rpc": {
+      "p50_ms": 1182.07,
+      "p95_ms": 1700.37
+    }
+  },
+  "runtime": {
+    "deno": {
+      "deno": "supabase-edge-runtime-1.77.8 (compatible with Deno v2.1.4)",
+      "v8": "11.6.189.12",
+      "typescript": "5.1.6"
+    },
+    "boot_id": "3e810b7e-1573-476c-aae6-d2668f028972",
+    "uptime_ms": 40.220448000000005
+  },
+  "status": "passed",
+  "bundle_measurement": {
+    "tool": "Deno bundle --platform deno --minify (diagnostic, not hosted ESZIP size)",
+    "api_bytes": 624422,
+    "probe_bytes": 626525
+  },
+  "clean_install": {
+    "npm_ci": true,
+    "lint": true,
+    "static_build": true,
+    "frontend_typecheck": true,
+    "api_typecheck": true,
+    "api_tests_passed": 6,
+    "probe_typecheck": true,
+    "probe_tests_passed": 2,
+    "note": "Fresh temporary source directory without node_modules; remote CI remains T06."
+  },
+  "runner_node": "25.8.2",
+  "cleanup": {
+    "verified": true,
+    "buckets": 0,
+    "fixture_users": 0,
+    "objects": 0,
+    "policies": 0,
+    "routines": 0,
+    "tables": 0,
+    "probe_function_removed": true,
+    "poc_secrets_removed": true,
+    "local_state_removed": true,
+    "main_api_gateway_jwt_preserved": true,
+    "setup_prepare_cleanup_repeat_passed": true
+  }
+}

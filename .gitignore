@@ -1,0 +1,39 @@
+# Dependencies (including function-local Deno npm dependencies)
+node_modules/
+
+# Next.js static export and generated type/build caches
+/.next/
+/out/
+/next-env.d.ts
+*.tsbuildinfo
+
+# Local environment files; keep the documented template
+.env*
+!.env.example
+
+# Firebase and Supabase local state
+/.firebase/
+firebase-debug.log*
+firestore-debug.log*
+ui-debug.log*
+/supabase/.temp/
+/supabase/.branches/
+
+# Test output and package-manager logs
+/coverage/
+/playwright-report/
+/test-results/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS and editor temporary files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Generated preview fixture metadata (public demo data lives only in out/)
+/.firebase-preview-fixture.json

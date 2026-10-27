@@ -1,0 +1,13 @@
+{
+  "measurement": "First authorized request after redeployment; worker uptime is observed, platform cold-start phases are not separately measurable.",
+  "latency_ms": 3698.24,
+  "runtime": {
+    "deno": {
+      "deno": "supabase-edge-runtime-1.77.8 (compatible with Deno v2.1.4)",
+      "v8": "11.6.189.12",
+      "typescript": "5.1.6"
+    },
+    "boot_id": "e85cc448-b41b-4096-bbb4-f7be69fe1e30",
+    "uptime_ms": 28.518969
+  }
+}
