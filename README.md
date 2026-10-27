@@ -168,7 +168,7 @@ HOSTING_BASE_URL=https://dolend--t03-pnd1m1mh.web.app npm run test:hosting
 
 Preview channel bersifat publik dan berumur terbatas; jangan memasukkan data pribadi ke fixture. Deployment ini ditujukan ke preview, bukan live channel. Metadata/preview WhatsApp tetap umum Dolend; SEO event dinamis terbatas karena konten diambil setelah halaman dibuka.
 
-GitHub Actions auto-deploy live ke **https://dolend.web.app/** sudah menjadi requirement T06; workflow/credential CI belum dikonfigurasi. Preview manual saat ini tetap terpisah dari live deployment.
+GitHub Actions untuk **https://dolend.web.app/** disiapkan pada T06: checks → verified static artifact → OIDC deploy ke live saat push main. Hasil run pertama masih diverifikasi. Lihat [CI-CD.md](docs/CI-CD.md). Preview manual tetap terpisah dari live deployment.
 
 ## Struktur proyek
 
@@ -201,6 +201,7 @@ Folder dependency, hasil build, file environment lokal, log, dan cache layanan t
 - [ADR runtime POC](docs/decisions/0001-runtime-poc.md): gate kompatibilitas Elysia/Supabase.
 - [Hasil POC](docs/POC-RESULTS.md): bukti GO, pengukuran, dan batas verifikasi.
 - [Hasil Hosting T03](docs/HOSTING-RESULTS.md): URL preview, browser checks, dan batas shell auth/payment.
+- [CI/CD](docs/CI-CD.md): workflow, identitas OIDC, urutan deployment dan rollback.
 - [Landing page live](docs/LANDING-PAGE.md): referensi, simulator, status demo dan hasil rilis.
 - [Fondasi database](docs/DATABASE.md) dan [hasil T04](docs/DATABASE-RESULTS.md): ERD, akses, migrations, tests, serta prosedur pemulihan.
 - [Menjalankan ulang POC](supabase/poc/README.md): setup, prepare, test, dan cleanup resource sementara.

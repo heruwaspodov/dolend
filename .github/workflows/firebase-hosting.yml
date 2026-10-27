@@ -1,0 +1,95 @@
+name: Verify and deploy Firebase Hosting
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hosting-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  NEXT_PUBLIC_POC_EVENT_FIXTURES: 'false'
+  PLAYWRIGHT_CHANNEL: chromium
+
+jobs:
+  checks:
+    name: Build and test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run api:check && npm run api:test
+      - run: npm run poc:check && npm run poc:test
+      - run: npm run db:test
+      - run: npm run build
+      - run: npm run typecheck
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:landing
+      - run: npm run ci:stamp && npm run ci:verify-export
+      - name: Retain the verified static build
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: static-site-${{ github.sha }}
+          path: out/
+          if-no-files-found: error
+          retention-days: 14
+          overwrite: true
+      - name: Retain browser diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: browser-failure-${{ github.run_id }}
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+          overwrite: true
+
+  deploy:
+    name: Deploy dolend.web.app
+    needs: checks
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    environment:
+      name: production
+      url: https://dolend.web.app/
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+      # No build is repeated; installation is only for the locked Firebase CLI.
+      - run: npm ci --ignore-scripts
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: static-site-${{ github.sha }}
+          path: out/
+      - run: npm run ci:verify-export
+      - name: Authenticate using short-lived GitHub OIDC
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          project_id: dolend-apps
+          workload_identity_provider: projects/231014996414/locations/global/workloadIdentityPools/dolend-github/providers/github-main
+          service_account: dolend-hosting-ci@dolend-apps.iam.gserviceaccount.com
+      - run: npm run hosting:deploy -- --non-interactive
+      - run: npm run ci:verify-live

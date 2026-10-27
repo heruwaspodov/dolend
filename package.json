@@ -25,7 +25,10 @@
     "db:catalog": "node scripts/database/catalog.mjs",
     "db:types": "node scripts/database/generate-types.mjs",
     "test:landing": "playwright test tests/landing.spec.ts",
-    "hosting:deploy": "firebase deploy --only hosting:web --project dolend-apps"
+    "hosting:deploy": "firebase deploy --only hosting:web --project dolend-apps",
+    "ci:stamp": "node scripts/ci/stamp-release.mjs",
+    "ci:verify-export": "node scripts/ci/verify-export.mjs",
+    "ci:verify-live": "node scripts/ci/verify-live.mjs"
   },
   "engines": {
     "node": ">=22.14.0 <23 || >=24.0.0"
@@ -53,6 +56,7 @@
     "deno": "2.9.6",
     "eslint": "9.39.5",
     "eslint-config-next": "16.4.3",
+    "firebase-tools": "15.34.1",
     "postcss": "8.5.32",
     "shadcn": "4.22.1",
     "supabase": "2.122.0",

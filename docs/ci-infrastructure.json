@@ -1,0 +1,17 @@
+{
+  "project": "dolend-apps",
+  "project_number": "231014996414",
+  "repository": "heruwaspodov/dolend",
+  "repository_id": "1435197079",
+  "owner_id": "3330053",
+  "service_account": "dolend-hosting-ci@dolend-apps.iam.gserviceaccount.com",
+  "provider": "projects/231014996414/locations/global/workloadIdentityPools/dolend-github/providers/github-main",
+  "attribute_condition": "assertion.repository_id == '1435197079' && assertion.repository_owner_id == '3330053' && assertion.ref == 'refs/heads/main' && assertion.workflow_ref == 'heruwaspodov/dolend/.github/workflows/firebase-hosting.yml@refs/heads/main'",
+  "project_roles": [
+    "roles/firebasehosting.admin",
+    "roles/serviceusage.apiKeysViewer",
+    "roles/serviceusage.serviceUsageConsumer"
+  ],
+  "user_managed_keys": 0,
+  "authentication": "GitHub OIDC -> Workload Identity Federation -> service account impersonation"
+}
