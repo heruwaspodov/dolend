@@ -247,6 +247,7 @@ Phase 2 API: follow/unfollow, follow requests, community CRUD/membership/invites
 | T05 | Ditunda atas permintaan pengguna | Provider SMS dan payment gateway belum dipilih/diaktifkan. Tidak menghalangi landing page publik dan CI frontend; fitur OTP/payment nyata tetap menunggu keputusan berikutnya. |
 | T06 | Selesai — baseline CI/CD frontend | Push main menjalankan checks → verified artifact → OIDC live deploy ke dolend.web.app; run GitHub 40465855465 sukses dan SHA live cocok. Node 24, pinned actions/CLI, tanpa long-lived key, release metadata, isolated preview dan runbook tersedia. API/migration tetap prosedur manual; lihat `docs/CI-CD.md` dan `docs/ci-results.json`. |
 | T07 | Selesai — UI baseline | Landing dan playground React/Tailwind/shadcn mencakup form event, detail/Maps, join tamu, roster, dashboard, simulasi pembayaran manual, WhatsApp, serta empty/loading/error/full/expired. Audit Axe WCAG AA, keyboard, desktop dan 360 px lulus. Integrasi nyata mengikuti T08–T19; lihat `docs/UI-RESULTS.md`. |
+| T08 | Dimulai — environment foundation | `.env.local` public config, `.env.example`, validator, Supabase CLI link, dan GitHub Actions public build variables tersedia. Normalisasi nomor, Auth/profile/session UI tetap dikerjakan; OTP nyata menunggu T05. |
 
 Hasil lokal: lint, Next build, TypeScript, Deno check dan 6 test lulus. HTTP localhost: first request 72.39 ms, warm p50 1.02 ms, p95 4.94 ms; ini bukan ukuran hosted/cold-start atau transaksi DB. Docker daemon belum aktif. Supabase tujuan dipilih pengguna: `fpbefabsqryxmnmxufjw`. Setup UI dikerjakan sesuai keputusan pengguna; compatibility gate T02 sudah GO. T03 juga sudah GO melalui preview Firebase. T05 (SMS/gateway readiness) ditunda atas permintaan pengguna; M0/MVP penuh tetap belum selesai, sementara landing page dan CI frontend dapat dilanjutkan. Verifikasi expired JWT asli/refresh/logout tetap T08/T20; webhook gateway nyata tetap T16.
 
@@ -318,6 +319,8 @@ Setiap task adalah pekerjaan yang dapat ditinjau. Dependencies menyebut ID task 
 - **Acceptance criteria:** alur utama dapat digunakan pada viewport 360 px dan desktop; keyboard/focus/label/contrast diperiksa; waktu/zona/biaya jelas sebelum join; guest/member mudah dipahami; nama dan pesan konsisten Dolend.
 
 ### T08 — Supabase Auth, profil, dan identitas nomor
+
+**Progres:** fondasi environment selesai 27 Oktober 2026. Frontend dan Elysia lokal mengarah ke project `fpbefabsqryxmnmxufjw`; publishable key divalidasi tanpa menaruh service-role/database password dalam file publik. Migration tetap melalui Supabase CLI linked. Pengiriman OTP belum diaktifkan.
 
 - **Description:** implementasi signup/login/logout/refresh, verified phone, normalisasi, unique identity, recovery, dan profile ownership.
 - **Deliverables:** Auth integration, normalization utility, profile API/UI, OTP throttle, nomor-change flow, identity tests.

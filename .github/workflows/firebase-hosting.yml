@@ -14,7 +14,14 @@ concurrency:
   cancel-in-progress: false
 
 env:
+  NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+  NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
   NEXT_PUBLIC_POC_EVENT_FIXTURES: 'false'
+  SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+  SUPABASE_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+  ALLOWED_ORIGINS: http://localhost:3000,https://dolend.web.app
+  POC_MODE: 'false'
   PLAYWRIGHT_CHANNEL: chromium
 
 jobs:
@@ -31,6 +38,7 @@ jobs:
           node-version-file: .node-version
           cache: npm
       - run: npm ci
+      - run: npm run env:check:ci
       - run: npm run lint
       - run: npm run api:check && npm run api:test
       - run: npm run poc:check && npm run poc:test

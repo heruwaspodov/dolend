@@ -7,7 +7,7 @@
     "build": "next build",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "api:dev": "deno run --config supabase/functions/dolend-api/deno.json --allow-env --allow-net --watch supabase/functions/dolend-api/index.ts",
+    "api:dev": "deno run --env-file=.env.local --config supabase/functions/dolend-api/deno.json --allow-env --allow-net --watch supabase/functions/dolend-api/index.ts",
     "api:check": "deno check --config supabase/functions/dolend-api/deno.json supabase/functions/dolend-api/index.ts",
     "api:test": "deno test --allow-env --config supabase/functions/dolend-api/deno.json supabase/functions/dolend-api/app_test.ts",
     "supabase": "supabase",
@@ -29,6 +29,8 @@
     "ci:stamp": "node scripts/ci/stamp-release.mjs",
     "ci:verify-export": "node scripts/ci/verify-export.mjs",
     "ci:verify-live": "node scripts/ci/verify-live.mjs",
+    "env:check": "node --env-file=.env.local scripts/check-env.mjs",
+    "env:check:ci": "node scripts/check-env.mjs",
     "test:demo": "playwright test tests/demo.spec.ts"
   },
   "engines": {

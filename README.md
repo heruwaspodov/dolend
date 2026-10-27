@@ -52,7 +52,7 @@ npm ci
 cp .env.example .env.local
 ```
 
-Isi `.env.local` sesuai lingkungan yang digunakan. Halaman awal dan health API dapat berjalan tanpa konfigurasi Supabase. Browser hanya boleh menerima URL dan public/publishable key lewat `NEXT_PUBLIC_*`; secret layanan tetap di server. Nilai `NEXT_PUBLIC_*` masuk ke bundle saat build.
+`.env.local` workspace sudah berisi URL project, URL API, dan publishable key Dolend. File ini gitignored dan dipakai otomatis oleh Next.js; Deno membacanya melalui perintah `--env-file` di bawah. Periksa tanpa menampilkan key dengan `npm run env:check`. Browser hanya boleh menerima URL dan public/publishable key lewat `NEXT_PUBLIC_*`; secret layanan tetap di server. Nilai `NEXT_PUBLIC_*` masuk ke bundle saat build. Penjelasan koneksi database, hosted Function, Firebase, dan CI ada di [ENVIRONMENT.md](docs/ENVIRONMENT.md).
 
 ## Menjalankan aplikasi
 
@@ -72,7 +72,7 @@ npm run api:dev
 
 Health API: [localhost:8000/dolend-api/v1/health](http://localhost:8000/dolend-api/v1/health). Watch mode aktif. `/me` membutuhkan user JWT Supabase dan konfigurasi server; anon key bukan identitas pengguna.
 
-`api:dev` tidak membaca `.env.local` secara otomatis. Untuk menjalankan API dengan konfigurasi file dan watch mode:
+`api:dev` membaca `.env.local` dan menjalankan API dengan watch mode. Perintah ekuivalennya:
 
 ```sh
 npx deno run --env-file=.env.local \
@@ -88,6 +88,7 @@ Untuk `/me` lokal, set `SUPABASE_URL` dan `SUPABASE_PUBLISHABLE_KEY` (atau `SUPA
 | Perintah | Kegunaan |
 | --- | --- |
 | `npm run dev` | Frontend dengan live reload |
+| `npm run env:check` | Validasi `.env.local` tanpa mencetak key |
 | `npm run build` | Build frontend menjadi folder `out/` |
 | `npm run lint` | ESLint frontend dan script Node; API diperiksa lewat Deno |
 | `npm run typecheck` | Pemeriksaan TypeScript frontend |
@@ -198,6 +199,7 @@ Folder dependency, hasil build, file environment lokal, log, dan cache layanan t
 - [Rencana implementasi](PLAN.md): MVP, schema, API, milestones, dan risks.
 - [Product brief](docs/PRODUCT.md): persona, istilah, dan keputusan produk.
 - [Fondasi UI](docs/UI-FOUNDATION.md): React/Tailwind/shadcn, tokens, komponen, dan cara menambah komponen.
+- [Environment](docs/ENVIRONMENT.md): `.env.local`, koneksi database, Edge Function, Firebase dan CI.
 - [ADR runtime POC](docs/decisions/0001-runtime-poc.md): gate kompatibilitas Elysia/Supabase.
 - [Hasil POC](docs/POC-RESULTS.md): bukti GO, pengukuran, dan batas verifikasi.
 - [Hasil Hosting T03](docs/HOSTING-RESULTS.md): URL preview, browser checks, dan batas shell auth/payment.
