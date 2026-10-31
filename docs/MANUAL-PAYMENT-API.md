@@ -9,6 +9,7 @@ Prefix `/dolend-api/v1`. Organizer wajib JWT Google terverifikasi. Guest memakai
 | PATCH /events/:id/planning | Ubah estimasi, status booking, confirmed/completed |
 | POST /events/:id/join | Member/organizer ikut dengan user dari sesi |
 | POST /events/:id/participants | Organizer menambah guest (display_name, whatsapp); simpan/distribusikan token booking secara privat |
+| POST /participants/:id/guest-token | Organizer merotasi token guest yang hilang; token lama dicabut dan token baru dikembalikan sekali dengan no-store |
 | GET /events/:id/roster | Roster privat dan estimasi; charge ID untuk tautan pembayaran |
 | POST /events/:id/contributions/lock | Snapshot tagihan peserta aktif chargeable; retry aman |
 | POST /participants/:id/charge | Tetapkan amount eksplisit untuk late joiner; snapshot lama immutable |

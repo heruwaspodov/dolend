@@ -29,11 +29,15 @@ Redirect berikut harus masuk allowlist Supabase sebelum pengujian hosted:
 
 `POST /events/:eventId/guest-bookings` menerima `display_name` dan `whatsapp`. Server memvalidasi nomor seluler Indonesia dengan `libphonenumber-js`, lalu membuat token acak 256-bit. Hanya SHA-256 token yang disimpan di `guest_sessions`; token mentah dikembalikan sekali. UI menaruh token pada URL fragment `#booking=...`, bukan query, lalu `GET /events/:eventId/guest-bookings/me` mengirimnya melalui header untuk membaca proyeksi status sendiri. Respons token/status memakai `Cache-Control: no-store`.
 
-RPC `create_guest_booking()` mengunci event dan business user, menolak event tertutup serta duplicate booking, membuat guest session scoped, lalu memakai transaksi `join_event()`. WhatsApp adalah kontak, bukan bukti bahwa guest menguasai nomor tersebut. Duplicate booking tidak menerbitkan token baru; recovery token dan proof untuk claim riwayat masih perlu alur tersendiri.
+RPC `create_guest_booking()` mengunci event dan business user, menolak event tertutup serta duplicate booking, membuat guest session scoped, lalu memakai transaksi `join_event()`. WhatsApp adalah kontak, bukan bukti bahwa guest menguasai nomor tersebut. Duplicate booking tidak menerbitkan token baru. Claim riwayat tetap memerlukan proof kepemilikan tersendiri.
 
 Migration hardening `20261031120000_harden_guest_booking_identity.sql` menolak jalur guest bila nomor tersebut sudah terhubung ke `profiles`. Dengan demikian input nomor saja tidak dapat mengikat partisipasi baru ke business user milik akun Google. Migration ini lulus replay lokal dan belum diterapkan ke hosted.
 
-Endpoint belum siap produksi sampai throttle per event/IP/contact hash dan alur recovery token selesai. Gateway Function tetap memerlukan project public key pada request guest; service-role tidak pernah dikirim ke browser.
+Migration `20261031130000_guest_booking_rate_limit.sql` memakai `rate_limit_counters` yang sudah ada untuk membatasi satu event/contact sebanyak 5 percobaan dan satu event/IP sebanyak 30 percobaan per 15 menit. API menyimpan bucket HMAC-SHA256, bukan WhatsApp atau IP mentah, dan mengembalikan `429` serta `Retry-After`. Secret `RATE_LIMIT_PEPPER` minimal 32 karakter wajib tersedia sebelum endpoint guest diaktifkan. Migration dan secret ini belum diterapkan ke hosted.
+
+Recovery token tidak menerima pencarian nomor. Organizer Google yang berhak dapat memanggil `POST /participants/:id/guest-token`; RPC mengunci partisipasi, mencabut seluruh sesi aktif guest tersebut pada event yang sama, lalu mengembalikan token baru sekali dengan `Cache-Control: no-store`. UI distribusi ulang tautan dari roster masih task dashboard.
+
+Endpoint belum siap produksi sampai throttle dan rotasi token dibuktikan pada PostgreSQL hosted. Gateway Function tetap memerlukan project public key pada request guest; service-role dan rate-limit pepper tidak pernah dikirim ke browser.
 
 ## API profil
 

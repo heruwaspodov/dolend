@@ -20,6 +20,8 @@ npm run env:check
 | `NEXT_PUBLIC_POC_EVENT_FIXTURES` | Build preview lama | Harus `false` untuk normal/live |
 | `SUPABASE_URL` | Elysia lokal | Server env, URL bukan secret |
 | `SUPABASE_PUBLISHABLE_KEY` | Validasi JWT Elysia lokal | Public key di server env |
+| `SUPABASE_SERVICE_ROLE_KEY` | RPC guest/payment Elysia | Secret server-only; tidak boleh memakai prefix `NEXT_PUBLIC_` |
+| `RATE_LIMIT_PEPPER` | HMAC bucket throttle guest | Secret server-only minimal 32 karakter, berbeda per environment |
 | `ALLOWED_ORIGINS` | CORS Elysia | Public config |
 | `POC_MODE` | Route eksperimen | Harus `false` |
 | `PORT` | Elysia lokal | Local config |
@@ -41,7 +43,7 @@ Migration SQL pada `supabase/migrations/` adalah source of truth schema. Ini men
 
 ## Hosted Edge Function
 
-Supabase menyediakan reserved secrets seperti `SUPABASE_URL`, anon/publishable compatibility key, dan service-role key kepada Edge Function hosted. Secret aplikasi tambahan nantinya dikelola dengan `supabase secrets set`, bukan file yang di-commit. SMS dan payment secrets tetap belum dibuat karena provider ditunda.
+Supabase menyediakan reserved secrets seperti `SUPABASE_URL`, anon/publishable compatibility key, dan service-role key kepada Edge Function hosted. `RATE_LIMIT_PEPPER` harus dibuat acak per environment dan dikelola melalui `supabase secrets set`, bukan file yang di-commit. SMS dan payment secrets tetap belum dibuat karena provider ditunda.
 
 ## Firebase dan CI
 

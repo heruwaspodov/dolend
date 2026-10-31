@@ -104,6 +104,11 @@ try {
   assert.equal((await query('select status from public.get_guest_booking($1,$2)',[guestEvent.id,tokenHash]))[0].status,'confirmed');
   assert.equal((await query('select * from public.get_guest_booking($1,$2)',[guestEvent.id,'4'.repeat(64)])).length,0);
   await expectFailure('select * from public.create_guest_booking($1,$2,$3,$4)',[guestEvent.id,'Guest token',guestPhone,'4'.repeat(64)],/BOOKING_ALREADY_EXISTS/);checks++;
+  await expectFailure('select * from public.rotate_guest_booking_token($1,$2,$3)',[tokenBooking.id,other,'9'.repeat(64)],/ORGANIZER_REQUIRED/);checks++;
+  const rotatedHash='a'.repeat(64);
+  await db.query('select * from public.rotate_guest_booking_token($1,$2,$3)',[tokenBooking.id,organizer,rotatedHash]);
+  assert.equal((await query('select * from public.get_guest_booking($1,$2)',[guestEvent.id,tokenHash])).length,0);
+  assert.equal((await query('select status from public.get_guest_booking($1,$2)',[guestEvent.id,rotatedHash]))[0].status,'confirmed');checks++;
   const challenge=(await query("insert into public.verification_challenges(phone_normalized,auth_user_id,purpose,verified_at,expires_at) values('628123450003',$1,'claim',now(),now()+interval '1 hour') returning id",[guestAuth]))[0];
   await expectFailure('select * from public.claim_guest_identity($1,$2)',[other,challenge.id],/INVALID_IDENTITY_PROOF/);
   const claimed=(await query('select * from public.claim_guest_identity($1,$2)',[guestAuth,challenge.id]))[0];
@@ -118,6 +123,18 @@ try {
   await db.exec('reset role');
   await db.query("update public.users set phone_normalized='628123450005' where id=$1",[bootstrapped.user_id]);
   await expectFailure('select * from public.create_guest_booking($1,$2,$3,$4)',[guestEvent.id,'Account collision','628123450005','5'.repeat(64)],/GUEST_ACCOUNT_REQUIRED/);checks++;
+  await expectFailure('select * from public.consume_guest_booking_limits($1,$2,$3)',[crypto.randomUUID(),'6'.repeat(64),'7'.repeat(64)],/EVENT_NOT_FOUND/);checks++;
+  for(let attempt=0;attempt<5;attempt++) assert.equal((await query('select * from public.consume_guest_booking_limits($1,$2,$3)',[guestEvent.id,'6'.repeat(64),'7'.repeat(64)]))[0].allowed,true);
+  const contactLimited=(await query('select * from public.consume_guest_booking_limits($1,$2,$3)',[guestEvent.id,'6'.repeat(64),'7'.repeat(64)]))[0];
+  assert.equal(contactLimited.allowed,false);assert(contactLimited.retry_after_seconds>0);checks++;
+  for(let attempt=0;attempt<24;attempt++) {
+    const contactHash=attempt.toString(16).padStart(64,'0');
+    assert.equal((await query('select * from public.consume_guest_booking_limits($1,$2,$3)',[guestEvent.id,contactHash,'7'.repeat(64)]))[0].allowed,true);
+  }
+  const ipLimited=(await query('select * from public.consume_guest_booking_limits($1,$2,$3)',[guestEvent.id,'8'.repeat(64),'7'.repeat(64)]))[0];
+  assert.equal(ipLimited.allowed,false);checks++;
+  assert((await query("select bucket_key from public.rate_limit_counters where bucket_key like 'guest-booking:%'"))
+    .every(({bucket_key})=>/^guest-booking:(contact|ip):[0-9a-f-]{36}:[0-9a-f]{64}$/.test(bucket_key)));checks++;
   await db.exec('set role service_role');
   await expectFailure('update public.payment_ledger set amount=1',[],/permission denied/);
   await expectFailure('delete from public.audit_logs',[],/permission denied/);

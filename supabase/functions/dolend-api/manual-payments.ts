@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { Elysia, t } from 'elysia';
-import { createSupabaseGuestBookingService } from './guest-booking.ts';
+import { clientAddressFrom, createSupabaseGuestBookingService } from './guest-booking.ts';
+import type { GuestBookingService } from './guest-booking.ts';
 import type { AccountService } from './account.ts';
 
 export class FinanceError extends Error {}
@@ -30,8 +31,9 @@ export async function imageBytes(request: Request) {
   return { bytes, mime: png ? 'image/png' : 'image/jpeg', extension: png ? 'png' : 'jpg' };
 }
 
-export function manualPaymentRoutes(accounts: AccountService | null | undefined, url?: string, serviceKey?: string) {
+export function manualPaymentRoutes(accounts: AccountService | null | undefined, url?: string, serviceKey?: string, rateLimitPepper?: string, guestBookingService?: GuestBookingService | null) {
   const db = url && serviceKey ? createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } }) : null;
+  const guestBookings=guestBookingService ?? (url&&serviceKey&&rateLimitPepper&&rateLimitPepper.length>=32?createSupabaseGuestBookingService(url,serviceKey,rateLimitPepper):null);
   async function actor(request: Request) {
     const token = request.headers.get('authorization')?.match(/^Bearer (.+)$/i)?.[1];
     const identity = token && accounts ? await accounts.authenticate(token) : null;
@@ -154,9 +156,15 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
     },{params:t.Object({id:uuid})})
     .post('/events/:id/participants',async ({request,params,body})=>{
       await ownEvent(params.id,request);
-      if(!url||!serviceKey)throw new FinanceError('STORAGE_UNAVAILABLE');
-      return {data:await createSupabaseGuestBookingService(url,serviceKey).create({eventId:params.id,displayName:body.display_name,whatsapp:body.whatsapp})};
+      if(!guestBookings)throw new FinanceError('STORAGE_UNAVAILABLE');
+      return {data:await guestBookings.create({eventId:params.id,displayName:body.display_name,whatsapp:body.whatsapp,clientAddress:clientAddressFrom(request)})};
     },{params:t.Object({id:uuid}),body:t.Object({display_name:t.String({minLength:1,maxLength:120}),whatsapp:t.String({minLength:8,maxLength:32})},{additionalProperties:false})})
+    .post('/participants/:id/guest-token',async ({request,params,set})=>{
+      set.headers['cache-control']='no-store';
+      const id=await actor(request);
+      if(!guestBookings)throw new FinanceError('STORAGE_UNAVAILABLE');
+      return {data:await guestBookings.recover(params.id,id)};
+    },{params:t.Object({id:uuid}),parse:'none'})
     .post('/participants/:id/cancel',async ({request,params,body})=>({data:await rpc('cancel_dynamic_participant',{p_participant:params.id,p_actor:await actor(request),p_guest_hash:null,p_policy:body.policy,p_reason:body.reason,p_key:body.idempotency_key})}),{params:t.Object({id:uuid}),body:t.Object({policy:t.Union([t.Literal('retain'),t.Literal('waive')]),reason,idempotency_key:key},{additionalProperties:false})})
     .post('/events/:id/contributions/lock',async ({request,params}) => ({ data:await rpc('lock_contributions',{p_event:params.id,p_actor:await actor(request)}) }),{params:t.Object({id:uuid})})
     .post('/participants/:id/charge',async ({request,params,body}) => ({ data:await rpc('assign_contribution',{p_participant:params.id,p_actor:await actor(request),p_amount:body.amount}) }),{params:t.Object({id:uuid}),body:t.Object({amount},{additionalProperties:false})})

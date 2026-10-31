@@ -92,16 +92,19 @@ Deno.test('JSON validation rejects invalid data', async () => {
   assert(response.status === 400, `validation: ${response.status}`);
 });
 Deno.test('guest booking returns a one-time bearer token and maps safe errors', async () => {
+  let seenClientAddress = '';
   const guestBookingService: GuestBookingService = {
-    create: async (input) => ({ participant_id: input.eventId, status: 'confirmed', booking_token: 'secret-token' }),
+    create: async (input) => { seenClientAddress=input.clientAddress; return { participant_id: input.eventId, status: 'confirmed', booking_token: 'secret-token' }; },
     get: async (eventId, token) => token === 'a'.repeat(43) ? { participant_id: eventId, charge_id: null, status: 'confirmed', hold_expires_at: null, confirmed_at: '2026-10-28T00:00:00.000Z', updated_at: '2026-10-28T00:00:00.000Z' } : null,
+    recover: async () => ({participant_id:eventId,event_id:eventId,booking_token:'recovered-token'}),
   };
   const bookingApp = createApp({ allowedOrigins: [], guestBookingService });
   const eventId = '44444444-4444-4444-8444-444444444444';
   const response = await bookingApp.handle(new Request(`${base}/events/${eventId}/guest-bookings`, {
-    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ display_name: 'Guest', whatsapp: '081234567890' }),
+    method: 'POST', headers: { 'content-type': 'application/json', 'x-forwarded-for': 'spoofed, 203.0.113.8' }, body: JSON.stringify({ display_name: 'Guest', whatsapp: '081234567890' }),
   }));
   assert(response.status === 201, `guest booking: ${response.status}`);
+  assert(seenClientAddress === '203.0.113.8', 'proxy client address not forwarded');
   assert(response.headers.get('cache-control') === 'no-store', 'booking token response is cacheable');
   assert((await response.json()).data.booking_token === 'secret-token', 'booking token missing');
   const statusResponse = await bookingApp.handle(new Request(`${base}/events/${eventId}/guest-bookings/me`, { headers: { 'x-booking-token': 'a'.repeat(43) } }));
@@ -111,12 +114,28 @@ Deno.test('guest booking returns a one-time bearer token and maps safe errors', 
   const conflictApp = createApp({ allowedOrigins: [], guestBookingService: {
     create: async () => { throw new GuestBookingError('BOOKING_ALREADY_EXISTS'); },
     get: async () => null,
+    recover: async () => { throw new GuestBookingError('BOOKING_UNAVAILABLE'); },
   } });
   const conflict = await conflictApp.handle(new Request(`${base}/events/${eventId}/guest-bookings`, {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ display_name: 'Guest', whatsapp: '081234567890' }),
   }));
   assert(conflict.status === 409, 'duplicate booking did not conflict');
   assert(!JSON.stringify(await conflict.json()).includes('secret-token'), 'booking token leaked');
+  const limitedApp = createApp({ allowedOrigins: [], guestBookingService: {
+    create: async () => { throw new GuestBookingError('RATE_LIMITED',321); },
+    get: async () => null,
+    recover: async () => { throw new GuestBookingError('BOOKING_UNAVAILABLE'); },
+  } });
+  const limited = await limitedApp.handle(new Request(`${base}/events/${eventId}/guest-bookings`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ display_name: 'Guest', whatsapp: '081234567890' }),
+  }));
+  assert(limited.status === 429, 'rate limit did not return 429');
+  assert(limited.headers.get('retry-after') === '321', 'retry window missing');
+  const recoveryApp=createApp({allowedOrigins:[],accountService:accountMock(),guestBookingService});
+  const recovered=await recoveryApp.handle(new Request(`${base}/participants/${eventId}/guest-token`,{method:'POST',headers:{authorization:'Bearer valid-token'}}));
+  assert(recovered.status===200,'organizer could not rotate guest token');
+  assert(recovered.headers.get('cache-control')==='no-store','recovered token response is cacheable');
+  assert((await recovered.json()).data.booking_token==='recovered-token','recovered token missing');
 });
 Deno.test('POC route absent by default', async () => {
   const production = createApp({ allowedOrigins: [] });
@@ -143,6 +162,7 @@ Deno.test('manual finance endpoints reject anonymous organizers and invalid payl
   for (const [path,method,body] of [
     ['/payment-settings','GET',undefined],
     ['/events/11111111-1111-4111-8111-111111111111/contributions/lock','POST',undefined],
+    ['/participants/11111111-1111-4111-8111-111111111111/guest-token','POST',undefined],
     ['/payments/11111111-1111-4111-8111-111111111111/review','POST',{decision:'verified',reason:'Cash received'}],
   ] as const) {
     const response=await finance.handle(new Request(`http://localhost/dolend-api/v1${path}`,{method,headers:{'content-type':'application/json'},...(method==='POST'?{body:JSON.stringify(body??{})}:{})}));

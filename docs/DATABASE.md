@@ -61,6 +61,8 @@ Guest session rows are not readable from a browser. Elysia creates a 256-bit bea
 | join_event | Google member or event-scoped token guest; event deadline/lifecycle; lock event; capacity; unique user/event; one invoice; replay returns same active participant |
 | create_guest_booking | Service-only; validates open event/name/canonical WhatsApp/token hash; locks event+user; rejects duplicate before issuing a new session; creates scoped session and participant atomically |
 | get_guest_booking | Service-only; menerima event+token hash dan mengembalikan hanya status/timestamp partisipasi scoped yang masih aktif |
+| consume_guest_booking_limits | Service-only; atomik fixed-window counter per event/contact HMAC dan event/IP HMAC; tidak menyimpan identifier mentah; mengembalikan allowed serta Retry-After |
+| rotate_guest_booking_token | Service-only; organizer event saja; mengunci guest participant aktif, mencabut sesi lama, membuat token hash baru, dan mencatat audit tanpa memakai nomor sebagai proof |
 | bootstrap_google_profile | Authenticated only; validates Google provider/email from `auth.users`; idempotently creates business user, profile, personal workspace and owner membership |
 | create_payment_attempt | Owner proof, event-enabled method, invoice amount/currency, invoice/key idempotency; overdue postpay can still create a future-expiring attempt |
 | submit_manual_evidence | Owner proof; manual-only; bounded review deadline; metadata constraints; temporary hold extension bounded by event start |

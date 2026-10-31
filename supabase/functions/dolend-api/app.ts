@@ -1,16 +1,17 @@
 import { FinanceError, manualPaymentRoutes } from './manual-payments.ts';
 import { Elysia, t } from 'elysia';
 import { AccountServiceError, createSupabaseAccountService, type AccountIdentity, type AccountService, type ProfilePatch } from './account.ts';
-import { createSupabaseGuestBookingService, GuestBookingError, type GuestBookingService } from './guest-booking.ts';
+import { clientAddressFrom, createSupabaseGuestBookingService, GuestBookingError, type GuestBookingService } from './guest-booking.ts';
 
 type Options = { allowedOrigins: string[]; pocMode?: boolean; accountService?: AccountService | null; guestBookingService?: GuestBookingService | null };
 export function createApp({ allowedOrigins, pocMode = false, accountService, guestBookingService }: Options) {
   const url = Deno.env.get('SUPABASE_URL');
   const key = Deno.env.get('SUPABASE_PUBLISHABLE_KEY') ?? Deno.env.get('SUPABASE_ANON_KEY');
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  const rateLimitPepper = Deno.env.get('RATE_LIMIT_PEPPER');
   const accounts = accountService === undefined && url && key ? createSupabaseAccountService(url, key) : accountService;
-  const guestBookings = guestBookingService === undefined && url && serviceRoleKey
-    ? createSupabaseGuestBookingService(url, serviceRoleKey)
+  const guestBookings = guestBookingService === undefined && url && serviceRoleKey && rateLimitPepper && rateLimitPepper.length>=32
+    ? createSupabaseGuestBookingService(url, serviceRoleKey, rateLimitPepper)
     : guestBookingService;
   const tokenFrom = (request: Request) => request.headers.get('authorization')?.match(/^Bearer (.+)$/i)?.[1];
   const authenticate = async (request: Request): Promise<{ token: string; identity: AccountIdentity } | null> => {
@@ -52,6 +53,15 @@ export function createApp({ allowedOrigins, pocMode = false, accountService, gue
       }
     })
     .onError(({ code, error, set }) => {
+      if (error instanceof GuestBookingError && error.code==='RATE_LIMITED') {
+        set.status=429;
+        set.headers['retry-after']=String(error.retryAfterSeconds ?? 60);
+        return {error:{code:error.code,message:'Terlalu banyak percobaan. Coba lagi nanti.'}};
+      }
+      if (error instanceof GuestBookingError) {
+        set.status=error.code==='BOOKING_UNAVAILABLE'?503:409;
+        return {error:{code:error.code,message:'Booking guest belum dapat diproses.'}};
+      }
       if (error instanceof FinanceError) {
         const kind=error.message;
         set.status=kind==='UNAUTHORIZED'?401:kind==='FORBIDDEN'?403:kind==='CONFLICT'?409:kind==='STORAGE_UNAVAILABLE'?503:422;
@@ -69,7 +79,7 @@ export function createApp({ allowedOrigins, pocMode = false, accountService, gue
       set.status = 500;
       return { error: { code: 'INTERNAL_ERROR', message: 'Terjadi kesalahan.' }, request_id };
     })
-    .use(manualPaymentRoutes(accounts, url, serviceRoleKey))
+    .use(manualPaymentRoutes(accounts, url, serviceRoleKey, rateLimitPepper, guestBookings))
     .get('/health', ({ requestId }) => ({ data: { status: 'ok', service: 'dolend-api' }, request_id: requestId }))
     .get('/me', async ({ request, set, requestId }) => {
       if (!tokenFrom(request)) {
@@ -169,7 +179,7 @@ export function createApp({ allowedOrigins, pocMode = false, accountService, gue
         default_timezone: t.Optional(t.String({ minLength: 1, maxLength: 100 })),
       }, { additionalProperties: false, minProperties: 1 }),
     })
-    .post('/events/:id/guest-bookings', async ({ params, body, set, requestId }) => {
+    .post('/events/:id/guest-bookings', async ({ params, body, request, set, requestId }) => {
       set.headers['cache-control'] = 'no-store';
       if (!guestBookings) {
         set.status = 503;
@@ -180,6 +190,7 @@ export function createApp({ allowedOrigins, pocMode = false, accountService, gue
           eventId: params.id,
           displayName: body.display_name,
           whatsapp: body.whatsapp,
+          clientAddress: clientAddressFrom(request),
         });
         set.status = 201;
         return { data: booking, request_id: requestId };
@@ -191,6 +202,11 @@ export function createApp({ allowedOrigins, pocMode = false, accountService, gue
         if (error instanceof GuestBookingError && error.code === 'BOOKING_ALREADY_EXISTS') {
           set.status = 409;
           return { error: { code: error.code, message: 'Booking untuk nomor ini sudah ada. Gunakan tautan booking sebelumnya.' }, request_id: requestId };
+        }
+        if (error instanceof GuestBookingError && error.code === 'RATE_LIMITED') {
+          set.status = 429;
+          set.headers['retry-after'] = String(error.retryAfterSeconds ?? 60);
+          return { error: { code: error.code, message: 'Terlalu banyak percobaan. Coba lagi nanti.' }, request_id: requestId };
         }
         if (error instanceof GuestBookingError && error.code === 'EVENT_NOT_OPEN') {
           set.status = 409;
