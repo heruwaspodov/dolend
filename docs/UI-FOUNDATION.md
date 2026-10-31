@@ -28,3 +28,7 @@ Referensi resmi:
 - https://tailwindcss.com/docs/installation/framework-guides/nextjs
 - https://ui.shadcn.com/docs/installation/manual
 - https://ui.shadcn.com/docs/cli
+
+## Arahan 31 Oktober 2026
+
+Pengguna memilih clean UI dengan Tailwind dan shadcn/ui. Pertahankan identitas emerald, latar terang, semantic tokens, hierarki tipografi sederhana dan form berlabel. Hindari dekorasi yang tidak membantu alur.

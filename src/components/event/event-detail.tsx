@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { fetchPublicEvent, isEventPreview, isUuid, safeMapsUrl, type PublicEvent } from '@/lib/event-client';
+import { GuestBookingForm } from './guest-booking-form';
 
 type Result = { id: string; kind: 'found'; event: PublicEvent } | { id: string; kind: 'missing' } | { id: string; kind: 'error' };
 export function EventDetail() {
@@ -43,10 +44,14 @@ export function EventDetail() {
         <div><dt className="flex items-center gap-2 font-medium"><CalendarDays className="size-4" aria-hidden="true" /> Jadwal</dt><dd className="mt-1 text-sm leading-relaxed text-muted-foreground"><time dateTime={event.starts_at}>{date.format(new Date(event.starts_at))}</time><br />Selesai {date.format(new Date(event.ends_at))}<br />Zona waktu: {event.timezone}</dd></div>
         <div><dt className="flex items-center gap-2 font-medium"><MapPin className="size-4" aria-hidden="true" /> {event.venue.name}</dt><dd className="mt-1 text-sm text-muted-foreground">{event.venue.address}</dd>{mapsUrl && <dd className="mt-2"><a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center text-sm font-medium text-primary underline underline-offset-4">Buka Google Maps</a></dd>}</div>
         <div><dt className="flex items-center gap-2 font-medium"><Users className="size-4" aria-hidden="true" /> Kapasitas</dt><dd className="mt-1 text-sm text-muted-foreground">{event.participants_count} dari {event.capacity} peserta · {seats === 0 ? 'Penuh' : `${seats} tempat tersisa`}</dd></div>
-        <div><dt className="font-medium">Biaya per orang</dt><dd className="mt-1 text-sm text-muted-foreground">{event.price_amount === 0 ? 'Gratis' : new Intl.NumberFormat('id-ID', { style: 'currency', currency: event.currency, maximumFractionDigits: 0 }).format(event.price_amount)}</dd></div>
+        <div><dt className="font-medium">{event.contribution_mode === 'dynamic' ? 'Estimasi iuran per orang' : 'Biaya per orang'}</dt><dd className="mt-1 text-sm text-muted-foreground">{event.contribution_mode === 'dynamic' ? (event.contributions_locked_at ? 'Iuran sudah dikunci. Lihat tagihan pribadi melalui tautan booking.' : event.estimated_per_person == null ? 'Belum ada peserta yang dikenai iuran.' : `${new Intl.NumberFormat('id-ID', {style:'currency',currency:'IDR',maximumFractionDigits:0}).format(event.estimated_per_person)} · belum final, dibulatkan ke atas`) : event.price_amount === 0 ? 'Gratis' : new Intl.NumberFormat('id-ID', { style: 'currency', currency: event.currency, maximumFractionDigits: 0 }).format(event.price_amount)}</dd></div>
       </dl>
     </CardContent></Card>
-    <p className="text-sm text-muted-foreground">Pendaftaran aktivitas belum dibuka.</p>
+    {isEventPreview
+      ? <p className="text-sm text-muted-foreground">Pendaftaran aktivitas belum dibuka pada pratinjau.</p>
+      : seats > 0
+        ? <GuestBookingForm eventId={event.id} />
+        : <p className="text-sm text-muted-foreground">Kapasitas aktivitas sudah penuh.</p>}
   </article>;
 }
 function State({ title, description, children }: { title: string; description: string; children?: React.ReactNode }) {

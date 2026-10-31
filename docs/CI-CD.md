@@ -49,3 +49,9 @@ Jangan menyimpan Supabase service-role key dalam NEXT_PUBLIC_* atau workflow fro
 Firebase CLI 15.34.1 dipin sebagai dev dependency. Audit dependency runtime (`npm audit --omit=dev`) bersih. Audit penuh saat setup melaporkan 6 advisory moderate pada dependency CLI; tidak ada high/critical setelah upgrade dari CLI lama. Advisory tersebut bukan endpoint server aplikasi, dan tidak menjadi alasan memakai npm audit fix --force yang menurunkan/merusak dependency. Pembaruan CLI/transitif tetap perlu dipantau; job deploy memasang dependency dengan lifecycle scripts dimatikan.
 
 Referensi: [GitHub OIDC Google Auth](https://github.com/google-github-actions/auth), [Google WIF deployment pipelines](https://docs.cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines), [Firebase deploy targets](https://firebase.google.com/docs/cli/targets).
+
+## Rilis manual alur iuran — 31 Oktober 2026
+
+Migration hybrid Google auth dan dynamic manual contributions diterapkan pada Supabase fpbefabsqryxmnmxufjw setelah backup schema/data di luar repository. dolend-api dideploy ke project yang sama. Frontend build normal diterbitkan dengan target hosting:web, project dolend-apps, site dolend, URL https://dolend.web.app. Ini deployment manual workspace; bukan bukti commit baru telah dipush atau pipeline main berjalan.
+
+Verifikasi: lint/build/typecheck, tes API, tes transaksi lokal dan hosted rollback, tes upload QRIS authenticated/private/cross-owner, serta browser desktop/mobile akun dan pembayaran. Laporan hosted ada di manual-finance-hosted-results.json dan manual-storage-hosted-results.json. CORS live diukur 200 dengan origin https://dolend.web.app. QRIS uji adalah fixture gambar; tidak ada uang, gateway, atau pesan yang dikirim.

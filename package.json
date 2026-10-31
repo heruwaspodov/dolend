@@ -11,6 +11,7 @@
     "api:dev": "deno run --env-file=.env.local --config supabase/functions/dolend-api/deno.json --allow-env --allow-net --watch supabase/functions/dolend-api/index.ts",
     "api:check": "deno check --config supabase/functions/dolend-api/deno.json supabase/functions/dolend-api/index.ts",
     "api:test": "deno test --allow-env --config supabase/functions/dolend-api/deno.json supabase/functions/dolend-api/app_test.ts",
+    "api:test:hosted-profile": "node scripts/profile-hosted-test.mjs",
     "supabase": "supabase",
     "api:smoke": "node scripts/smoke-api.mjs",
     "ui": "shadcn",

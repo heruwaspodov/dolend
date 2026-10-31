@@ -8,6 +8,9 @@ export type PublicEvent = {
   capacity: number;
   participants_count: number;
   venue: { name: string; address: string; maps_url: string };
+  contribution_mode?: 'legacy' | 'dynamic';
+  estimated_per_person?: number | null;
+  contributions_locked_at?: string | null;
   price_amount: number;
   currency: 'IDR';
 };

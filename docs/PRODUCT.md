@@ -25,3 +25,7 @@ Nama produk, package, UI, dan konfigurasi adalah Dolend. Multi-activity: footbal
 ## Traceability
 
 PLAN.md adalah sumber kebutuhan yang tersedia. Dokumen rencana terdahulu belum tersedia; isi jawaban chat sumber hanya content reference. Rekonsiliasi task lama tetap terbuka; tidak ada klaim preservasi verbatim. Domain, provider SMS/payment, merchant/settlement, fee, refund, dan retensi perlu keputusan di gate terkait.
+
+## Keputusan revisi MVP — 31 Oktober 2026
+
+Alur baru mengikuti PLAN.md bagian Revisi scope MVP: recruiting dapat dimulai sebelum venue dipesan; status booking terpisah; estimasi iuran mengikuti peserta aktif chargeable sampai organizer mengunci snapshot. Peserta baru setelah lock mendapat tagihan eksplisit tanpa mengubah tagihan lama. MVP menerima QRIS statis, transfer dan tunai langsung ke organizer dengan verifikasi manual, pembayaran parsial dan outstanding setelah event selesai. Gateway/dynamic QRIS/escrow/settlement/refund otomatis keluar scope MVP. Ketentuan gateway dalam catatan lama tidak lagi menjadi release gate MVP manual.

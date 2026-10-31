@@ -1,6 +1,31 @@
 # Dolend — Product & Implementation Plan
 
-Versi: 1.0 • Diperbarui: 27 Oktober 2026 • Status: perencanaan, belum diimplementasikan
+Versi: 1.1 • Diperbarui: 31 Oktober 2026 • Status: implementasi bertahap
+
+## Revisi scope MVP — 31 Oktober 2026
+
+Keputusan pengguna berdasarkan `dolend_mvp_plan_sync.md` menggantikan ketentuan gateway dan harga tetap di bagian historis dokumen ini. Migration hosted alur baru diterapkan 31 Oktober 2026; lihat status verifikasi di bawah.
+
+- Lifecycle baru: draft → recruiting → confirmed → completed; cancelled menjaga riwayat. Booking venue terpisah: not_booked/pending/booked/cancelled. Recruiting boleh tanpa booking.
+- Organizer Google dapat ikut sebagai peserta. Guest tetap memakai akses booking scoped, bukan nomor sebagai autentikasi.
+- Estimasi total termasuk venue dan biaya tambahan; dibagi peserta aktif chargeable, dibulatkan ke atas ke integer IDR. Nol peserta menampilkan belum tersedia.
+- Lock Contributions membuat snapshot tagihan, waktu dan actor. Peserta baru sesudah lock diberi tagihan eksplisit organizer; perubahan biaya/jumlah tidak menulis ulang tagihan lama.
+- Pembatalan sebelum lock menghapus peserta dari pembagi; sesudah lock wajib memilih retain/waive/replacement/adjustment dengan audit.
+- MVP hanya QRIS statis organizer, transfer bank, tunai; dana langsung ke organizer. Laporan bayar menjadi pending_verification; hanya organizer pemilik yang dapat verified/rejected. Pembayaran parsial, kelebihan bayar, penyesuaian dan refund dicatat terpisah. Completed tidak menghapus utang.
+- Gateway, webhook payment, dynamic QRIS, escrow, settlement dan refund otomatis keluar MVP. T16 ditunda; dependency T17–T21 pada gateway tidak berlaku untuk MVP manual. Release gate tidak lagi mensyaratkan merchant/gateway approval.
+
+### Urutan implementasi revisi
+
+| Task | Dependensi | Acceptance / status |
+| --- | --- | --- |
+| R01 Domain iuran dan prototipe | T07 | Estimasi aktif, nol peserta, pembulatan, snapshot lock dan peserta baru; lokal playground, belum backend |
+| R02 Migration dan transaksi | T04, R01 | Adaptasi events/invoices/payment_attempts/ledger yang sudah ada; jangan membuat tabel paralel tanpa pemetaan; lifecycle dan booking terpisah; RPC lock/join/cancel atomik, audit, idempotensi, concurrency test |
+| R03 Metode pembayaran organizer | R02, T13 | QRIS PNG/JPG private owner-only, validasi MIME/size, replace/disable, signed download URL; rekening/tunai dan enable per event |
+| R04 API organizer dan guest | R02, R03, T08 | Identitas terverifikasi, owner checks, scoped guest token; lock, late join charge eksplisit, cancel policy, submit pending, verify/reject sekali, partial/overpayment/refund ledger |
+| R05 UI alur baru | R04 | Create recruiting tanpa venue; roster tambah/cancel, lock, payment settings, QRIS download, bukti opsional, review dan outstanding sesudah selesai; loading/error/empty/mobile |
+| R06 Verifikasi dan pilot manual | R05 | Rounding/zero, before/after lock cancel, late join, retry/duplicate verify, cross-owner access, storage, ledger dan static-hosting refresh lulus |
+
+Status 31 Oktober 2026: R01 prototipe lokal tersedia. Migration R02 dan RPC manual R04 diterapkan hosted, tes transaksi rollback hosted lulus. API dan frontend telah dideploy manual ke target Dolend pada 31 Oktober 2026. R03 API upload private QRIS/bukti dan settings akun tersedia. Review organizer serta halaman pembayaran scoped tersedia; R05 dashboard create/manage lengkap belum selesai. R06: tes upload QRIS hosted/private/owner dan tes browser review/tunai lulus; concurrency lintas koneksi, E2E bukti guest dan pilot tetap belum selesai. Rincian kontrak: docs/MANUAL-PAYMENT-API.md. Event legacy tetap memakai invoice lama; dynamic memakai participant_charges dan contribution_ledger.
 
 ## 1. Dasar dokumen dan keputusan produk
 
@@ -16,8 +41,9 @@ Aktivitas dapat berupa football/futsal, badminton, lari, bersepeda, hiking, atau
 - Backend: **ElysiaJS di Supabase Edge Functions**, wajib melewati POC kompatibilitas runtime dan deployment.
 - Data/platform: **Supabase PostgreSQL, Auth, Storage, Cron**.
 - Tidak memakai Cloudflare untuk hosting, Workers, database, storage, cron, DNS proxy, atau CAPTCHA.
-- UUID adalah primary key internal. Nomor telepon Indonesia berbentuk digit `62...` adalah unique business identifier orang, bukan primary key dan bukan bukti autentikasi.
-- Hanya registered user dengan sesi valid dan nomor terverifikasi boleh membuat event. Peserta bisa member atau guest.
+- UUID adalah primary key internal. Nomor WhatsApp Indonesia berbentuk digit `62...` adalah kontak guest, bukan primary key dan bukan bukti autentikasi.
+- Organizer wajib memakai sesi Supabase Auth dari Google OAuth. Peserta boleh memakai akun Google yang sama atau booking sebagai guest tanpa akun.
+- Hak organizer adalah izin per workspace atau event, bukan jenis akun. Satu akun Google dapat mengelola event sekaligus terdaftar sebagai peserta.
 - Pembayaran mendukung sebelum/sesudah event, transfer manual, QRIS, dan metode yang disediakan payment gateway terpilih.
 
 ## 2. Roadmap dan batas cakupan
@@ -32,23 +58,24 @@ MVP harus mencakup semua jalur pembayaran yang disebutkan, bukan berhenti pada t
 
 ### Pengguna dan alur utama
 
-1. Organizer mendaftar/login, memverifikasi nomor, membuat draft event, mengisi lokasi, waktu, kapasitas, serta kebijakan biaya, lalu publish.
+1. Organizer masuk dengan Google, mendapat workspace pribadi, membuat draft event, mengisi lokasi, waktu, kapasitas, serta kebijakan biaya, lalu publish.
 2. Organizer membagikan tautan lewat WhatsApp. WhatsApp dibuka melalui share link; aplikasi tidak mengirim pesan otomatis atau membaca kontak.
-3. Penerima membuka halaman event. Member bergabung dengan akun; guest memasukkan nama dan memverifikasi nomor tanpa harus membuat akun permanen.
+3. Penerima membuka halaman event. Member dapat bergabung dengan akun Google; guest cukup memasukkan nama dan WhatsApp lalu menerima token booking rahasia tanpa membuat akun.
 4. Untuk bayar sebelum event, slot ditahan sementara sampai pembayaran memenuhi kebijakan. Untuk bayar sesudah event, peserta langsung mengonfirmasi slot dan memiliki tagihan sesuai waktu yang ditetapkan.
 5. Organizer mengelola roster, pembayaran manual, kehadiran, pembatalan, serta penyelesaian event. Peserta melihat status miliknya melalui akses yang tervalidasi.
-6. Guest yang membuat akun di kemudian hari dapat mengklaim riwayat miliknya setelah membuktikan kepemilikan nomor; tidak ada pencocokan otomatis hanya berdasarkan input nomor.
+6. Guest mengakses booking melalui token acak yang scoped ke event. Klaim riwayat ke akun Google memerlukan alur proof terpisah; input nomor saja tidak pernah cukup.
 
 ## 3. Aturan bisnis MVP
 
 ### 3.1 Identitas, guest, dan autentikasi
 
 - Semua identitas bisnis berada di `public.users`; `profiles` menghubungkan user tersebut dengan `auth.users`. Guest memiliki user dan partisipasi tetapi belum memiliki profile.
+- Supabase Google OAuth adalah satu-satunya login organizer. Callback memakai PKCE pada static app, lalu RPC idempotent membuat profile dan workspace pribadi dari JWT yang sudah diverifikasi.
 - Normalisasi server: `081234567890`, `+6281234567890`, dan `6281234567890` menjadi `6281234567890`. Hapus separator yang diizinkan, validasi dengan library metadata telepon yang dipin versinya; reject nomor non-Indonesia atau tidak valid. Jangan sekadar menerima regex sebagai validasi penuh.
-- Simpan `phone_normalized text NOT NULL UNIQUE`, bukan tipe angka. Format tampilan boleh `+62`; database tetap `62...`. Adapter OTP mengubahnya menjadi E.164 `+62...` jika provider memerlukan.
-- OTP melalui Supabase Auth dengan provider SMS yang dikonfigurasi; jalur guest memakai challenge OTP server-side tanpa memaksa pembuatan akun permanen. Pemilihan provider dan bukti delivery Indonesia adalah gate M0. Jangan membuat OTP sendiri tanpa expiry, hashing, attempt limit, dan throttling.
+- Simpan WhatsApp guest sebagai `phone_normalized text UNIQUE` bila tersedia, bukan tipe angka. Nilai ini nullable untuk akun Google yang belum pernah booking; format database tetap `62...`.
+- Guest booking tidak memakai SMS/OTP. API memvalidasi nomor Indonesia, membuat token acak 256-bit, menyimpan hanya hash SHA-256, dan memberikan token mentah sekali pada respons sukses. Token dibatasi ke satu event dan dapat dicabut atau kedaluwarsa.
 - Nomor yang sudah terdaftar tidak boleh dibuat ulang sebagai user baru. Input nomor saja tidak boleh membuka profil/riwayat, mengubah identitas, atau membuat impersonasi. Respons pencarian nomor tidak mengekspos keberadaan akun.
-- Perubahan nomor perlu verifikasi ulang dan pemeriksaan collision. UUID tetap sama, event/history tetap terhubung. Recycled number memerlukan proses recovery yang tidak menyerahkan riwayat lama secara otomatis.
+- Perubahan WhatsApp dan collision tetap memerlukan pemeriksaan khusus. UUID tetap sama, event/history tetap terhubung. Recycled number tidak boleh menyerahkan riwayat lama secara otomatis.
 - Istilah member berarti pengguna berakun Dolend; pada Phase 2 keanggotaan komunitas memakai entitas terpisah.
 
 ### 3.2 Event, venue, waktu, dan undangan
@@ -60,7 +87,7 @@ MVP harus mencakup semua jalur pembayaran yang disebutkan, bukan berhenti pada t
 - Visibilitas MVP: `public` (dapat ditemukan) atau `unlisted` (hanya tautan; bukan jaminan rahasia). Nomor telepon dan bukti bayar tidak pernah menjadi data publik. Token undangan terpisah, acak, dapat dicabut, expiry opsional, disimpan dalam bentuk hash.
 - Public UUID bukan izin akses. Token undangan memberi akses terbatas untuk melihat/bergabung, bukan mengubah event atau membaca data pembayaran orang lain.
 - Link WhatsApp memuat judul, waktu/zona, venue, biaya, dan canonical event link. Jangan memasukkan nomor peserta atau token akses pengelolaan ke pesan.
-- Organizer dihitung ke kapasitas hanya bila juga mendaftar sebagai peserta. MVP satu peserta per nomor per event, tanpa pemesanan beberapa kursi di satu identitas.
+- Organizer dihitung ke kapasitas hanya bila juga mendaftar sebagai peserta. Role owner/organizer disimpan terpisah pada workspace/event sehingga tidak menghalangi partisipasi akun yang sama. MVP satu peserta per identitas bisnis per event.
 
 ### 3.3 Kapasitas dan status
 
@@ -101,7 +128,7 @@ Browser
  ├─ Elysia API → Supabase Edge Functions (Deno runtime)
  │   ├─ PostgreSQL transactions / RLS / RPC
  │   ├─ Supabase Storage private buckets
- │   └─ SMS provider + payment gateway API
+ │   └─ Google OAuth + payment gateway API
  └─ WhatsApp share + Google Maps link
 Payment gateway → signed webhook Edge Function → ledger / invoice / roster
 Supabase Cron → expiry / overdue / reconciliation / cleanup jobs
@@ -123,10 +150,10 @@ Konsekuensi: metadata/preview WhatsApp MVP bersifat umum Dolend, teks pesan beri
 - Base API: `https://<project>.supabase.co/functions/v1/dolend-api/v1`. Validasi prefix function, nested routes, OPTIONS, CORS, JSON/multipart, error handler, dan raw body webhook.
 - Webhook dapat diisolasi menjadi function `dolend-payments-webhook` dengan gateway JWT enforcement disesuaikan untuk provider eksternal; signature provider tetap wajib. Endpoint lain memvalidasi JWT Supabase dan role di server. Jangan menonaktifkan auth global untuk mempermudah webhook.
 - Public read, verified guest session, member, organizer, dan internal job adalah scope berbeda. Authorization bukan hanya pemeriksaan user login.
-- Browser hanya memegang public Supabase key. Service-role key, gateway secret, SMS secret, serta job secret disimpan server-side. RLS tetap aktif; service-role melewati RLS sehingga pemeriksaan domain eksplisit wajib. RPC privileged dibatasi execute grant, fixed search_path, dan audit.
+- Browser hanya memegang public Supabase key. Service-role key, gateway secret, serta job secret disimpan server-side. RLS tetap aktif; service-role melewati RLS sehingga pemeriksaan domain eksplisit wajib. RPC privileged dibatasi execute grant, fixed search_path, dan audit.
 - Storage upload menggunakan izin/token terbatas, limit ukuran dan MIME serta verifikasi isi; nama objek acak, tanpa nomor telepon. Signed URL berumur pendek; private bucket untuk bukti bayar. MVP rekomendasi batas bukti 5 MB JPEG/PNG/PDF, diputuskan final dalam T13.
 - Cron mengerjakan batch kecil dan idempotent: expiry hold, invoice overdue, payment reconciliation, retry notification outbox, token/file cleanup. Tidak memakai timer dalam worker Elysia. Secret disimpan aman, bukan hardcoded pada SQL job.
-- Request ID, structured logs tanpa OTP/token/nomor penuh; rate limit join/OTP/payment berdasarkan actor/IP dengan counter atomik PostgreSQL dan TTL. Monitoring kuota function, DB, Storage, SMS, dan gateway.
+- Request ID, structured logs tanpa OAuth code/token/nomor penuh; rate limit join/booking/payment berdasarkan actor/IP dengan counter atomik PostgreSQL dan TTL. Monitoring kuota function, DB, Storage, Auth, dan gateway.
 - Timeout/retry/backoff eksplisit, circuit breaker operasional untuk provider, serta outbox untuk side effect setelah transaksi committed.
 
 ### 4.3 Gate POC Elysia
@@ -143,14 +170,17 @@ Schema MVP telah diterapkan pada T04 melalui `supabase/migrations/`; tabel di ba
 
 | Tabel | Kolom dan constraint penting | Relasi / akses |
 | --- | --- | --- |
-| `users` | id, display_name, phone_normalized UNIQUE NOT NULL, phone_verified_at, state | Satu orang lintas guest/member; nomor private |
-| `profiles` | id UUID PK = auth.users.id, user_id UNIQUE FK public.users, avatar_path, bio, default_timezone | Satu akun Auth per user bisnis; safe public projection terpisah |
+| `users` | id, display_name, phone_normalized UNIQUE nullable, phone_verified_at legacy, state | Identitas bisnis lintas guest/member; WhatsApp private dan bukan kredensial |
+| `profiles` | id UUID PK = auth.users.id, user_id UNIQUE FK public.users, auth_provider, avatar_path, bio, default_timezone | Akun Google terverifikasi ke user bisnis; safe public projection terpisah |
+| `workspaces` | id, name, created_by_profile_id | Ruang pengelolaan event; profile pembuat tidak otomatis menjadi peserta |
+| `workspace_members` | workspace_id, profile_id, role owner/organizer/member | Izin pengelolaan per workspace, bukan tipe akun global |
+| `event_organizers` | event_id, profile_id, role owner/organizer | Izin tambahan per event dan backfill owner lama |
 | `identity_claims` | user_id, auth_user_id, challenge_id, status, expires_at, resolved_at | Claim/merge hanya setelah proof; audit dan transaksi |
-| `guest_sessions` | user_id, scope_event_id FK events, token_hash UNIQUE, scope, expires_at, revoked_at | Akses terbatas; token mentah tidak disimpan |
+| `guest_sessions` | user_id, scope_event_id FK events, token_hash UNIQUE, scope, expires_at, revoked_at | Akses booking terbatas; token mentah tidak disimpan |
 | `verification_challenges` | phone_normalized, auth_user_id, purpose, provider_ref, secret_hash jika diperlukan, attempts, verified_at, expires_at, consumed_at | Internal; throttle, single-use, cleanup |
 | `activity_types` | slug UNIQUE, name, active | Kategori extensible tanpa enum olahraga yang kaku |
 | `venues` | created_by, name, address, city, latitude, longitude, maps_url, place_id nullable | Master venue; lokasi tervalidasi |
-| `events` | organizer_profile_id FK profiles, activity_type_id, venue_id nullable, venue_snapshot jsonb, title, description, starts_at, ends_at, timezone, capacity, registration_closes_at, visibility, status, payment_mode, price_amount, currency, payment_due_at, hold_minutes, cancellation_policy, version | CHECK ends_at > starts_at, capacity > 0, currency=IDR, amount>=0; hanya organizer mutate |
+| `events` | organizer_profile_id FK profiles sebagai owner lama, workspace_id FK workspaces, activity_type_id, venue_id nullable, venue_snapshot jsonb, title, description, starts_at, ends_at, timezone, capacity, registration_closes_at, visibility, status, payment_mode, price_amount, currency, payment_due_at, hold_minutes, cancellation_policy, version | CHECK ends_at > starts_at, capacity > 0, currency=IDR, amount>=0; mutasi memeriksa role workspace/event |
 | `event_invites` | event_id, token_hash UNIQUE, expires_at nullable, revoked_at, created_by | Grant view/join; bukan grant pengelolaan |
 | `event_participants` | event_id, user_id, joined_as guest/member, status, hold_expires_at, confirmed_at, attendance_at, cancelled_at, cancellation_reason | UNIQUE(event_id,user_id); history joined_as tidak berubah ketika guest claim |
 | `participant_history` | participant_id, from_status, to_status, reason, actor_type, actor_id | Append-only transisi roster |
@@ -200,10 +230,12 @@ Prefix `/v1` pada function Elysia. JSON response `{ data, meta?: { next_cursor }
 | Method / endpoint | Akses | Fungsi / aturan |
 | --- | --- | --- |
 | GET `/health` | Public, minimal | Liveness tanpa membocorkan env |
-| GET/PATCH `/me` | Member | Profil sendiri; ganti nomor melalui verifikasi |
-| POST `/identity/challenges` | Rate-limited | Kirim challenge, respons generik anti-enumerasi |
-| POST `/identity/verify` | Challenge | Single-use OTP; member binding atau guest session scoped |
-| POST `/identity/claim` | Member + proof | Klaim user guest atomik; collision → recovery |
+| GET `/me` | Member | Ringkasan identitas Auth sendiri dan status Google verified |
+| POST `/profile/bootstrap` | Google member | Idempotent membuat/mengikat user bisnis, profile, dan workspace pribadi dari JWT |
+| GET/PATCH `/profile` | Google member | Read/update profil sendiri; owner dari JWT, hanya bio/avatar/timezone dapat diubah |
+| POST `/events/:id/guest-bookings` | Public melalui project key | Booking nama+WhatsApp; token 256-bit dikembalikan sekali, hash saja disimpan; throttle wajib sebelum deploy |
+| GET `/events/:id/guest-bookings/me` | Guest booking token | Proyeksi status booking sendiri; token dari header, respons no-store, tidak mengekspos identitas lain |
+| POST `/identity/claim` | Google member + proof | Target lanjutan untuk klaim riwayat guest; input WhatsApp saja tidak cukup |
 | GET `/activity-types` | Public | Kategori aktif |
 | GET `/events` | Public/member | Public discovery atau filter organizer=me; tidak bocor unlisted |
 | POST `/events` | Verified member | Buat draft; organizer dari JWT, bukan body |
@@ -236,7 +268,7 @@ Kode error utama: 400 validasi, 401 sesi tidak valid, 403 tidak berhak, 404 obje
 
 Phase 2 API: follow/unfollow, follow requests, community CRUD/membership/invites, community events, cursor feed, activity CRUD, photo upload, block/report/moderation. Phase 3 API: challenge list/join/progress, achievements, stats per periode, recommendations + feedback/opt-out. OpenAPI dan auth matrix diperbarui tiap phase.
 
-## Progres eksekusi — 27 Oktober 2026
+## Progres eksekusi — 28 Oktober 2026
 
 | Task | Status | Bukti / sisa pekerjaan |
 | --- | --- | --- |
@@ -244,12 +276,12 @@ Phase 2 API: follow/unfollow, follow requests, community CRUD/membership/invites
 | T02 | Selesai — compatibility GO | Hosted Elysia lulus user JWT valid/invalid/deleted identity, 20 RPC write konkuren dengan RLS, private multipart Storage/signed URL, raw-text HMAC webhook + 20 duplicate callbacks, CORS/validation/errors, 100 smoke read, bundle diagnostic, dan instalasi bersih. First request 3698.24 ms; warm p95 396.80 ms. Fixture dibersihkan; bukti `docs/POC-RESULTS.md` dan ADR 0001. |
 | T03 | Selesai — static Hosting GO | Project `dolend-apps`, site `dolend`, target `web`, channel `t03`. Event query-route + client fetch, auth/payment return shell, post-build public fixture, clean export tanpa fixture, 12 browser test lokal + 12 hosted (desktop/360 px), headers/direct-link/refresh lulus. Bukti `docs/HOSTING-RESULTS.md`. |
 | T04 | Selesai | Delapan migration diterapkan ke Supabase; identitas bisnis kini `public.users/user_id`. Ada 22 tabel ber-RLS, 11 service-only RPC, 0 FK tanpa indeks, dan 7 kategori seed. 38 kelompok test lokal + 13 hosted/regression lulus; fresh replay/snapshot lokal serta cleanup fixture terbukti. Generated types/ERD/dictionary/runbook tersedia; lihat `docs/DATABASE-RESULTS.md`. |
-| T05 | Ditunda atas permintaan pengguna | Provider SMS dan payment gateway belum dipilih/diaktifkan. Tidak menghalangi landing page publik dan CI frontend; fitur OTP/payment nyata tetap menunggu keputusan berikutnya. |
+| T05 | Ditunda atas permintaan pengguna | Payment gateway belum dipilih/diaktifkan. Provider SMS tidak lagi diperlukan untuk login atau guest booking setelah keputusan hybrid auth; payment nyata tetap menunggu perubahan scope. |
 | T06 | Selesai — baseline CI/CD frontend | Push main menjalankan checks → verified artifact → OIDC live deploy ke dolend.web.app; run GitHub 40465855465 sukses dan SHA live cocok. Node 24, pinned actions/CLI, tanpa long-lived key, release metadata, isolated preview dan runbook tersedia. API/migration tetap prosedur manual; lihat `docs/CI-CD.md` dan `docs/ci-results.json`. |
 | T07 | Selesai — UI baseline | Landing dan playground React/Tailwind/shadcn mencakup form event, detail/Maps, join tamu, roster, dashboard, simulasi pembayaran manual, WhatsApp, serta empty/loading/error/full/expired. Audit Axe WCAG AA, keyboard, desktop dan 360 px lulus. Integrasi nyata mengikuti T08–T19; lihat `docs/UI-RESULTS.md`. |
-| T08 | Berjalan — fondasi identitas/session | Environment, normalisasi nomor Indonesia, Supabase browser client, status session/logout, UI fondasi akun, dan identity tests tersedia. Pembuatan profil, nomor-change/recovery, throttle, serta OTP nyata menunggu integrasi API/provider T05. |
+| T08 | Berjalan — hybrid auth terintegrasi | Google OAuth+PKCE, callback static, bootstrap profile/workspace, profil JWT+RLS, role workspace/event, dan guest booking token sudah diimplementasikan. Replay 11 migration + 45 assertion DB, 15 test API, 18 browser checks gabungan akun/booking/pembayaran, lint, build, typecheck, serta 3 test nomor lulus. Migration hardening terbaru menolak nomor akun Google sebagai bukti guest dan belum dideploy. Login Google asli dan recovery/throttle guest masih perlu dibuktikan sebelum T08 selesai. |
 
-Hasil lokal: lint, Next build, TypeScript, Deno check, 6 test API, 3 test identitas nomor, dan 38 browser checks lulus. HTTP localhost: first request 72.39 ms, warm p50 1.02 ms, p95 4.94 ms; ini bukan ukuran hosted/cold-start atau transaksi DB. Docker daemon belum aktif. Supabase tujuan dipilih pengguna: `fpbefabsqryxmnmxufjw`. Setup UI dikerjakan sesuai keputusan pengguna; compatibility gate T02 sudah GO. T03 juga sudah GO melalui preview Firebase. T05 (SMS/gateway readiness) ditunda atas permintaan pengguna; M0/MVP penuh tetap belum selesai, sementara landing page dan CI frontend dapat dilanjutkan. Verifikasi expired JWT asli tetap T08/T20; webhook gateway nyata tetap T16.
+Hasil sampai 27 Oktober tetap menjadi baseline hosted sebelumnya. Source hybrid auth 28 Oktober dan integrasi iuran manual 31 Oktober kini lulus replay 11 migration dan 45 assertion database lokal, 15 test API, 18 browser checks desktop/mobile, lint, static build, typecheck, serta 3 test normalisasi nomor memakai Node 24. Snapshot 31 Oktober telah diterapkan manual ke Supabase `fpbefabsqryxmnmxufjw`, Edge Function, dan Firebase Hosting; migration hardening identitas guest serta perubahan lokal setelah snapshot itu belum dideploy oleh pekerjaan lanjutan ini. T05 payment gateway tetap ditunda dan M0/MVP penuh belum selesai. Verifikasi OAuth Google asli/expired JWT tetap T08/T20; webhook gateway nyata tetap T16.
 
 ## 7. Backlog implementasi terperinci
 
@@ -289,14 +321,14 @@ Setiap task adalah pekerjaan yang dapat ditinjau. Dependencies menyebut ID task 
 - **Dependencies:** T02.
 - **Acceptance criteria:** database kosong dapat dibangun ulang; UUID PK dan phone unique bekerja; seluruh tabel terpapar memiliki policy/grants yang tepat; user A tidak mengakses data B; join/cancel/payment menggunakan lock yang konsisten; data ledger tidak dapat diubah client.
 
-### T05 — Provider identity dan payment readiness
+### T05 — Payment gateway readiness
 
-**Status: Ditunda atas permintaan pengguna, 27 Oktober 2026.** Jangan memilih, onboarding, atau mengaktifkan SMS/payment gateway sampai ada instruksi lanjutan. Cakupan MVP dipertahankan di backlog; landing page saat ini hanya simulasi, tanpa OTP atau transaksi sungguhan.
+**Status: Ditunda atas permintaan pengguna, 27 Oktober 2026.** Jangan memilih, onboarding, atau mengaktifkan payment gateway sampai ada instruksi lanjutan. SMS keluar dari kebutuhan auth pada keputusan 28 Oktober 2026. Landing page tetap simulasi, tanpa transaksi sungguhan.
 
-- **Description:** pilih SMS dan satu gateway, verifikasi delivery Indonesia, QRIS/metode non-QRIS, signature, settlement model, dan refund support.
-- **Deliverables:** decision matrix, sandbox credentials server-side, laporan OTP delivery, daftar metode, onboarding checklist merchant dan biaya terverifikasi dari provider.
+- **Description:** pilih satu gateway, verifikasi QRIS/metode non-QRIS, signature, settlement model, dan refund support.
+- **Deliverables:** decision matrix, sandbox credentials server-side, daftar metode, onboarding checklist merchant dan biaya terverifikasi dari provider.
 - **Dependencies:** T01, T02.
-- **Acceptance criteria:** OTP terkirim ke nomor Indonesia uji; sandbox QRIS dan satu metode non-QRIS berjalan; raw webhook validasi terbukti; pemilik merchant/settlement dan tanggung jawab refund jelas; produksi tidak diasumsikan siap sebelum approval provider.
+- **Acceptance criteria:** sandbox QRIS dan satu metode non-QRIS berjalan; raw webhook validasi terbukti; pemilik merchant/settlement dan tanggung jawab refund jelas; produksi tidak diasumsikan siap sebelum approval provider.
 
 ### T06 — Repo, lingkungan, dan CI/CD
 
@@ -318,14 +350,14 @@ Setiap task adalah pekerjaan yang dapat ditinjau. Dependencies menyebut ID task 
 - **Dependencies:** T01, T03.
 - **Acceptance criteria:** alur utama dapat digunakan pada viewport 360 px dan desktop; keyboard/focus/label/contrast diperiksa; waktu/zona/biaya jelas sebelum join; guest/member mudah dipahami; nama dan pesan konsisten Dolend.
 
-### T08 — Supabase Auth, profil, dan identitas nomor
+### T08 — Supabase Google Auth, profil, dan identitas guest
 
-**Progres:** fondasi environment dan identitas client selesai 27 Oktober 2026. Frontend dan Elysia lokal dapat dijalankan paralel lewat `npm run dev:all` dan mengarah ke project `fpbefabsqryxmnmxufjw`; publishable key divalidasi tanpa menaruh service-role/database password dalam file publik. Utility `libphonenumber-js` menyatukan input `08`/`+62`/`62` menjadi business identifier `62...`, menyiapkan E.164 untuk adapter provider, serta menolak nomor non-Indonesia, fixed-line, dan invalid. `/account/` menyediakan pemeriksaan format, Supabase browser session/refresh/logout, status provider yang jujur, dan tidak memanggil endpoint OTP. Migration tetap melalui Supabase CLI linked. Pengiriman OTP, profile write, throttle, recovery dan nomor-change belum diaktifkan karena T05 ditunda.
+**Progres:** keputusan hybrid auth diimplementasikan pada 28 Oktober 2026 dan diintegrasikan dengan alur iuran manual pada 31 Oktober 2026. `/account/` memulai Google OAuth, callback static menukar PKCE code, dan `POST /profile/bootstrap` membuat user bisnis, profile, serta workspace pribadi secara idempotent dari JWT. Migration additive membuat WhatsApp nullable untuk akun Google, membackfill workspace dan role owner untuk event lama, serta mempertahankan row dan foreign key lama. Guest booking menerima nama+WhatsApp tanpa akun; API menormalisasi nomor, menghasilkan token 256-bit, menyimpan hash SHA-256, dan RPC membuat partisipasi secara atomik. Hak organizer diperiksa lewat role workspace/event, sedangkan partisipasi tetap terhubung ke user bisnis yang sama. Migration, API, dan frontend snapshot 31 Oktober sudah diterapkan manual. Hosted storage memakai fixture dengan metadata Google sintetis; login Google asli, redirect production, expiry/revocation, throttle, dan recovery token belum dibuktikan penuh.
 
-- **Description:** implementasi signup/login/logout/refresh, verified phone, normalisasi, unique identity, recovery, dan profile ownership.
-- **Deliverables:** Auth integration, normalization utility, profile API/UI, OTP throttle, nomor-change flow, identity tests.
-- **Dependencies:** T04, T05, T06, T07.
-- **Acceptance criteria:** variasi 08/+62/62 menuju user yang sama; invalid/non-ID ditolak; UUID tidak berubah saat nomor berubah; user tanpa nomor verified tidak dapat create event; input nomor orang lain tidak memberi akses; expired/reused OTP ditolak; refresh/logout benar di static app.
+- **Description:** implementasi login/logout/refresh Google, profile ownership, workspace/event permission, serta guest booking token tanpa akun.
+- **Deliverables:** Google Auth integration, callback PKCE, bootstrap profile/workspace, profile API/UI, guest booking API/RPC, role tests, dan identity tests.
+- **Dependencies:** T04, T06, T07.
+- **Acceptance criteria:** hanya identitas Google verified dapat bootstrap profil dan mengelola event; guest invalid/non-ID ditolak; token mentah tidak disimpan; token scoped event dan duplicate booking tidak menerbitkan token baru; role organizer tidak menghalangi akun yang sama menjadi peserta; refresh/logout dan callback benar di static app; data lama ter-backfill tanpa drop.
 
 ### T09 — Venue dan Google Maps
 
@@ -409,13 +441,13 @@ Setiap task adalah pekerjaan yang dapat ditinjau. Dependencies menyebut ID task 
 - **Description:** verifikasi trust boundaries, abuse controls, akses file, concurrency, dan seluruh alur MVP di staging.
 - **Deliverables:** RLS/API negative tests, payment fixtures, E2E mobile/desktop, risk register terkini, data retention/deletion procedure.
 - **Dependencies:** T06–T19.
-- **Acceptance criteria:** seluruh skenario §9 lulus; tidak ada temuan kritis/tinggi terbuka; public DTO bebas nomor/bukti/secret; token/OTP tidak muncul log; counter rate limit atomik; dependency/build scan ditinjau; backup restore terbukti pada lingkungan uji.
+- **Acceptance criteria:** seluruh skenario §9 lulus; tidak ada temuan kritis/tinggi terbuka; public DTO bebas nomor/bukti/secret; OAuth code dan booking token tidak muncul log; counter rate limit atomik; dependency/build scan ditinjau; backup restore terbukti pada lingkungan uji.
 
 ### T21 — Pilot dan release MVP
 
-- **Description:** jalankan pilot terbatas sebelum release, validasi delivery OTP, real payment minimal, settlement, refund, dan support.
+- **Description:** jalankan pilot terbatas sebelum release, validasi Google OAuth, guest booking token, real payment minimal, settlement, refund, dan support.
 - **Deliverables:** pilot report, release checklist, deployment/rollback runbook, ownership support, production monitoring.
-- **Dependencies:** T20; production merchant/SMS readiness T05.
+- **Dependencies:** T20; Google provider production dan merchant readiness T05.
 - **Acceptance criteria:** minimal 3 event pilot termasuk free/prepay/postpay dan guest/member; transfer manual, QRIS, serta satu metode gateway non-QRIS terbukti; settlement/refund diverifikasi dengan nominal uji; tidak ada selisih ledger tak terjelaskan; organizer menyelesaikan alur tanpa bantuan teknis; production rollback rehearsal selesai.
 
 ### T22 — Follow friends dan privacy sosial (Phase 2)
@@ -495,7 +527,7 @@ MVP indikatif 7–11 minggu setelah pekerjaan dimulai, dipengaruhi kapasitas tim
 | Area | Skenario wajib | Hasil yang diharapkan |
 | --- | --- | --- |
 | Static hosting | Event baru, direct open, refresh, auth callback, return payment | Berjalan tanpa rebuild/Next server dan tanpa 404 hosting |
-| Identity | 08/+62/62, collision, nomor invalid, OTP replay, claim guest | Satu user bisnis per nomor valid; akses selalu membutuhkan proof |
+| Identity | Google callback/replay, provider mismatch, guest 08/+62/62, collision, token replay, claim guest | Organizer memakai Google verified; akses guest selalu membutuhkan token scoped |
 | Authorization | Guest/member/organizer lain mencoba akses event/invoice/evidence | Tidak ada kebocoran atau mutasi lintas owner |
 | Concurrency | 20 join untuk 5 kursi, duplicate join, cancel race | Occupancy maksimal 5, invoice/participant tidak ganda |
 | Time | WIB/WITA/WIT, UTC boundaries, deadline, end before start | Tampilan konsisten dan validasi server benar |
@@ -512,7 +544,7 @@ MVP indikatif 7–11 minggu setelah pekerjaan dimulai, dipengaruhi kapasitas tim
 
 **Definition of Done task:** deliverables tersedia dan dapat direview; acceptance criteria dibuktikan; typecheck/lint/build dan test relevan lulus; migration/API/docs berubah bersama; observability/error states tersedia; tidak ada secret/PII di artefak publik; temuan material dicatat. Tidak perlu unit test yang hanya menyalin implementasi, tetapi integritas transaksi, authorization, pembayaran, dan hosted compatibility wajib diuji.
 
-**Release gate MVP:** M0–M4 lulus; production OTP dan merchant approved; QRIS + satu gateway non-QRIS dan transfer manual operasional; data protection/retention/support/refund ownership jelas; tidak ada bug kritis/tinggi; uji restore dan reconciliation selesai. Mode pilot yang membatasi metode harus dilabeli pilot, bukan MVP lengkap.
+**Release gate MVP:** M0–M4 lulus; Google OAuth production dan merchant approved; QRIS + satu gateway non-QRIS dan transfer manual operasional; data protection/retention/support/refund ownership jelas; tidak ada bug kritis/tinggi; uji restore dan reconciliation selesai. Mode pilot yang membatasi metode harus dilabeli pilot, bukan MVP lengkap.
 
 ## 10. Risks, mitigasi, dan keputusan terbuka
 
@@ -521,7 +553,7 @@ MVP indikatif 7–11 minggu setelah pekerjaan dimulai, dipengaruhi kapasitas tim
 | Detail rencana lama tidak tersedia | Task/AC terdahulu mungkin belum tercakup | Product owner + engineer merekonsiliasi sumber lama saat tersedia; pertahankan ID/detail yang ditemukan; catat gap |
 | Elysia dependency tidak cocok dengan Supabase runtime | Backend tidak dapat deploy | Engineer: hosted POC T02 sebelum domain implementation; pin adapter; ADR bila no-go |
 | Static export dan dynamic route disalahgunakan | Event hasil create tidak bisa dibuka | Engineer: query route shell, deployed refresh test T03/T11; metadata umum diterima |
-| SMS Indonesia gagal/biaya abuse | Guest/member tidak bisa join atau biaya melonjak | Engineer/product: delivery POC, throttle, resend cooldown, biaya/limit monitor, recovery policy; M0/M4 |
+| Guest booking token bocor atau disalahgunakan | Orang lain dapat membuka status booking scoped | Engineer/product: token 256-bit, hash-only storage, TTL/revoke, address-bar cleanup, throttle dan recovery; M0/M4 |
 | Nomor recycled/shared atau input palsu | Account takeover, salah klaim history | Proof kepemilikan, audited change/claim, collision recovery; nomor bukan kredensial; T08 |
 | Join/payment/expiry race | Overbooking atau uang tanpa kursi | DB lock, idempotency, durable ledger, late-payment exception; T12/T16/T19 |
 | Manual evidence palsu/review lambat | Salah konfirmasi atau slot terkunci | Review organizer, bounded review deadline, audit/reject/retry, pending queue; T15 |
@@ -534,15 +566,15 @@ MVP indikatif 7–11 minggu setelah pekerjaan dimulai, dipengaruhi kapasitas tim
 | Feed/photos memperbesar abuse dan biaya | Spam, konten bermasalah, storage membengkak | Block/report/moderation, upload limits, retensi dan privacy sebelum Phase 2 |
 | Achievement/rekomendasi memakai data keliru | Trust rendah, manipulasi | Verified source, rules versioning, rebuild/correction, opt-out; Phase 3 gates |
 
-Keputusan terbuka yang harus ditutup pada task terkait: provider SMS dan gateway; identitas merchant/settlement; fee ditanggung siapa; refund/cancellation policy default; final retention bukti/ledger/log sesuai kebutuhan operasi dan kewajiban yang divalidasi saat implementasi; akses nama peserta publik (default hanya count); domain/brand availability; review window manual; budget dan kapasitas tim. Default teknis dalam dokumen adalah baseline implementasi, bukan bukti keputusan komersial/legal telah selesai.
+Keputusan terbuka yang harus ditutup pada task terkait: konfigurasi Google OAuth production dan gateway; proof untuk claim riwayat guest; identitas merchant/settlement; fee ditanggung siapa; refund/cancellation policy default; final retention bukti/ledger/log sesuai kebutuhan operasi dan kewajiban yang divalidasi saat implementasi; akses nama peserta publik (default hanya count); domain/brand availability; review window manual; budget dan kapasitas tim. Default teknis dalam dokumen adalah baseline implementasi, bukan bukti keputusan komersial/legal telah selesai.
 
 ## 11. Metrik keberhasilan dan observability
 
 - Product MVP: event draft→published, share→verified join, join→confirmed, event terlaksana, repeat organizer, repeat participant; bedakan funnel guest/member dan metode pembayaran.
-- Operasional: OTP delivery/verification success, payment success/reconciliation lag, manual review time, outstanding postpay, refund turnaround, job failures, API error/latency, occupancy invariant violations.
+- Operasional: Google login/callback success, guest booking success/conflict, payment success/reconciliation lag, manual review time, outstanding postpay, refund turnaround, job failures, API error/latency, occupancy invariant violations.
 - Phase 2: accepted follows, active communities, feed participation, photo contributions dan report resolution. Phase 3: challenge completion, repeat activity, stats consistency dan recommendation relevance.
-- Instrumentasi memakai event ID/UUID dan agregasi; nomor/OTP/token/bukti tidak dikirim sebagai analytics properties. Baseline pilot menentukan target numerik berikutnya; tidak mengarang target growth sebelum baseline ada.
-- Alert langsung untuk overbooking, unmatched payment, ledger mismatch, backlog callback/job, delivery OTP drop, dan kuota mendekati anggaran. Assign owner dan runbook pada M4.
+- Instrumentasi memakai event ID/UUID dan agregasi; nomor/OAuth code/token/bukti tidak dikirim sebagai analytics properties. Baseline pilot menentukan target numerik berikutnya; tidak mengarang target growth sebelum baseline ada.
+- Alert langsung untuk overbooking, unmatched payment, ledger mismatch, backlog callback/job, lonjakan kegagalan OAuth/booking, dan kuota mendekati anggaran. Assign owner dan runbook pada M4.
 
 ## 12. Referensi teknis
 
@@ -559,4 +591,4 @@ Dokumentasi resmi diperiksa 27 Oktober 2026. Referensi mendukung keputusan arsit
 
 Paket hasil mencakup rencana, aplikasi statis, POC runtime, database Supabase, landing/playground, CI/CD dan bukti verifikasi dalam `docs/`. Integrasi Auth, event API, undangan dan pembayaran produksi masih mengikuti backlog.
 
-Langkah berikutnya: kerjakan bagian T08 yang tidak membutuhkan provider—normalisasi nomor Indonesia, kontrak Auth/profile, session client dan UI—sementara pengiriman OTP nyata tetap menunggu T05. T06 auto-deploy ke `https://dolend.web.app/` aktif; T07 UI baseline selesai. Jangan mengaktifkan provider SMS/payment sementara. DP 50% dan pembayaran playground hanya simulasi front-end. Rekonsiliasi rencana lama tetap terbuka jika sumber tersedia.
+Langkah berikutnya: verifikasi login Google asli dan redirect production, lalu selesaikan throttle serta recovery token guest. Snapshot 31 Oktober sudah diterapkan manual ke Supabase dan `https://dolend.web.app/`; perubahan lokal setelah snapshot ini belum dideploy. Deployment berikutnya tetap memerlukan persetujuan eksplisit. Jangan mengaktifkan payment gateway sementara. DP 50% pada playground tetap simulasi front-end.

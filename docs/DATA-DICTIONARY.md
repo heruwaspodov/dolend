@@ -107,12 +107,25 @@ Constraints:
 - `event_payment_methods_pkey`: PRIMARY KEY (id)
 - `event_payment_methods_event_id_fkey`: FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE RESTRICT
 
+## event_organizers
+
+| Column | Type | Nullable | Default |
+| --- | --- | --- | --- |
+| event_id | uuid | NO | — |
+| profile_id | uuid | NO | — |
+| role | text | NO | — |
+| created_at | timestamp with time zone | NO | now() |
+| updated_at | timestamp with time zone | NO | now() |
+
+Constraints: composite primary key `(event_id, profile_id)`, role `owner|organizer`, dan FK restrict ke `events` serta `profiles`.
+
 ## events
 
 | Column | Type | Nullable | Default |
 | --- | --- | --- | --- |
 | id | uuid | NO | gen_random_uuid() |
 | organizer_profile_id | uuid | NO | — |
+| workspace_id | uuid | NO | — |
 | activity_type_id | uuid | NO | — |
 | venue_id | uuid | YES | — |
 | venue_snapshot | jsonb | NO | '{}'::jsonb |
@@ -157,6 +170,7 @@ Constraints:
 - `events_check3`: CHECK (((payment_mode <> 'after_event'::text) OR ((payment_due_at IS NOT NULL) AND (payment_due_at >= ends_at))))
 - `events_pkey`: PRIMARY KEY (id)
 - `events_organizer_profile_id_fkey`: FOREIGN KEY (organizer_profile_id) REFERENCES profiles(id) ON DELETE RESTRICT
+- `events_workspace_id_fkey`: FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE RESTRICT
 - `events_activity_type_id_fkey`: FOREIGN KEY (activity_type_id) REFERENCES activity_types(id) ON DELETE RESTRICT
 - `events_venue_id_fkey`: FOREIGN KEY (venue_id) REFERENCES venues(id) ON DELETE RESTRICT
 
@@ -166,6 +180,7 @@ Constraints:
 | --- | --- | --- | --- |
 | id | uuid | NO | gen_random_uuid() |
 | user_id | uuid | NO | — |
+| auth_provider | text | NO | 'legacy_phone'::text |
 | scope_event_id | uuid | NO | — |
 | token_hash | text | NO | — |
 | scope | text | NO | 'participation'::text |
@@ -398,6 +413,7 @@ Constraints:
 - `profile_avatar_path_length`: CHECK ((length(avatar_path) <= 512))
 - `profiles_user_id_key`: UNIQUE (user_id)
 - `profiles_user_id_fkey`: FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT
+- `profiles_auth_provider_check`: CHECK auth_provider IN ('google','legacy_phone')
 
 ## rate_limit_counters
 
@@ -451,7 +467,7 @@ Constraints:
 | --- | --- | --- | --- |
 | id | uuid | NO | gen_random_uuid() |
 | display_name | text | NO | — |
-| phone_normalized | text | NO | — |
+| phone_normalized | text | YES | — |
 | phone_verified_at | timestamp with time zone | YES | — |
 | state | text | NO | 'active'::text |
 | created_at | timestamp with time zone | NO | now() |
@@ -461,9 +477,33 @@ Constraints:
 
 - `users_pkey`: PRIMARY KEY (id)
 - `users_display_name_check`: CHECK (((length(TRIM(BOTH FROM display_name)) >= 1) AND (length(TRIM(BOTH FROM display_name)) <= 120)))
-- `users_phone_normalized_check`: CHECK ((phone_normalized ~ '^62[1-9][0-9]{6,12}$'::text))
+- `users_phone_normalized_check`: CHECK phone_normalized IS NULL OR canonical `62...`
 - `users_phone_normalized_key`: UNIQUE (phone_normalized)
 - `users_state_check`: CHECK ((state = ANY (ARRAY['active'::text, 'suspended'::text, 'anonymized'::text])))
+
+## workspace_members
+
+| Column | Type | Nullable | Default |
+| --- | --- | --- | --- |
+| workspace_id | uuid | NO | — |
+| profile_id | uuid | NO | — |
+| role | text | NO | — |
+| created_at | timestamp with time zone | NO | now() |
+| updated_at | timestamp with time zone | NO | now() |
+
+Constraints: composite primary key `(workspace_id, profile_id)`, role `owner|organizer|member`, dan FK restrict ke `workspaces` serta `profiles`.
+
+## workspaces
+
+| Column | Type | Nullable | Default |
+| --- | --- | --- | --- |
+| id | uuid | NO | gen_random_uuid() |
+| name | text | NO | — |
+| created_by_profile_id | uuid | NO | — |
+| created_at | timestamp with time zone | NO | now() |
+| updated_at | timestamp with time zone | NO | now() |
+
+Constraints: nama 1-120 karakter dan FK restrict `created_by_profile_id` ke `profiles`.
 
 ## venues
 
@@ -536,3 +576,7 @@ Constraints:
 - `webhook_events_retry_count_check`: CHECK ((retry_count >= 0))
 - `webhook_events_pkey`: PRIMARY KEY (id)
 - `webhook_events_provider_external_event_id_key`: UNIQUE (provider, external_event_id)
+
+## Revisi hosted 31 Oktober 2026
+
+Kontrak TypeScript telah digenerate ulang dari hosted. Tambahan events: contribution_mode, venue_booking_status, estimated_total_cost, contributions_locked_at/by, payment_timing. Tambahan tabel: organizer_payment_methods, manual_event_methods, participant_charges, manual_payment_records, contribution_ledger. Seluruh tabel baru RLS aktif, akses browser langsung ditolak. Detail relasi dan balance: docs/DATABASE.md; endpoint: docs/MANUAL-PAYMENT-API.md.

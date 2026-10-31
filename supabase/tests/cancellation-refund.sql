@@ -7,8 +7,11 @@ begin
  insert into auth.users(id,phone,phone_confirmed_at,created_at,updated_at) values(account_id,phone,now(),now(),now());
  insert into public.users(id,display_name,phone_normalized,phone_verified_at) values(user_id,'Rollback-only fixture',phone,now());
  insert into public.profiles(id,user_id) values(account_id,user_id);
- insert into public.events(id,organizer_profile_id,activity_type_id,title,venue_snapshot,starts_at,ends_at,registration_closes_at,capacity,payment_mode,price_amount,payment_due_at)
- values(event_id,account_id,(select id from public.activity_types where slug='walking'),'Rollback-only fixture','{"name":"Fixture","address":"Fixture"}',now()+interval '1 day',now()+interval '1 day 1 hour',now()+interval '23 hours',1,'after_event',10000,now()+interval '2 days');
+ insert into public.workspaces(name,created_by_profile_id) values('Ruang rollback',account_id);
+ insert into public.workspace_members(workspace_id,profile_id,role) select id,account_id,'owner' from public.workspaces where created_by_profile_id=account_id;
+ insert into public.events(id,organizer_profile_id,workspace_id,activity_type_id,title,venue_snapshot,starts_at,ends_at,registration_closes_at,capacity,payment_mode,price_amount,payment_due_at)
+ values(event_id,account_id,(select id from public.workspaces where created_by_profile_id=account_id),(select id from public.activity_types where slug='walking'),'Rollback-only fixture','{"name":"Fixture","address":"Fixture"}',now()+interval '1 day',now()+interval '1 day 1 hour',now()+interval '23 hours',1,'after_event',10000,now()+interval '2 days');
+ insert into public.event_organizers(event_id,profile_id,role) values(event_id,account_id,'owner');
  insert into public.event_payment_methods(id,event_id,method_type,provider,provider_method) values(method_id,event_id,'qris','fixture','qris');
  update public.events set status='published' where id=event_id;
  p=public.join_event(event_id,user_id,account_id);

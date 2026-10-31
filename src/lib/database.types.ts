@@ -78,6 +78,64 @@ export type Database = {
         }
         Relationships: []
       }
+      contribution_ledger: {
+        Row: {
+          actor_id: string
+          amount: number
+          charge_id: string
+          created_at: string
+          entry_type: string
+          id: string
+          idempotency_key: string
+          payment_id: string | null
+          reason: string
+        }
+        Insert: {
+          actor_id: string
+          amount: number
+          charge_id: string
+          created_at?: string
+          entry_type: string
+          id?: string
+          idempotency_key: string
+          payment_id?: string | null
+          reason: string
+        }
+        Update: {
+          actor_id?: string
+          amount?: number
+          charge_id?: string
+          created_at?: string
+          entry_type?: string
+          id?: string
+          idempotency_key?: string
+          payment_id?: string | null
+          reason?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contribution_ledger_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contribution_ledger_charge_id_fkey"
+            columns: ["charge_id"]
+            isOneToOne: false
+            referencedRelation: "participant_charges"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contribution_ledger_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: true
+            referencedRelation: "manual_payment_records"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_invites: {
         Row: {
           created_at: string
@@ -133,11 +191,58 @@ export type Database = {
           },
         ]
       }
+      event_organizers: {
+        Row: {
+          created_at: string
+          event_id: string
+          profile_id: string
+          role: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          profile_id: string
+          role: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          profile_id?: string
+          role?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_organizers_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_organizers_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "public_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_organizers_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_participants: {
         Row: {
           attendance_at: string | null
           cancellation_reason: string | null
           cancelled_at: string | null
+          chargeable: boolean
           confirmed_at: string | null
           created_at: string
           event_id: string
@@ -152,6 +257,7 @@ export type Database = {
           attendance_at?: string | null
           cancellation_reason?: string | null
           cancelled_at?: string | null
+          chargeable?: boolean
           confirmed_at?: string | null
           created_at?: string
           event_id: string
@@ -166,6 +272,7 @@ export type Database = {
           attendance_at?: string | null
           cancellation_reason?: string | null
           cancelled_at?: string | null
+          chargeable?: boolean
           confirmed_at?: string | null
           created_at?: string
           event_id?: string
@@ -256,16 +363,21 @@ export type Database = {
           activity_type_id: string
           cancellation_policy: Json
           capacity: number
+          contribution_mode: string
+          contributions_locked_at: string | null
+          contributions_locked_by: string | null
           created_at: string
           currency: string
           description: string
           ends_at: string
+          estimated_total_cost: number
           hold_minutes: number
           id: string
           manual_review_minutes: number
           organizer_profile_id: string
           payment_due_at: string | null
           payment_mode: string
+          payment_timing: string
           price_amount: number
           registration_closes_at: string
           starts_at: string
@@ -273,25 +385,32 @@ export type Database = {
           timezone: string
           title: string
           updated_at: string
+          venue_booking_status: string
           venue_id: string | null
           venue_snapshot: Json
           version: number
           visibility: string
+          workspace_id: string
         }
         Insert: {
           activity_type_id: string
           cancellation_policy?: Json
           capacity: number
+          contribution_mode?: string
+          contributions_locked_at?: string | null
+          contributions_locked_by?: string | null
           created_at?: string
           currency?: string
           description?: string
           ends_at: string
+          estimated_total_cost?: number
           hold_minutes?: number
           id?: string
           manual_review_minutes?: number
           organizer_profile_id: string
           payment_due_at?: string | null
           payment_mode?: string
+          payment_timing?: string
           price_amount?: number
           registration_closes_at: string
           starts_at: string
@@ -299,25 +418,32 @@ export type Database = {
           timezone?: string
           title: string
           updated_at?: string
+          venue_booking_status?: string
           venue_id?: string | null
           venue_snapshot?: Json
           version?: number
           visibility?: string
+          workspace_id: string
         }
         Update: {
           activity_type_id?: string
           cancellation_policy?: Json
           capacity?: number
+          contribution_mode?: string
+          contributions_locked_at?: string | null
+          contributions_locked_by?: string | null
           created_at?: string
           currency?: string
           description?: string
           ends_at?: string
+          estimated_total_cost?: number
           hold_minutes?: number
           id?: string
           manual_review_minutes?: number
           organizer_profile_id?: string
           payment_due_at?: string | null
           payment_mode?: string
+          payment_timing?: string
           price_amount?: number
           registration_closes_at?: string
           starts_at?: string
@@ -325,10 +451,12 @@ export type Database = {
           timezone?: string
           title?: string
           updated_at?: string
+          venue_booking_status?: string
           venue_id?: string | null
           venue_snapshot?: Json
           version?: number
           visibility?: string
+          workspace_id?: string
         }
         Relationships: [
           {
@@ -336,6 +464,13 @@ export type Database = {
             columns: ["activity_type_id"]
             isOneToOne: false
             referencedRelation: "activity_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_contributions_locked_by_fkey"
+            columns: ["contributions_locked_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
@@ -350,6 +485,13 @@ export type Database = {
             columns: ["venue_id"]
             isOneToOne: false
             referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
             referencedColumns: ["id"]
           },
         ]
@@ -549,6 +691,164 @@ export type Database = {
           },
         ]
       }
+      manual_event_methods: {
+        Row: {
+          enabled: boolean
+          event_id: string
+          method_id: string
+        }
+        Insert: {
+          enabled?: boolean
+          event_id: string
+          method_id: string
+        }
+        Update: {
+          enabled?: boolean
+          event_id?: string
+          method_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "manual_event_methods_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "manual_event_methods_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "public_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "manual_event_methods_method_id_fkey"
+            columns: ["method_id"]
+            isOneToOne: false
+            referencedRelation: "organizer_payment_methods"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      manual_payment_records: {
+        Row: {
+          amount: number
+          charge_id: string
+          created_at: string
+          id: string
+          idempotency_key: string
+          method_id: string
+          paid_at: string
+          proof_storage_path: string | null
+          reason: string | null
+          recorded_by: string | null
+          status: string
+          verified_at: string | null
+          verified_by: string | null
+        }
+        Insert: {
+          amount: number
+          charge_id: string
+          created_at?: string
+          id?: string
+          idempotency_key: string
+          method_id: string
+          paid_at?: string
+          proof_storage_path?: string | null
+          reason?: string | null
+          recorded_by?: string | null
+          status?: string
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Update: {
+          amount?: number
+          charge_id?: string
+          created_at?: string
+          id?: string
+          idempotency_key?: string
+          method_id?: string
+          paid_at?: string
+          proof_storage_path?: string | null
+          reason?: string | null
+          recorded_by?: string | null
+          status?: string
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "manual_payment_records_charge_id_fkey"
+            columns: ["charge_id"]
+            isOneToOne: false
+            referencedRelation: "participant_charges"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "manual_payment_records_method_id_fkey"
+            columns: ["method_id"]
+            isOneToOne: false
+            referencedRelation: "organizer_payment_methods"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "manual_payment_records_recorded_by_fkey"
+            columns: ["recorded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "manual_payment_records_verified_by_fkey"
+            columns: ["verified_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organizer_payment_methods: {
+        Row: {
+          bank_details: Json | null
+          created_at: string
+          id: string
+          is_active: boolean
+          organizer_id: string
+          recipient_name: string
+          storage_path: string | null
+          type: string
+        }
+        Insert: {
+          bank_details?: Json | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          organizer_id: string
+          recipient_name: string
+          storage_path?: string | null
+          type: string
+        }
+        Update: {
+          bank_details?: Json | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          organizer_id?: string
+          recipient_name?: string
+          storage_path?: string | null
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organizer_payment_methods_organizer_id_fkey"
+            columns: ["organizer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       outbox_jobs: {
         Row: {
           aggregate_id: string
@@ -590,6 +890,48 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      participant_charges: {
+        Row: {
+          amount: number
+          currency: string
+          id: string
+          locked_at: string
+          locked_by: string
+          participant_id: string
+        }
+        Insert: {
+          amount: number
+          currency?: string
+          id?: string
+          locked_at?: string
+          locked_by: string
+          participant_id: string
+        }
+        Update: {
+          amount?: number
+          currency?: string
+          id?: string
+          locked_at?: string
+          locked_by?: string
+          participant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "participant_charges_locked_by_fkey"
+            columns: ["locked_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "participant_charges_participant_id_fkey"
+            columns: ["participant_id"]
+            isOneToOne: true
+            referencedRelation: "event_participants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       participant_history: {
         Row: {
@@ -821,6 +1163,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          auth_provider: string
           avatar_path: string | null
           bio: string | null
           created_at: string
@@ -830,6 +1173,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          auth_provider?: string
           avatar_path?: string | null
           bio?: string | null
           created_at?: string
@@ -839,6 +1183,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          auth_provider?: string
           avatar_path?: string | null
           bio?: string | null
           created_at?: string
@@ -959,7 +1304,7 @@ export type Database = {
           created_at: string
           display_name: string
           id: string
-          phone_normalized: string
+          phone_normalized: string | null
           phone_verified_at: string | null
           state: string
           updated_at: string
@@ -968,7 +1313,7 @@ export type Database = {
           created_at?: string
           display_name: string
           id?: string
-          phone_normalized: string
+          phone_normalized?: string | null
           phone_verified_at?: string | null
           state?: string
           updated_at?: string
@@ -977,7 +1322,7 @@ export type Database = {
           created_at?: string
           display_name?: string
           id?: string
-          phone_normalized?: string
+          phone_normalized?: string | null
           phone_verified_at?: string | null
           state?: string
           updated_at?: string
@@ -1118,6 +1463,77 @@ export type Database = {
         }
         Relationships: []
       }
+      workspace_members: {
+        Row: {
+          created_at: string
+          profile_id: string
+          role: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          profile_id: string
+          role: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          profile_id?: string
+          role?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_members_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workspace_members_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workspaces: {
+        Row: {
+          created_at: string
+          created_by_profile_id: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by_profile_id: string
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by_profile_id?: string
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspaces_created_by_profile_id_fkey"
+            columns: ["created_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       public_events: {
@@ -1178,6 +1594,33 @@ export type Database = {
       }
     }
     Functions: {
+      adjust_contribution: {
+        Args: {
+          p_actor: string
+          p_amount: number
+          p_charge: string
+          p_key: string
+          p_reason: string
+          p_type: string
+        }
+        Returns: {
+          actor_id: string
+          amount: number
+          charge_id: string
+          created_at: string
+          entry_type: string
+          id: string
+          idempotency_key: string
+          payment_id: string | null
+          reason: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "contribution_ledger"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       apply_provider_payment: {
         Args: {
           p_amount: number
@@ -1247,6 +1690,53 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      assign_contribution: {
+        Args: { p_actor: string; p_amount: number; p_participant: string }
+        Returns: {
+          amount: number
+          currency: string
+          id: string
+          locked_at: string
+          locked_by: string
+          participant_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "participant_charges"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      bootstrap_google_profile: {
+        Args: never
+        Returns: {
+          auth_provider: string
+          avatar_path: string | null
+          bio: string | null
+          created_at: string
+          default_timezone: string
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "profiles"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      cancel_dynamic_participant: {
+        Args: {
+          p_actor: string
+          p_guest_hash: string
+          p_key: string
+          p_participant: string
+          p_policy: string
+          p_reason: string
+        }
+        Returns: undefined
+      }
       cancel_event: {
         Args: {
           p_actor_profile_id: string
@@ -1266,6 +1756,7 @@ export type Database = {
           attendance_at: string | null
           cancellation_reason: string | null
           cancelled_at: string | null
+          chargeable: boolean
           confirmed_at: string | null
           created_at: string
           event_id: string
@@ -1286,6 +1777,7 @@ export type Database = {
       claim_guest_identity: {
         Args: { p_auth_user_id: string; p_challenge_id: string }
         Returns: {
+          auth_provider: string
           avatar_path: string | null
           bio: string | null
           created_at: string
@@ -1297,6 +1789,35 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "profiles"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      create_guest_booking: {
+        Args: {
+          p_display_name: string
+          p_event: string
+          p_phone_normalized: string
+          p_token_hash: string
+        }
+        Returns: {
+          attendance_at: string | null
+          cancellation_reason: string | null
+          cancelled_at: string | null
+          chargeable: boolean
+          confirmed_at: string | null
+          created_at: string
+          event_id: string
+          hold_expires_at: string | null
+          id: string
+          joined_as: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "event_participants"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -1337,6 +1858,16 @@ export type Database = {
         }
       }
       expire_holds: { Args: { p_event_id: string }; Returns: number }
+      get_guest_booking: {
+        Args: { p_event: string; p_token_hash: string }
+        Returns: {
+          confirmed_at: string
+          hold_expires_at: string
+          participant_id: string
+          status: string
+          updated_at: string
+        }[]
+      }
       join_event: {
         Args: {
           p_actor_profile_id?: string
@@ -1348,6 +1879,7 @@ export type Database = {
           attendance_at: string | null
           cancellation_reason: string | null
           cancelled_at: string | null
+          chargeable: boolean
           confirmed_at: string | null
           created_at: string
           event_id: string
@@ -1364,6 +1896,14 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      lock_contributions: {
+        Args: { p_actor: string; p_event: string }
+        Returns: number
+      }
+      manual_event_access: {
+        Args: { p_actor: string; p_event: string }
+        Returns: undefined
       }
       record_refund: {
         Args: {
@@ -1393,6 +1933,38 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      report_manual_payment: {
+        Args: {
+          p_actor?: string
+          p_amount: number
+          p_charge: string
+          p_guest_hash?: string
+          p_key: string
+          p_method: string
+          p_proof?: string
+        }
+        Returns: {
+          amount: number
+          charge_id: string
+          created_at: string
+          id: string
+          idempotency_key: string
+          method_id: string
+          paid_at: string
+          proof_storage_path: string | null
+          reason: string | null
+          recorded_by: string | null
+          status: string
+          verified_at: string | null
+          verified_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "manual_payment_records"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       request_refund: {
         Args: {
           p_actor_profile_id: string
@@ -1418,6 +1990,35 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "refunds"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      review_manual_payment: {
+        Args: {
+          p_actor: string
+          p_decision: string
+          p_payment: string
+          p_reason: string
+        }
+        Returns: {
+          amount: number
+          charge_id: string
+          created_at: string
+          id: string
+          idempotency_key: string
+          method_id: string
+          paid_at: string
+          proof_storage_path: string | null
+          reason: string | null
+          recorded_by: string | null
+          status: string
+          verified_at: string | null
+          verified_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "manual_payment_records"
           isOneToOne: true
           isSetofReturn: false
         }

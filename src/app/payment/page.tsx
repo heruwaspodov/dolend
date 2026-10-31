@@ -1,5 +1,3 @@
-import { ReturnMessage } from '@/components/layout/return-message';
 import { PageShell } from '@/components/layout/page-shell';
-export default function PaymentPage() {
-  return <PageShell><ReturnMessage kind="payment" /></PageShell>;
-}
+import { PaymentPanel } from '@/components/contributions/payment-panel';
+export default function PaymentPage() { return <PageShell><PaymentPanel /></PageShell>; }

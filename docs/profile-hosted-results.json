@@ -1,0 +1,13 @@
+{
+  "date": "2026-10-27",
+  "project": "fpbefabsqryxmnmxufjw",
+  "checks": [
+    "hosted profile read returns authenticated owner projection",
+    "hosted profile update persists through user JWT and RLS",
+    "hosted profile rejects an unknown timezone",
+    "hosted API rejects identity injection and isolates owners",
+    "hosted API rejects unverified phone identity"
+  ],
+  "status": "passed",
+  "cleanup_verified": true
+}

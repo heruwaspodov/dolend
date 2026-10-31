@@ -9,10 +9,10 @@ Direktori kerja proyek: `/Users/wspdv/Works/dolend`.
 Brief produk T01 selesai untuk sumber yang tersedia dan **T02 kompatibilitas Elysia/Supabase sudah GO**. **T03 static Hosting juga sudah GO**: query-route serta auth/payment return shell lulus pengujian browser pada preview Firebase.
 
 - Next.js menghasilkan static export untuk beranda, `/account/`, `/event/`, `/auth/callback/`, dan `/payment/`. Target Hosting: project `dolend-apps`, site `dolend`.
-- Elysia sudah di-deploy ke Supabase. Enam test lokal dan smoke HTTP hosted 120 request lulus pada 27 Oktober 2026.
+- Elysia sudah di-deploy ke Supabase. Sepuluh test lokal serta smoke HTTP hosted 120 request lulus pada 27 Oktober 2026.
 - Hosted user JWT, RPC/RLS dengan 20 write konkuren, private Storage, raw-signature webhook/deduplication, dan instalasi source bersih sudah lulus. Probe serta fixture sementara telah dihapus.
-- T04 sudah menerapkan 22 tabel, RLS, dan RPC transaksi bisnis ke Supabase; fitur event/Auth/payment belum dihubungkan ke API/UI. Hasil test dan batasnya ada di docs/DATABASE-RESULTS.md.
-- T08 sudah memiliki normalisasi nomor Indonesia dan fondasi session browser di `/account/`; pengiriman OTP, write profil, SMS, dan payment provider tetap belum diaktifkan.
+- Migration hybrid auth additive dan dynamic manual contributions telah diterapkan manual ke hosted pada 31 Oktober 2026 tanpa menjatuhkan data lama. Tipe database sudah digenerate ulang dari schema hosted.
+- T08 memakai Google OAuth untuk organizer, callback PKCE, bootstrap profile/workspace, role organizer per workspace/event, serta guest booking nama+WhatsApp dengan token hash-only. Snapshot API/frontend 31 Oktober sudah dideploy manual; login Google asli dan redirect production belum dibuktikan karena verifikasi hosted memakai fixture metadata Google sintetis.
 
 Detail progres dan kriteria penerimaan ada di [PLAN.md](PLAN.md) dan [hasil POC](docs/POC-RESULTS.md).
 
@@ -20,7 +20,7 @@ Detail progres dan kriteria penerimaan ada di [PLAN.md](PLAN.md) dan [hasil POC]
 
 Target live: **https://dolend.web.app/**, project Firebase `dolend-apps`, site `dolend` (target `web`). Landing mengadaptasi [HTML referensi pengguna](docs/references/dolend_landing_page_demo.html) menjadi React/Tailwind/shadcn dengan hero, kategori kegiatan, simulator patungan, FAQ dan navigasi mobile.
 
-Kalkulator, pilihan DP, status peserta, copy link, serta tautan simulasi dapat dicoba tanpa login. Konfigurasi simulasi dibagikan lewat URL fragment; tidak membuat event atau menyimpan peserta ke database. SMS dan payment gateway **ditunda atas permintaan pengguna**. DP 50% hanya ilustrasi front-end, bukan fitur installment backend yang sudah tersedia.
+Kalkulator, pilihan DP, status peserta, copy link, serta tautan simulasi dapat dicoba tanpa login. Konfigurasi simulasi dibagikan lewat URL fragment; tidak membuat event atau menyimpan peserta ke database. Login organizer kini dirancang memakai Google, bukan SMS. Payment gateway tetap **ditunda atas permintaan pengguna**. DP 50% hanya ilustrasi front-end, bukan fitur installment backend yang sudah tersedia.
 
 ```sh
 npm run build
@@ -77,7 +77,7 @@ API Deno, pada terminal kedua dari direktori proyek:
 npm run api:dev
 ```
 
-Health API: [localhost:8000/dolend-api/v1/health](http://localhost:8000/dolend-api/v1/health). Watch mode aktif. `/me` membutuhkan user JWT Supabase dan konfigurasi server; anon key bukan identitas pengguna.
+Health API: [localhost:8000/dolend-api/v1/health](http://localhost:8000/dolend-api/v1/health). Watch mode aktif. `/me`, `/profile/bootstrap`, dan `/profile` membutuhkan user JWT Google melalui Supabase; anon key bukan identitas pengguna. Guest booking memakai `POST /events/:id/guest-bookings` dan service-role hanya di backend.
 
 `api:dev` membaca `.env.local` dan menjalankan API dengan watch mode. Perintah ekuivalennya:
 
@@ -103,6 +103,7 @@ Untuk `/me` lokal, set `SUPABASE_URL` dan `SUPABASE_PUBLISHABLE_KEY` (atau `SUPA
 | `npm run api:dev` | API Deno dengan watch mode |
 | `npm run api:check` | Pemeriksaan tipe API |
 | `npm run api:test` | Test handler API lokal, tanpa layanan Supabase |
+| `npm run api:test:hosted-profile` | Test profil/JWT/RLS hosted dengan fixture sementara |
 | `npm run test:phone` | Unit test normalisasi nomor Indonesia |
 | `npm run test:account` | Browser test fondasi akun pada desktop dan mobile |
 | `npm run api:smoke` | Smoke HTTP ke `API_BASE_URL` yang ditentukan |
@@ -156,7 +157,7 @@ npm run supabase -- functions deploy dolend-api \
 
 Gateway JWT verification tetap aktif; health hosted tanpa kredensial ditolak. Origin frontend staging/production harus dimasukkan ke `ALLOWED_ORIGINS` function setelah domain Hosting ditentukan. Jangan menyimpan access token, service-role key, atau secret provider di Git.
 
-Frontend memakai `output: 'export'` dan konfigurasi `firebase.json` yang menunjuk `out/`. Project Firebase `dolend-apps` dan site `dolend` sudah dipilih melalui target `web` di `.firebaserc`; default site `dolend-apps` bukan target deploy aplikasi ini. Tidak ada backend Next.js, Server Actions, atau runtime API route dalam rancangan ini. Link event memakai `/event/?id=<uuid>` dan client fetch, sehingga HTML shell tidak perlu dibangun ulang untuk setiap event. API event nyata belum tersedia (T10). Callback login dan payment saat ini hanya shell; callback belum menyelesaikan login atau mengonfirmasi pembayaran.
+Frontend memakai `output: 'export'` dan konfigurasi `firebase.json` yang menunjuk `out/`. Project Firebase `dolend-apps` dan site `dolend` sudah dipilih melalui target `web` di `.firebaserc`; default site `dolend-apps` bukan target deploy aplikasi ini. Tidak ada backend Next.js, Server Actions, atau runtime API route dalam rancangan ini. Link event memakai `/event/?id=<uuid>` dan client fetch, sehingga HTML shell tidak perlu dibangun ulang untuk setiap event. API event read nyata belum tersedia (T10). Callback auth lokal sudah menukar PKCE code dan bootstrap profile, tetapi baru dapat dipakai setelah Google provider serta redirect allowlist dikonfigurasi. Callback payment tetap shell dan tidak mengonfirmasi pembayaran.
 
 ## Preview Firebase dan uji static hosting
 
@@ -218,4 +219,8 @@ Folder dependency, hasil build, file environment lokal, log, dan cache layanan t
 - [Fondasi database](docs/DATABASE.md) dan [hasil T04](docs/DATABASE-RESULTS.md): ERD, akses, migrations, tests, serta prosedur pemulihan.
 - [Menjalankan ulang POC](supabase/poc/README.md): setup, prepare, test, dan cleanup resource sementara.
 
-MVP mencakup event oleh registered user, WhatsApp share, venue/Google Maps, jadwal/kapasitas, guest/member, serta pembayaran sebelum/sesudah event melalui transfer manual, QRIS, dan metode gateway. Phase 2 menambahkan follow, communities, feed, dan photos; Phase 3 menambahkan challenges, achievements, stats, dan recommendations.
+MVP mencakup event oleh organizer berakun Google, WhatsApp share, venue/Google Maps, jadwal/kapasitas, guest/member, serta pembayaran sebelum/sesudah event melalui transfer manual, QRIS, dan metode gateway. Role organizer adalah izin workspace/event; akun yang sama boleh menjadi peserta. Phase 2 menambahkan follow, communities, feed, dan photos; Phase 3 menambahkan challenges, achievements, stats, dan recommendations.
+
+## Iuran manual dinamis
+
+Kontrak dan batas implementasi terbaru: [API iuran manual](docs/MANUAL-PAYMENT-API.md). QRIS statis, transfer, dan tunai langsung ke organizer; gateway tetap ditunda. Tagihan dynamic berbeda dari invoice legacy.

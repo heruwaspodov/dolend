@@ -46,3 +46,7 @@ Supabase menyediakan reserved secrets seperti `SUPABASE_URL`, anon/publishable c
 ## Firebase dan CI
 
 Firebase Hosting memakai `.firebaserc` dan `firebase.json`, bukan Firebase client SDK sehingga tidak memerlukan Firebase web env. GitHub Actions memakai OIDC untuk deploy. Konfigurasi Supabase yang public disimpan sebagai repository Actions variables dan dimasukkan saat static build; tidak ada database password atau service-role key di GitHub Actions.
+
+## Origin API live (31 Oktober 2026)
+
+ALLOWED_ORIGINS pada Edge Functions mencakup http://localhost:3000, http://127.0.0.1:3000, https://dolend.web.app dan https://dolend.firebaseapp.com. Preview domain tambahan harus dimasukkan eksplisit; wildcard tidak dipakai. Secret ini konfigurasi server, bukan NEXT_PUBLIC.

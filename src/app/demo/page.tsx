@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { ContributionPreview } from '@/components/contributions/contribution-preview';
 import { AlertTriangle, LoaderCircle, Share2, Users, WalletCards } from 'lucide-react';
 import { PageShell } from '@/components/layout/page-shell';
 import { Button } from '@/components/ui/button';
@@ -71,6 +72,7 @@ export default function DemoPage() {
     <h1 className="text-3xl font-bold tracking-tight sm:text-5xl">Rencana jadi ketemu.</h1>
     <p className="my-5 max-w-2xl text-muted-foreground">Coba alur aktivitas bersama dari membuat rencana sampai status pembayaran. Data hanya hidup di halaman ini dan hilang saat refresh. Tidak ada akun, reservasi, atau transaksi nyata.</p>
 
+    <ContributionPreview />
     <nav aria-label="Alur demo" className="mb-8 flex flex-wrap gap-2">
       {([['create', 'Buat aktivitas'], ['detail', 'Detail & gabung'], ['dashboard', 'Dashboard'], ['payment', 'Pembayaran']] as const).map(([key, label]) =>
         <Button key={key} className="min-h-11" variant={tab === key ? 'default' : 'outline'} onClick={() => selectTab(key)} aria-current={tab === key ? 'page' : undefined}>{label}</Button>)}

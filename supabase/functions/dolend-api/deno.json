@@ -1,7 +1,8 @@
 {
   "imports": {
     "elysia": "npm:elysia@1.4.30",
-    "@supabase/supabase-js": "npm:@supabase/supabase-js@2.118.0"
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@2.118.0",
+    "libphonenumber-js/max": "npm:libphonenumber-js@1.13.15/max"
   },
   "compilerOptions": {
     "strict": true

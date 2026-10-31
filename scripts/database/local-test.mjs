@@ -10,7 +10,7 @@ const expectFailure = async (sql, params, pattern) => {
 try {
   await db.exec(`create role anon; create role authenticated; create role service_role bypassrls;
     create schema auth; grant usage on schema auth to anon,authenticated,service_role;
-    create table auth.users(id uuid primary key,phone text,phone_confirmed_at timestamptz,deleted_at timestamptz,banned_until timestamptz);
+    create table auth.users(id uuid primary key,phone text,phone_confirmed_at timestamptz,email text default 'fixture@example.com',email_confirmed_at timestamptz default now(),raw_app_meta_data jsonb default '{"provider":"google","providers":["google"]}',raw_user_meta_data jsonb default '{}',deleted_at timestamptz,banned_until timestamptz);
     create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
     grant execute on function auth.uid() to public;`);
   for (const file of (await readdir('supabase/migrations')).filter(f=>f.endsWith('.sql')).sort()) {
@@ -22,9 +22,12 @@ try {
   await db.query(`insert into auth.users(id,phone,phone_confirmed_at) values($1,'628123450001',now()),($2,'628123450002',now())`,[organizer,other]);
   await db.query(`insert into public.users(id,display_name,phone_normalized,phone_verified_at) values($1,'Organizer fixture','628123450001',now()),($2,'Member fixture','628123450002',now())`,[ownerUser,otherUser]);
   await db.query(`insert into public.profiles(id,user_id) values($1,$2),($3,$4)`,[organizer,ownerUser,other,otherUser]);
+  await db.query(`insert into public.workspaces(name,created_by_profile_id) values('Ruang fixture',$1),('Ruang member',$2)`,[organizer,other]);
+  await db.query(`insert into public.workspace_members(workspace_id,profile_id,role) select id,created_by_profile_id,'owner' from public.workspaces`,[]);
   const event=async(mode='free',capacity=2,visibility='public')=>{
-    const [{id}]=await query(`insert into public.events(organizer_profile_id,activity_type_id,title,venue_snapshot,starts_at,ends_at,registration_closes_at,capacity,visibility,payment_mode,price_amount,payment_due_at)
-    values($1,(select id from public.activity_types limit 1),'Fixture event','{"name":"Venue fixture","address":"Jakarta","maps_url":"https://www.google.com/maps/search/?api=1&query=Jakarta","private_note":"not public"}',now()+interval '1 day',now()+interval '1 day 1 hour',now()+interval '23 hours',$2,$3,$4,$5,now()+interval '2 days') returning id`,[organizer,capacity,visibility,mode,mode==='free'?0:10000]);
+    const [{id}]=await query(`insert into public.events(organizer_profile_id,workspace_id,activity_type_id,title,venue_snapshot,starts_at,ends_at,registration_closes_at,capacity,visibility,payment_mode,price_amount,payment_due_at)
+    values($1,(select id from public.workspaces where created_by_profile_id=$1),(select id from public.activity_types limit 1),'Fixture event','{"name":"Venue fixture","address":"Jakarta","maps_url":"https://www.google.com/maps/search/?api=1&query=Jakarta","private_note":"not public"}',now()+interval '1 day',now()+interval '1 day 1 hour',now()+interval '23 hours',$2,$3,$4,$5,now()+interval '2 days') returning id`,[organizer,capacity,visibility,mode,mode==='free'?0:10000]);
+    await db.query(`insert into public.event_organizers(event_id,profile_id,role) values($1,$2,'owner')`,[id,organizer]);
     const [{id:method}]=await query(`insert into public.event_payment_methods(event_id,method_type) values($1,'manual_bank_transfer') returning id`,[id]);
     const [{id:gateway}]=await query(`insert into public.event_payment_methods(event_id,method_type,provider,provider_method) values($1,'qris','fixture','qris') returning id`,[id]);
     await db.query(`update public.events set status='published' where id=$1`,[id]);
@@ -91,14 +94,30 @@ try {
   await expectFailure("insert into public.users(display_name,phone_normalized) values('Duplicate','628123450003')",[],/unique constraint/);
   const guestEvent=await event();const hash='1'.repeat(64);
   await db.query("insert into public.guest_sessions(user_id,scope_event_id,token_hash,expires_at) values($1,$2,$3,now()+interval '1 hour')",[guestUser,guestEvent.id,hash]);
-  await expectFailure('select * from public.join_event($1,$2,null,$3)',[guestEvent.id,guestUser,'2'.repeat(64)],/VERIFIED_GUEST_REQUIRED/);
+  await expectFailure('select * from public.join_event($1,$2,null,$3)',[guestEvent.id,guestUser,'2'.repeat(64)],/GUEST_BOOKING_TOKEN_REQUIRED/);
   const guest=(await query('select * from public.join_event($1,$2,null,$3)',[guestEvent.id,guestUser,hash]))[0];
   assert.equal(guest.joined_as,'guest');checks++;
+  const tokenHash='3'.repeat(64);const guestPhone='628123450004';
+  const tokenBooking=(await query('select * from public.create_guest_booking($1,$2,$3,$4)',[guestEvent.id,'Guest token',guestPhone,tokenHash]))[0];
+  assert.equal(tokenBooking.joined_as,'guest');
+  assert.equal((await query('select token_hash from public.guest_sessions where user_id=$1',[tokenBooking.user_id]))[0].token_hash,tokenHash);
+  assert.equal((await query('select status from public.get_guest_booking($1,$2)',[guestEvent.id,tokenHash]))[0].status,'confirmed');
+  assert.equal((await query('select * from public.get_guest_booking($1,$2)',[guestEvent.id,'4'.repeat(64)])).length,0);
+  await expectFailure('select * from public.create_guest_booking($1,$2,$3,$4)',[guestEvent.id,'Guest token',guestPhone,'4'.repeat(64)],/BOOKING_ALREADY_EXISTS/);checks++;
   const challenge=(await query("insert into public.verification_challenges(phone_normalized,auth_user_id,purpose,verified_at,expires_at) values('628123450003',$1,'claim',now(),now()+interval '1 hour') returning id",[guestAuth]))[0];
   await expectFailure('select * from public.claim_guest_identity($1,$2)',[other,challenge.id],/INVALID_IDENTITY_PROOF/);
   const claimed=(await query('select * from public.claim_guest_identity($1,$2)',[guestAuth,challenge.id]))[0];
   assert.equal(claimed.user_id,guestUser);assert.equal((await query('select joined_as from public.event_participants where id=$1',[guest.id]))[0].joined_as,'guest');checks++;
   await expectFailure('select * from public.claim_guest_identity($1,$2)',[guestAuth,challenge.id],/INVALID_IDENTITY_PROOF/);
+  const googleAuth='10000000-0000-4000-8000-000000000004';
+  await db.query("insert into auth.users(id,email,raw_user_meta_data) values($1,'google@example.com','{\"full_name\":\"Google Fixture\"}')",[googleAuth]);
+  await db.query("select set_config('request.jwt.claim.sub',$1,false)",[googleAuth]);await db.exec('set role authenticated');
+  const bootstrapped=(await query('select * from public.bootstrap_google_profile()'))[0];
+  assert.equal((await query('select * from public.bootstrap_google_profile()'))[0].user_id,bootstrapped.user_id);
+  assert.equal((await query('select count(*)::int n from public.workspaces'))[0].n,1);checks++;
+  await db.exec('reset role');
+  await db.query("update public.users set phone_normalized='628123450005' where id=$1",[bootstrapped.user_id]);
+  await expectFailure('select * from public.create_guest_booking($1,$2,$3,$4)',[guestEvent.id,'Account collision','628123450005','5'.repeat(64)],/GUEST_ACCOUNT_REQUIRED/);checks++;
   await db.exec('set role service_role');
   await expectFailure('update public.payment_ledger set amount=1',[],/permission denied/);
   await expectFailure('delete from public.audit_logs',[],/permission denied/);
@@ -115,13 +134,17 @@ try {
   assert.equal((await query('select * from public.profiles'))[0].id,other);
   const ownEvents=await query('select id from public.events');
   assert(ownEvents.some(row=>row.id===free.id));assert(!ownEvents.some(row=>row.id===unlisted.id));checks++;
+  assert.equal((await query('select count(*)::int n from public.workspaces'))[0].n,1);
+  assert.equal((await query('select role from public.workspace_members where profile_id=$1',[other]))[0].role,'owner');checks++;
   await expectFailure("update public.event_participants set status='confirmed'",[],/permission denied/);
   await expectFailure("update public.profiles set user_id=$1 where id=$2",[ownerUser,other],/permission denied/);
   await db.exec('reset role');
+  await db.exec(await readFile('supabase/tests/dynamic-manual.sql','utf8')); checks++;
+  console.log('PASS dynamic lock, rounding, partial/overpayment, review ownership/idempotency, refund limits and cancellation');
   const tables=await query("select relname from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind='r' and not c.relrowsecurity");
   assert.equal(tables.length,0);checks++;
   const leaks=await query("select routine_name from information_schema.role_routine_grants where routine_schema='public' and grantee in ('PUBLIC','anon','authenticated')");
-  assert.equal(leaks.length,0);checks++;
+  assert.deepEqual([...new Set(leaks.map(row=>row.routine_name))],['bootstrap_google_profile']);checks++;
   const beforeRestore=(await query('select (select count(*)::int from public.invoices) invoices,(select count(*)::int from public.payment_ledger) ledger'))[0];
   const snapshot=await db.dumpDataDir('gzip');
   const restored=new PGlite({loadDataDir:snapshot});
