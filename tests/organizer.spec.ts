@@ -48,10 +48,12 @@ test('ruang kelola memuat roster dan membuat tautan guest satu kali', async ({ p
   await withSession(page);
   const token = 'a'.repeat(43);
   let cancellation: Record<string, unknown> | undefined;
-  await page.route(`**/dolend-api/v1/events/${eventId}`, route => route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:publicEvent})}));
-  await page.route(`**/dolend-api/v1/events/${eventId}/roster`, route => route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:{estimated_total_cost:240000,contributions_locked_at:null,payment_timing:'before_event',estimated_per_person:240000,participants:[{id:'77777777-7777-4777-8777-777777777777',status:'confirmed',chargeable:true,is_guest:true,users:{display_name:'Rani'},participant_charges:[]}]}})}));
+  let eventStatus = 'recruiting';
+  await page.route(`**/dolend-api/v1/organizer/events/${eventId}`, route => route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:{...publicEvent,status:eventStatus}})}));
+  await page.route(`**/dolend-api/v1/events/${eventId}/roster`, route => route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:{estimated_total_cost:240000,contributions_locked_at:null,payment_timing:'before_event',estimated_per_person:240000,summary:{charged:0,received:0,refunded:0,adjustments:0,outstanding:0,credit:0},participants:[{id:'77777777-7777-4777-8777-777777777777',status:'confirmed',chargeable:true,is_guest:true,users:{display_name:'Rani'},participant_charges:[]}]}})}));
   await page.route(`**/dolend-api/v1/events/${eventId}/participants`, route => route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:{participant_id:'88888888-8888-4888-8888-888888888888',booking_token:token}})}));
   await page.route('**/dolend-api/v1/participants/77777777-7777-4777-8777-777777777777/cancel', async route => { cancellation=route.request().postDataJSON(); await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:{ok:true}})}); });
+  await page.route(`**/dolend-api/v1/events/${eventId}/cancel`, async route => { eventStatus='cancelled'; await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:null})}); });
   await page.goto(`/event/manage/?id=${eventId}`);
   await expect(page.getByRole('heading', { name:'Daftar peserta' })).toBeVisible();
   await expect(page.getByText('Rani', { exact:true })).toBeVisible();
@@ -60,10 +62,27 @@ test('ruang kelola memuat roster dan membuat tautan guest satu kali', async ({ p
   await page.getByRole('button', { name:'Tambahkan peserta' }).click();
   await expect(page.getByText(new RegExp(`#booking=${token}`))).toBeVisible();
   await page.getByText('Tindakan peserta').click();
-  await page.getByLabel('Alasan').fill('Berhalangan hadir');
+  await page.getByRole('textbox', { name:'Alasan', exact:true }).fill('Berhalangan hadir');
   await page.getByRole('button', { name:'Batalkan peserta' }).click();
   await expect(page.getByText('Peserta dibatalkan sesuai kebijakan yang dipilih.')).toBeVisible();
   expect(cancellation?.policy).toBe('waive');
   expect(cancellation?.reason).toBe('Berhalangan hadir');
+  await page.locator('summary').filter({ hasText:'Batalkan event' }).click();
+  await page.getByLabel('Alasan pembatalan').fill('Venue tidak tersedia');
+  await page.getByRole('button', { name:'Batalkan event' }).click();
+  await expect(page.getByText('Event dibatalkan. Riwayat peserta dan transaksi tetap tersimpan.')).toBeVisible();
+  await expect(page.getByText(/dibatalkan$/)).toBeVisible();
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+});
+
+test('event selesai menampilkan outstanding dari ledger', async ({ page }) => {
+  await withSession(page);
+  await page.route(`**/dolend-api/v1/organizer/events/${eventId}`, route => route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:{...publicEvent,status:'completed',contributions_locked_at:'2026-11-06T21:00:00+07:00'}})}));
+  await page.route(`**/dolend-api/v1/events/${eventId}/roster`, route => route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:{estimated_total_cost:240000,contributions_locked_at:'2026-11-06T21:00:00+07:00',payment_timing:'after_event',estimated_per_person:240000,summary:{charged:240000,received:100000,refunded:0,adjustments:0,outstanding:140000,credit:0},participants:[{id:'77777777-7777-4777-8777-777777777777',status:'confirmed',chargeable:true,is_guest:false,users:{display_name:'Rani'},participant_charges:[{id:'88888888-8888-4888-8888-888888888888',amount:240000,balance:140000}]}]}})}));
+  await page.goto(`/event/manage/?id=${eventId}`);
+  await expect(page.getByRole('heading', { name:'Ringkasan iuran' })).toBeVisible();
+  await expect(page.getByText('Outstanding').locator('..').getByText(/140\.000/)).toBeVisible();
+  await expect(page.getByText('Event selesai. Periksa outstanding dan refund sebelum menutup administrasi.')).toBeVisible();
+  await expect(page.getByRole('button', { name:'Tambahkan peserta' })).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
 });

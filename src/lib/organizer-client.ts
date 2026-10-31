@@ -17,7 +17,7 @@ export type RosterParticipant = {
   status: string;
   chargeable: boolean;
   users: { display_name: string } | { display_name: string }[] | null;
-  participant_charges: { id: string; amount: number }[];
+  participant_charges: { id: string; amount: number; balance: number }[];
   is_guest: boolean;
 };
 export type EventRoster = {
@@ -25,6 +25,7 @@ export type EventRoster = {
   contributions_locked_at: string | null;
   payment_timing: 'before_event' | 'after_event';
   estimated_per_person: number | null;
+  summary: { charged: number; received: number; refunded: number; adjustments: number; outstanding: number; credit: number };
   participants: RosterParticipant[];
 };
 

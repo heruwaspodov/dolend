@@ -78,6 +78,16 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
     if (profile?.user_id !== p.user_id) await rpc('manual_event_access',{p_event:p.event_id,p_actor:id});
     return { c, actor: id, hash: null };
   }
+  async function eventDto(eventId: string, publicOnly: boolean) {
+    let query=client().from('events').select('id,title,description,starts_at,ends_at,timezone,capacity,price_amount,currency,status,venue_snapshot,venue_booking_status,estimated_total_cost,contributions_locked_at,contribution_mode').eq('id',eventId);
+    if(publicOnly)query=query.in('status',['published','recruiting','confirmed','completed']);
+    const {data:e,error}=await query.single();
+    if(error)throw new FinanceError('FORBIDDEN');
+    const {count}=await client().from('event_participants').select('id',{count:'exact',head:true}).eq('event_id',e.id).in('status',['confirmed','attended','no_show']);
+    const {count:chargeable}=await client().from('event_participants').select('id',{count:'exact',head:true}).eq('event_id',e.id).eq('chargeable',true).eq('status','confirmed');
+    const {venue_snapshot,...rest}=e;
+    return {...rest,participants_count:count??0,estimated_per_person:chargeable?Math.ceil(Number(e.estimated_total_cost)/chargeable):null,venue:{name:venue_snapshot?.name??'Venue belum ditentukan',address:venue_snapshot?.address??'',maps_url:venue_snapshot?.maps_url??''}};
+  }
   return new Elysia({ aot: false })
     .onBeforeHandle(({set}) => {set.headers['cache-control']='no-store';})
     .onError(({ error, set }) => {
@@ -107,13 +117,12 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
       if(error)throw new FinanceError('STORAGE_UNAVAILABLE');
       return {data};
     })
+    .get('/organizer/events/:id',async ({request,params})=>{
+      await ownEvent(params.id,request);
+      return {data:await eventDto(params.id,false)};
+    },{params:t.Object({id:uuid})})
     .get('/events/:id',async ({params}) => {
-      const {data:e,error}=await client().from('events').select('id,title,description,starts_at,ends_at,timezone,capacity,price_amount,currency,status,venue_snapshot,venue_booking_status,estimated_total_cost,contributions_locked_at,contribution_mode').eq('id',params.id).in('status',['published','recruiting','confirmed','completed']).single();
-      if(error) throw new FinanceError('FORBIDDEN');
-      const {count}=await client().from('event_participants').select('id',{count:'exact',head:true}).eq('event_id',e.id).in('status',['confirmed','attended','no_show']);
-      const {count:chargeable}=await client().from('event_participants').select('id',{count:'exact',head:true}).eq('event_id',e.id).eq('chargeable',true).eq('status','confirmed');
-      const {venue_snapshot,...rest}=e;
-      return {data:{...rest,participants_count:count??0,estimated_per_person:chargeable?Math.ceil(Number(e.estimated_total_cost)/chargeable):null,venue:{name:venue_snapshot?.name??'Venue belum ditentukan',address:venue_snapshot?.address??'',maps_url:venue_snapshot?.maps_url??''}}};
+      return {data:await eventDto(params.id,true)};
     },{params:t.Object({id:uuid})})
     .post('/events',async ({request,body}) => {
       const id=await actor(request);
@@ -174,7 +183,20 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
       const {data:participants,error:pe}=await client().from('event_participants').select('id,status,chargeable,users(display_name,profiles(id)),participant_charges(id,amount)').eq('event_id',params.id);
       if(error||pe)throw new FinanceError('STORAGE_UNAVAILABLE');
       const n=(participants??[]).filter(p=>p.chargeable&&p.status==='confirmed').length;
-      return {data:{...e,estimated_per_person:n?Math.ceil(Number(e.estimated_total_cost)/n):null,participants:(participants??[]).map(p=>({...p,is_guest:!(p.users??[]).some(user=>user.profiles?.length)}))}};
+      const charges=(participants??[]).flatMap(p=>p.participant_charges??[]);
+      const {data:ledger,error:le}=charges.length?await client().from('contribution_ledger').select('charge_id,entry_type,amount').in('charge_id',charges.map(c=>c.id)):{data:[],error:null};
+      if(le)throw new FinanceError('STORAGE_UNAVAILABLE');
+      const balanceByCharge=new Map(charges.map(charge=>[charge.id,Number(charge.amount)]));
+      let received=0,refunded=0,adjustments=0;
+      for(const entry of ledger??[]){
+        const value=Number(entry.amount);
+        if(entry.entry_type==='receipt'){received+=value;balanceByCharge.set(entry.charge_id,(balanceByCharge.get(entry.charge_id)??0)-value);}
+        else if(entry.entry_type==='refund'){refunded+=value;balanceByCharge.set(entry.charge_id,(balanceByCharge.get(entry.charge_id)??0)+value);}
+        else {adjustments+=value;balanceByCharge.set(entry.charge_id,(balanceByCharge.get(entry.charge_id)??0)+value);}
+      }
+      const balances=[...balanceByCharge.values()];
+      const summary={charged:charges.reduce((sum,c)=>sum+Number(c.amount),0),received,refunded,adjustments,outstanding:balances.reduce((sum,value)=>sum+Math.max(value,0),0),credit:balances.reduce((sum,value)=>sum+Math.max(-value,0),0)};
+      return {data:{...e,estimated_per_person:n?Math.ceil(Number(e.estimated_total_cost)/n):null,summary,participants:(participants??[]).map(p=>({...p,is_guest:!(p.users??[]).some(user=>user.profiles?.length),participant_charges:(p.participant_charges??[]).map(charge=>({...charge,balance:balanceByCharge.get(charge.id)??Number(charge.amount)}))}))}};
     },{params:t.Object({id:uuid})})
     .post('/events/:id/participants',async ({request,params,body})=>{
       await ownEvent(params.id,request);
@@ -188,6 +210,7 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
       return {data:await guestBookings.recover(params.id,id)};
     },{params:t.Object({id:uuid}),parse:'none'})
     .post('/participants/:id/cancel',async ({request,params,body})=>({data:await rpc('cancel_dynamic_participant',{p_participant:params.id,p_actor:await actor(request),p_guest_hash:null,p_policy:body.policy,p_reason:body.reason,p_key:body.idempotency_key})}),{params:t.Object({id:uuid}),body:t.Object({policy:t.Union([t.Literal('retain'),t.Literal('waive')]),reason,idempotency_key:key},{additionalProperties:false})})
+    .post('/events/:id/cancel',async ({request,params,body})=>({data:await rpc('cancel_dynamic_event',{p_event:params.id,p_actor:await actor(request),p_policy:body.policy,p_reason:body.reason,p_key:body.idempotency_key})}),{params:t.Object({id:uuid}),body:t.Object({policy:t.Union([t.Literal('retain'),t.Literal('waive')]),reason,idempotency_key:t.String({minLength:1,maxLength:120})},{additionalProperties:false})})
     .post('/events/:id/contributions/lock',async ({request,params}) => ({ data:await rpc('lock_contributions',{p_event:params.id,p_actor:await actor(request)}) }),{params:t.Object({id:uuid})})
     .post('/participants/:id/charge',async ({request,params,body}) => ({ data:await rpc('assign_contribution',{p_participant:params.id,p_actor:await actor(request),p_amount:body.amount}) }),{params:t.Object({id:uuid}),body:t.Object({amount},{additionalProperties:false})})
     .post('/events/:id/payment-methods',async ({request,params,body}) => {

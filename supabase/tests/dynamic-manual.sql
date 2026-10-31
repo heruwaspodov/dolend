@@ -42,4 +42,9 @@ begin
  begin perform public.adjust_contribution(c,owner,'refund',6000,'Too much','refund-bad'); raise exception 'EXPECTED_REFUND_LIMIT'; exception when others then if sqlerrm<>'REFUND_EXCEEDS_RECEIPTS' then raise; end if; end;
  perform public.cancel_dynamic_participant(p,owner,null,'retain','Cancelled after lock','cancel-1');
  if (select amount from public.participant_charges where id=c)<>5001 then raise exception 'CANCEL_REWROTE_CHARGE'; end if;
+ perform public.cancel_dynamic_event(e,owner,'retain','Event cancelled','event-cancel-1');
+ perform public.cancel_dynamic_event(e,owner,'retain','Event cancelled','event-cancel-1');
+ if (select status from public.events where id=e)<>'cancelled' then raise exception 'EVENT_CANCEL_FAILED'; end if;
+ if exists(select 1 from public.event_participants where event_id=e and status in ('held','confirmed','expired')) then raise exception 'ACTIVE_PARTICIPANT_RETAINED'; end if;
+ if (select sum(amount) from public.contribution_ledger where charge_id=c and entry_type='receipt')<>6000 then raise exception 'EVENT_CANCEL_LOST_RECEIPT'; end if;
 end; $$;

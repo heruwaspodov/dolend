@@ -64,6 +64,7 @@ Guest session rows are not readable from a browser. Elysia creates a 256-bit bea
 | consume_guest_booking_limits | Service-only; atomik fixed-window counter per event/contact HMAC dan event/IP HMAC; tidak menyimpan identifier mentah; mengembalikan allowed serta Retry-After |
 | rotate_guest_booking_token | Service-only; organizer event saja; mengunci guest participant aktif, mencabut sesi lama, membuat token hash baru, dan mencatat audit tanpa memakai nomor sebagai proof |
 | bootstrap_google_profile | Authenticated only; validates Google provider/email from `auth.users`; idempotently creates business user, profile, personal workspace and owner membership |
+| cancel_dynamic_event | Service-only; organizer event saja; mengunci event, membatalkan peserta aktif melalui policy retain/waive, mempertahankan ledger, dan aman diulang setelah status cancelled |
 | create_payment_attempt | Owner proof, event-enabled method, invoice amount/currency, invoice/key idempotency; overdue postpay can still create a future-expiring attempt |
 | submit_manual_evidence | Owner proof; manual-only; bounded review deadline; metadata constraints; temporary hold extension bounded by event start |
 | approve_manual_payment | Verified organizer; evidence required; reason mandatory; invoice/receipt/participant updated atomically; late receipt can become an exception |
@@ -113,7 +114,7 @@ References: [Supabase migrations](https://supabase.com/docs/guides/deployment/da
 
 ## Revisi iuran manual — 31 Oktober 2026
 
-Migration `20261031090000_dynamic_manual_contributions.sql` menambahkan mode dynamic pada events; invoice/attempt/ledger lama tidak diubah. Dynamic memakai payment_mode free sebagai kompatibilitas roster lama, sedangkan kewajiban uang berasal dari participant_charges dan payment_timing, bukan price_amount. Jangan menafsirkan price_amount=0 sebagai gratis untuk event dynamic.
+Migration `20261031090000_dynamic_manual_contributions.sql` menambahkan mode dynamic pada events; invoice/attempt/ledger lama tidak diubah. Migration `20261031150000_dynamic_event_cancellation.sql` menambahkan pembatalan event dynamic yang mempertahankan histori dan menutup pembatalan peserta baru setelah event completed/cancelled. Dynamic memakai payment_mode free sebagai kompatibilitas roster lama, sedangkan kewajiban uang berasal dari participant_charges dan payment_timing, bukan price_amount. Jangan menafsirkan price_amount=0 sebagai gratis untuk event dynamic.
 
 Tagihan baru terhubung ke event_participants yang sama. participant_charges menyimpan snapshot immutable, manual_payment_records mencatat laporan parsial, contribution_ledger mencatat receipt/refund/adjustment append-only. Balance = amount + adjustment + refund − receipt; nilai negatif berarti kelebihan bayar. Review RPC mengunci event lalu record, memverifikasi organizer dan mencatat satu receipt untuk satu laporan. Cash memakai report + review oleh organizer. Pembatalan setelah lock memilih retain/waive; waive menambah adjustment dan tidak menghapus receipt/refund.
 
