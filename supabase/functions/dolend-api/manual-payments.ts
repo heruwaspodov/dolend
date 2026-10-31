@@ -11,6 +11,15 @@ const amount = t.Integer({ minimum: 0, maximum: 1e12 });
 const key = t.String({ minLength: 1, maxLength: 200 });
 const reason = t.String({ minLength: 1, maxLength: 1000 });
 const bucket = 'dolend-payments';
+export function isSafeMapsUrl(value: string) {
+  if (!value) return true;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && (url.hostname === 'maps.google.com' || (url.hostname === 'www.google.com' && url.pathname.startsWith('/maps')));
+  } catch {
+    return false;
+  }
+}
 export async function imageBytes(request: Request) {
   const reader = request.body?.getReader();
   if (!reader) throw new FinanceError('INVALID_IMAGE');
@@ -73,9 +82,9 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
     .onBeforeHandle(({set}) => {set.headers['cache-control']='no-store';})
     .onError(({ error, set }) => {
       const code = error instanceof Error ? error.message : '';
-      if (!['UNAUTHORIZED','FORBIDDEN','CONFLICT','STORAGE_UNAVAILABLE','INVALID_IMAGE','IMAGE_TOO_LARGE'].includes(code)) return;
+      if (!['UNAUTHORIZED','FORBIDDEN','CONFLICT','STORAGE_UNAVAILABLE','INVALID_IMAGE','IMAGE_TOO_LARGE','INVALID_REQUEST'].includes(code)) return;
       set.status = code === 'UNAUTHORIZED' ? 401 : code === 'FORBIDDEN' ? 403 : code === 'CONFLICT' ? 409 : code === 'STORAGE_UNAVAILABLE' ? 503 : 422;
-      return { error: { code, message: 'Permintaan pembayaran belum dapat diproses.' } };
+      return { error: { code, message: 'Permintaan belum dapat diproses.' } };
     })
     .get('/organizer/events',async ({request})=>{
       const id=await actor(request);
@@ -84,8 +93,19 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
       if(me||re)throw new FinanceError('STORAGE_UNAVAILABLE');
       const filters=[...(members?.length?[`workspace_id.in.(${members.map(m=>m.workspace_id).join(',')})`]:[]),...(roles?.length?[`id.in.(${roles.map(r=>r.event_id).join(',')})`]:[])];
       if(!filters.length)return {data:[]};
-      const {data,error}=await client().from('events').select('id,title,status').or(filters.join(',')).order('starts_at',{ascending:false}).limit(100);
+      const {data,error}=await client().from('events').select('id,title,status,starts_at,ends_at,timezone,venue_booking_status,estimated_total_cost,contributions_locked_at').or(filters.join(',')).order('starts_at',{ascending:false}).limit(100);
       if(error)throw new FinanceError('STORAGE_UNAVAILABLE');return {data};
+    })
+    .get('/organizer/workspaces',async ({request})=>{
+      const id=await actor(request);
+      const {data,error}=await client().from('workspace_members').select('role,workspaces!inner(id,name)').eq('profile_id',id).in('role',['owner','organizer']).order('created_at');
+      if(error)throw new FinanceError('STORAGE_UNAVAILABLE');
+      return {data:(data??[]).map(row=>({...row.workspaces,role:row.role}))};
+    })
+    .get('/activity-types',async ()=>{
+      const {data,error}=await client().from('activity_types').select('id,slug,name').eq('active',true).order('name');
+      if(error)throw new FinanceError('STORAGE_UNAVAILABLE');
+      return {data};
     })
     .get('/events/:id',async ({params}) => {
       const {data:e,error}=await client().from('events').select('id,title,description,starts_at,ends_at,timezone,capacity,price_amount,currency,status,venue_snapshot,venue_booking_status,estimated_total_cost,contributions_locked_at,contribution_mode').eq('id',params.id).in('status',['published','recruiting','confirmed','completed']).single();
@@ -97,6 +117,7 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
     },{params:t.Object({id:uuid})})
     .post('/events',async ({request,body}) => {
       const id=await actor(request);
+      if(body.venue_snapshot && !isSafeMapsUrl(body.venue_snapshot.maps_url)) throw new FinanceError('INVALID_REQUEST');
       const {data:membership}=await client().from('workspace_members').select('role').eq('workspace_id',body.workspace_id).eq('profile_id',id).in('role',['owner','organizer']).maybeSingle();
       if(!membership) throw new FinanceError('FORBIDDEN');
       const {data,error}=await client().from('events').insert({...body,organizer_profile_id:id,contribution_mode:'dynamic',payment_mode:'free',price_amount:0,status:'recruiting'}).select('id').single();
@@ -105,10 +126,11 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
     },{body:t.Object({workspace_id:uuid,activity_type_id:uuid,title:t.String({minLength:1,maxLength:200}),description:t.Optional(t.String({maxLength:10000})),starts_at:t.String({format:'date-time'}),ends_at:t.String({format:'date-time'}),registration_closes_at:t.String({format:'date-time'}),timezone:t.String({minLength:1,maxLength:100}),capacity:t.Integer({minimum:1,maximum:100000}),estimated_total_cost:amount,payment_timing:t.Union([t.Literal('before_event'),t.Literal('after_event')]),venue_snapshot:t.Optional(t.Object({name:t.String({maxLength:200}),address:t.String({maxLength:1000}),maps_url:t.String({maxLength:2000})}))},{additionalProperties:false})})
     .patch('/events/:id/planning',async ({request,params,body}) => {
       await ownEvent(params.id,request);
+      if(body.venue_snapshot && !isSafeMapsUrl(body.venue_snapshot.maps_url)) throw new FinanceError('INVALID_REQUEST');
       const {data,error}=await client().from('events').update(body).eq('id',params.id).eq('contribution_mode','dynamic').select('id,status,estimated_total_cost,venue_booking_status').single();
       if(error) throw new FinanceError('CONFLICT');
       return {data};
-    },{params:t.Object({id:uuid}),body:t.Object({estimated_total_cost:t.Optional(amount),venue_booking_status:t.Optional(t.Union([t.Literal('not_booked'),t.Literal('pending'),t.Literal('booked'),t.Literal('cancelled')])),status:t.Optional(t.Union([t.Literal('confirmed'),t.Literal('completed')]))},{additionalProperties:false,minProperties:1})})
+    },{params:t.Object({id:uuid}),body:t.Object({estimated_total_cost:t.Optional(amount),venue_booking_status:t.Optional(t.Union([t.Literal('not_booked'),t.Literal('pending'),t.Literal('booked'),t.Literal('cancelled')])),status:t.Optional(t.Union([t.Literal('confirmed'),t.Literal('completed')])),venue_snapshot:t.Optional(t.Object({name:t.String({maxLength:200}),address:t.String({maxLength:1000}),maps_url:t.String({maxLength:2000})}))},{additionalProperties:false,minProperties:1})})
     .post('/events/:id/join',async ({request,params}) => {
       const id=await actor(request);
       const {data:p}=await client().from('profiles').select('user_id').eq('id',id).single();
@@ -149,10 +171,10 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
     .get('/events/:id/roster',async ({request,params,set})=>{
       set.headers['cache-control']='no-store';await ownEvent(params.id,request);
       const {data:e,error}=await client().from('events').select('estimated_total_cost,contributions_locked_at,payment_timing').eq('id',params.id).single();
-      const {data:participants,error:pe}=await client().from('event_participants').select('id,status,chargeable,users(display_name),participant_charges(id,amount)').eq('event_id',params.id);
+      const {data:participants,error:pe}=await client().from('event_participants').select('id,status,chargeable,users(display_name,profiles(id)),participant_charges(id,amount)').eq('event_id',params.id);
       if(error||pe)throw new FinanceError('STORAGE_UNAVAILABLE');
       const n=(participants??[]).filter(p=>p.chargeable&&p.status==='confirmed').length;
-      return {data:{...e,estimated_per_person:n?Math.ceil(Number(e.estimated_total_cost)/n):null,participants}};
+      return {data:{...e,estimated_per_person:n?Math.ceil(Number(e.estimated_total_cost)/n):null,participants:(participants??[]).map(p=>({...p,is_guest:!(p.users??[]).some(user=>user.profiles?.length)}))}};
     },{params:t.Object({id:uuid})})
     .post('/events/:id/participants',async ({request,params,body})=>{
       await ownEvent(params.id,request);

@@ -18,7 +18,7 @@ export function AuthCallback() {
       if (exchangeError || !data.session) throw exchangeError ?? new Error('Sesi Google tidak tersedia.');
       await ensureOwnProfile(data.session.access_token);
       window.history.replaceState(window.history.state, '', '/auth/callback/');
-      window.location.replace('/account/');
+      window.location.replace('/dashboard/');
     };
     void finish().catch(() => {
       window.history.replaceState(window.history.state, '', '/auth/callback/');

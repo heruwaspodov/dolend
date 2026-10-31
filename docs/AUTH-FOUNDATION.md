@@ -1,6 +1,6 @@
 # Fondasi hybrid auth
 
-Status 31 Oktober 2026: Google OAuth menjadi login wajib untuk organizer dan opsional untuk peserta. Guest dapat booking tanpa akun memakai nama, WhatsApp, dan token booking scoped. Migration, Edge Function, dan frontend snapshot 31 Oktober sudah diterapkan manual. Verifikasi hosted memakai fixture metadata Google sintetis, sehingga login Google asli dan redirect production belum dinyatakan lulus.
+Status 31 Oktober 2026: Google OAuth menjadi login wajib untuk organizer dan opsional untuk peserta. Guest dapat booking tanpa akun memakai nama, WhatsApp, dan token booking scoped. Google Auth Platform dan OAuth Web Client pada project `dolend-apps` sudah dibuat, provider Google Supabase hosted sudah aktif, dan callback localhost serta Firebase sudah masuk allowlist. Login Google nyata dari localhost berhasil membuat sesi, menjalankan bootstrap profil/workspace, dan masuk ke dashboard organizer. OAuth masih berstatus testing dan akun yang dapat mencoba dibatasi ke test user Google Cloud.
 
 ## Batas identitas
 
@@ -11,7 +11,7 @@ Status 31 Oktober 2026: Google OAuth menjadi login wajib untuk organizer dan ops
 
 ## Login organizer
 
-Browser client memakai publishable key, PKCE, persisted session, dan automatic token refresh. `/account/` memulai `signInWithOAuth({ provider: 'google' })`; `/auth/callback/` menukar code melalui SDK, menghapus query dari address bar, lalu memanggil `POST /profile/bootstrap`.
+Browser client memakai publishable key, PKCE, persisted session, dan automatic token refresh. `/account/` memulai `signInWithOAuth({ provider: 'google' })`; `/auth/callback/` menukar code melalui SDK, menghapus query dari address bar, memanggil `POST /profile/bootstrap`, lalu mengarahkan organizer ke `/dashboard/`. Login Google pertama sekaligus menjadi registrasi Dolend karena bootstrap membuat profil dan workspace secara idempotent.
 
 Bootstrap bersifat idempotent:
 
@@ -24,6 +24,8 @@ Redirect berikut harus masuk allowlist Supabase sebelum pengujian hosted:
 
 - `http://localhost:3000/auth/callback/`
 - `https://dolend.web.app/auth/callback/`
+
+Provider Google hosted memakai OAuth Web Client dari Google Cloud dengan callback Supabase `https://fpbefabsqryxmnmxufjw.supabase.co/auth/v1/callback`. Client ID dan Client Secret dipasang langsung di Supabase Auth provider Google, bukan di bundle frontend atau Git. Authorized JavaScript origins mencakup localhost dan Firebase Hosting; redirect aplikasi yang diizinkan adalah callback localhost serta Firebase.
 
 ## Guest booking
 

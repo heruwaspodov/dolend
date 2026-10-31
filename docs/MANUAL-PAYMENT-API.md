@@ -4,9 +4,12 @@ Prefix `/dolend-api/v1`. Organizer wajib JWT Google terverifikasi. Guest memakai
 
 | Endpoint | Fungsi |
 | --- | --- |
+| GET /organizer/events | Daftar event yang dapat dikelola beserta status planning dan lock |
+| GET /organizer/workspaces | Workspace dengan role owner/organizer untuk sesi Google |
+| GET /activity-types | Jenis aktivitas aktif untuk form create |
 | POST /events | Buat recruiting dynamic dengan workspace_id, activity_type_id, title, starts_at, ends_at, registration_closes_at, timezone, capacity, estimated_total_cost, payment_timing; venue_snapshot opsional |
 | GET /events/:id | DTO publik tanpa kontak, rekening, atau bukti |
-| PATCH /events/:id/planning | Ubah estimasi, status booking, confirmed/completed |
+| PATCH /events/:id/planning | Ubah estimasi, snapshot/status venue, confirmed/completed |
 | POST /events/:id/join | Member/organizer ikut dengan user dari sesi |
 | POST /events/:id/participants | Organizer menambah guest (display_name, whatsapp); simpan/distribusikan token booking secara privat |
 | POST /participants/:id/guest-token | Organizer merotasi token guest yang hilang; token lama dicabut dan token baru dikembalikan sekali dengan no-store |
@@ -25,6 +28,6 @@ Prefix `/dolend-api/v1`. Organizer wajib JWT Google terverifikasi. Guest memakai
 | POST /payments/:id/review | decision verified/rejected dan reason; receipt idempotent |
 | POST /charges/:id/adjustments | type refund/adjustment, amount, reason, idempotency_key; refund dibatasi receipt |
 
-Halaman akun menyediakan pengaturan metode per event, review lewat pilihan event, dan pencatatan tunai. Halaman `/payment/?charge=<uuid>#booking=<token>` untuk guest; member memakai sesi Google. Guest menemukan tagihan sesudah lock dengan membuka ulang tautan booking. Dashboard create/manage lengkap tetap task UI terpisah; jangan menyatakan semua R05 selesai.
+Halaman akun menyediakan pengaturan metode per event, review lewat pilihan event, dan pencatatan tunai. Halaman `/payment/?charge=<uuid>#booking=<token>` untuk guest; member memakai sesi Google. Guest menemukan tagihan sesudah lock dengan membuka ulang tautan booking. Implementasi lokal `/dashboard/`, `/event/create/`, dan `/event/manage/` mencakup create recruiting, planning, roster tambah/cancel, rotasi tautan guest, lock, late-join charge eksplisit, confirmed, dan completed. Pembatalan event serta ringkasan outstanding masih tersisa sehingga R05 belum selesai penuh.
 
 Cash dicatat organizer lewat form penerimaan tunai, memakai endpoint laporan lalu review. Refund endpoint adalah pencatatan refund manual yang telah dilakukan, bukan instruksi transfer otomatis. Pembersihan orphan upload, rate limit upload/report, pengujian concurrency hosted, dan drill restore produksi masih gate hardening sebelum release MVP penuh.

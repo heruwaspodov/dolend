@@ -161,6 +161,7 @@ Deno.test('manual finance endpoints reject anonymous organizers and invalid payl
   const finance = createApp({allowedOrigins:[], accountService:null});
   for (const [path,method,body] of [
     ['/payment-settings','GET',undefined],
+    ['/organizer/workspaces','GET',undefined],
     ['/events/11111111-1111-4111-8111-111111111111/contributions/lock','POST',undefined],
     ['/participants/11111111-1111-4111-8111-111111111111/guest-token','POST',undefined],
     ['/payments/11111111-1111-4111-8111-111111111111/review','POST',{decision:'verified',reason:'Cash received'}],
@@ -168,6 +169,15 @@ Deno.test('manual finance endpoints reject anonymous organizers and invalid payl
     const response=await finance.handle(new Request(`http://localhost/dolend-api/v1${path}`,{method,headers:{'content-type':'application/json'},...(method==='POST'?{body:JSON.stringify(body??{})}:{})}));
     if(response.status!==401) throw new Error(`Expected 401 for ${path}, got ${response.status}: ${await response.text()}`);
   }
+});
+
+Deno.test('venue links only accept HTTPS Google Maps destinations', async () => {
+  const {isSafeMapsUrl}=await import('./manual-payments.ts');
+  assert(isSafeMapsUrl(''),'empty optional URL rejected');
+  assert(isSafeMapsUrl('https://www.google.com/maps/place/Jakarta'),'Google Maps URL rejected');
+  assert(isSafeMapsUrl('https://maps.google.com/?q=Jakarta'),'maps.google.com URL rejected');
+  assert(!isSafeMapsUrl('http://www.google.com/maps/place/Jakarta'),'HTTP Maps URL accepted');
+  assert(!isSafeMapsUrl('https://evil.example/maps'),'foreign venue URL accepted');
 });
 
 Deno.test('payment images reject spoofed content and oversized streams', async () => {

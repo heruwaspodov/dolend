@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { Info, LogIn, LogOut, ShieldCheck, UsersRound } from 'lucide-react';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser';
 import { ProfileEditor } from './profile-editor';
@@ -56,7 +57,7 @@ export function AccountFoundation() {
         <h2 className="font-bold">Status sesi</h2>
         <p className="mt-2 break-all text-sm leading-relaxed text-slate-600" aria-live="polite">{!sessionReady ? 'Memeriksa sesi…' : session ? `Masuk sebagai ${session.user.email ?? 'akun Google'}.` : 'Belum masuk.'}</p>
         {!sessionReady ? null : session
-          ? <Button type="button" variant="outline" className="mt-4 min-h-11" onClick={logout}><LogOut aria-hidden="true" />Keluar</Button>
+          ? <div className="mt-4 flex flex-wrap gap-3"><Button asChild className="min-h-11 bg-emerald-700 text-white hover:bg-emerald-800"><Link href="/dashboard/">Buka dashboard</Link></Button><Button type="button" variant="outline" className="min-h-11" onClick={logout}><LogOut aria-hidden="true" />Keluar</Button></div>
           : <Button type="button" className="mt-4 min-h-11 bg-emerald-700 px-5 text-white hover:bg-emerald-800" onClick={signInWithGoogle} disabled={signingIn}><LogIn aria-hidden="true" />{signingIn ? 'Membuka Google…' : 'Masuk dengan Google'}</Button>}
         {authError && <p className="mt-3 text-sm font-medium text-rose-700" role="alert">{authError}</p>}
       </div>
