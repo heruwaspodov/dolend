@@ -1,9 +1,13 @@
 {
-  "tables": 22,
+  "tables": 30,
   "all_rls": true,
   "unindexed_foreign_keys": 0,
+  "authenticated_rpc": [
+    "bootstrap_google_profile"
+  ],
   "service_only_rpc": [
-    "join_event",
+    "lock_contributions",
+    "assign_contribution",
     "create_payment_attempt",
     "submit_manual_evidence",
     "apply_provider_payment",
@@ -13,7 +17,18 @@
     "cancel_participation",
     "request_refund",
     "claim_guest_identity",
-    "cancel_event"
+    "cancel_event",
+    "get_guest_booking",
+    "join_event",
+    "create_guest_booking",
+    "consume_guest_booking_limits",
+    "report_manual_payment",
+    "review_manual_payment",
+    "adjust_contribution",
+    "manual_event_access",
+    "rotate_guest_booking_token",
+    "cancel_dynamic_participant",
+    "cancel_dynamic_event"
   ],
   "migration_versions": [
     "20261027060000",
@@ -23,6 +38,14 @@
     "20261027060400",
     "20261027060500",
     "20261027060600",
-    "20261027060700"
+    "20261027060700",
+    "20261028080000",
+    "20261031090000",
+    "20261031120000",
+    "20261031130000",
+    "20261031140000",
+    "20261031150000",
+    "20261101120000",
+    "20261101121000"
   ]
 }

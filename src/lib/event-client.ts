@@ -7,7 +7,7 @@ export type PublicEvent = {
   timezone: string;
   capacity: number;
   participants_count: number;
-  venue: { name: string; address: string; maps_url: string };
+  venue: { name: string; address: string; maps_url: string; latitude?: number; longitude?: number; meeting_instructions?: string };
   contribution_mode?: 'legacy' | 'dynamic';
   estimated_per_person?: number | null;
   contributions_locked_at?: string | null;
@@ -35,7 +35,10 @@ function parseEvent(value: unknown, expectedId: string): PublicEvent {
     typeof event.timezone !== 'string' || !Number.isSafeInteger(event.capacity) || Number(event.capacity) < 1 ||
     !Number.isSafeInteger(event.participants_count) || Number(event.participants_count) < 0 || Number(event.participants_count) > Number(event.capacity) ||
     !Number.isSafeInteger(event.price_amount) || Number(event.price_amount) < 0 || event.currency !== 'IDR' ||
-    !venue || typeof venue.name !== 'string' || typeof venue.address !== 'string' || typeof venue.maps_url !== 'string') throw new Error('INVALID_EVENT');
+    !venue || typeof venue.name !== 'string' || typeof venue.address !== 'string' || typeof venue.maps_url !== 'string' ||
+    (venue.meeting_instructions !== undefined && (typeof venue.meeting_instructions !== 'string' || venue.meeting_instructions.length > 1000)) ||
+    ((venue.latitude === undefined) !== (venue.longitude === undefined)) ||
+    (venue.latitude !== undefined && (typeof venue.latitude !== 'number' || venue.latitude < -90 || venue.latitude > 90 || typeof venue.longitude !== 'number' || venue.longitude < -180 || venue.longitude > 180))) throw new Error('INVALID_EVENT');
   new Intl.DateTimeFormat('id-ID', { timeZone: event.timezone });
   return value as PublicEvent;
 }

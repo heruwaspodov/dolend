@@ -1,6 +1,6 @@
 # Dolend data dictionary
 
-Generated from the hosted public schema on 27 October 2026. No user data is included. All business tables have UUID primary keys and RLS enabled. Domain RPC execute is service-only; browser read scope is documented in DATABASE.md.
+Generated from the hosted public schema on 1 November 2026. No user data is included. All business tables have UUID primary keys and RLS enabled. Domain mutation RPC is service-only except authenticated Google profile bootstrap; browser read scope is documented in DATABASE.md.
 
 ## activity_types
 
@@ -37,6 +37,33 @@ Constraints:
 
 - `audit_logs_pkey`: PRIMARY KEY (id)
 
+## contribution_ledger
+
+| Column | Type | Nullable | Default |
+| --- | --- | --- | --- |
+| id | uuid | NO | gen_random_uuid() |
+| charge_id | uuid | NO | — |
+| payment_id | uuid | YES | — |
+| entry_type | text | NO | — |
+| amount | bigint | NO | — |
+| reason | text | NO | — |
+| actor_id | uuid | NO | — |
+| idempotency_key | text | NO | — |
+| created_at | timestamp with time zone | NO | now() |
+
+Constraints:
+
+- `contribution_ledger_entry_type_check`: CHECK ((entry_type = ANY (ARRAY['receipt'::text, 'refund'::text, 'adjustment'::text])))
+- `contribution_ledger_amount_check`: CHECK (((amount <> 0) AND ((amount >= '-1000000000000'::bigint) AND (amount <= '1000000000000'::bigint))))
+- `contribution_ledger_reason_check`: CHECK (((length(TRIM(BOTH FROM reason)) >= 1) AND (length(TRIM(BOTH FROM reason)) <= 1000)))
+- `contribution_ledger_check`: CHECK ((((entry_type = 'receipt'::text) AND (amount > 0) AND (payment_id IS NOT NULL)) OR ((entry_type = 'refund'::text) AND (amount > 0) AND (payment_id IS NULL)) OR ((entry_type = 'adjustment'::text) AND (payment_id IS NULL))))
+- `contribution_ledger_pkey`: PRIMARY KEY (id)
+- `contribution_ledger_payment_id_key`: UNIQUE (payment_id)
+- `contribution_ledger_charge_id_idempotency_key_key`: UNIQUE (charge_id, idempotency_key)
+- `contribution_ledger_charge_id_fkey`: FOREIGN KEY (charge_id) REFERENCES participant_charges(id)
+- `contribution_ledger_payment_id_fkey`: FOREIGN KEY (payment_id) REFERENCES manual_payment_records(id)
+- `contribution_ledger_actor_id_fkey`: FOREIGN KEY (actor_id) REFERENCES profiles(id)
+
 ## event_invites
 
 | Column | Type | Nullable | Default |
@@ -58,6 +85,23 @@ Constraints:
 - `event_invites_event_id_fkey`: FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE RESTRICT
 - `event_invites_created_by_fkey`: FOREIGN KEY (created_by) REFERENCES profiles(id) ON DELETE RESTRICT
 
+## event_organizers
+
+| Column | Type | Nullable | Default |
+| --- | --- | --- | --- |
+| event_id | uuid | NO | — |
+| profile_id | uuid | NO | — |
+| role | text | NO | — |
+| created_at | timestamp with time zone | NO | now() |
+| updated_at | timestamp with time zone | NO | now() |
+
+Constraints:
+
+- `event_organizers_role_check`: CHECK ((role = ANY (ARRAY['owner'::text, 'organizer'::text])))
+- `event_organizers_pkey`: PRIMARY KEY (event_id, profile_id)
+- `event_organizers_event_id_fkey`: FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE RESTRICT
+- `event_organizers_profile_id_fkey`: FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE RESTRICT
+
 ## event_participants
 
 | Column | Type | Nullable | Default |
@@ -74,6 +118,7 @@ Constraints:
 | cancellation_reason | text | YES | — |
 | created_at | timestamp with time zone | NO | now() |
 | updated_at | timestamp with time zone | NO | now() |
+| chargeable | boolean | NO | true |
 
 Constraints:
 
@@ -107,25 +152,12 @@ Constraints:
 - `event_payment_methods_pkey`: PRIMARY KEY (id)
 - `event_payment_methods_event_id_fkey`: FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE RESTRICT
 
-## event_organizers
-
-| Column | Type | Nullable | Default |
-| --- | --- | --- | --- |
-| event_id | uuid | NO | — |
-| profile_id | uuid | NO | — |
-| role | text | NO | — |
-| created_at | timestamp with time zone | NO | now() |
-| updated_at | timestamp with time zone | NO | now() |
-
-Constraints: composite primary key `(event_id, profile_id)`, role `owner|organizer`, dan FK restrict ke `events` serta `profiles`.
-
 ## events
 
 | Column | Type | Nullable | Default |
 | --- | --- | --- | --- |
 | id | uuid | NO | gen_random_uuid() |
 | organizer_profile_id | uuid | NO | — |
-| workspace_id | uuid | NO | — |
 | activity_type_id | uuid | NO | — |
 | venue_id | uuid | YES | — |
 | venue_snapshot | jsonb | NO | '{}'::jsonb |
@@ -148,6 +180,13 @@ Constraints: composite primary key `(event_id, profile_id)`, role `owner|organiz
 | version | integer | NO | 1 |
 | created_at | timestamp with time zone | NO | now() |
 | updated_at | timestamp with time zone | NO | now() |
+| workspace_id | uuid | NO | — |
+| contribution_mode | text | NO | 'legacy'::text |
+| venue_booking_status | text | NO | 'not_booked'::text |
+| estimated_total_cost | bigint | NO | 0 |
+| contributions_locked_at | timestamp with time zone | YES | — |
+| contributions_locked_by | uuid | YES | — |
+| payment_timing | text | NO | 'before_event'::text |
 
 Constraints:
 
@@ -156,7 +195,6 @@ Constraints:
 - `events_description_check`: CHECK ((length(description) <= 10000))
 - `events_capacity_check`: CHECK (((capacity >= 1) AND (capacity <= 100000)))
 - `events_visibility_check`: CHECK ((visibility = ANY (ARRAY['public'::text, 'unlisted'::text])))
-- `events_status_check`: CHECK ((status = ANY (ARRAY['draft'::text, 'published'::text, 'completed'::text, 'cancelled'::text])))
 - `events_payment_mode_check`: CHECK ((payment_mode = ANY (ARRAY['free'::text, 'before_event'::text, 'after_event'::text])))
 - `events_price_amount_check`: CHECK (((price_amount >= 0) AND (price_amount <= '1000000000000'::bigint)))
 - `events_currency_check`: CHECK ((currency = 'IDR'::text))
@@ -170,9 +208,17 @@ Constraints:
 - `events_check3`: CHECK (((payment_mode <> 'after_event'::text) OR ((payment_due_at IS NOT NULL) AND (payment_due_at >= ends_at))))
 - `events_pkey`: PRIMARY KEY (id)
 - `events_organizer_profile_id_fkey`: FOREIGN KEY (organizer_profile_id) REFERENCES profiles(id) ON DELETE RESTRICT
-- `events_workspace_id_fkey`: FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE RESTRICT
 - `events_activity_type_id_fkey`: FOREIGN KEY (activity_type_id) REFERENCES activity_types(id) ON DELETE RESTRICT
 - `events_venue_id_fkey`: FOREIGN KEY (venue_id) REFERENCES venues(id) ON DELETE RESTRICT
+- `events_workspace_id_fkey`: FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE RESTRICT
+- `events_contribution_mode_check`: CHECK ((contribution_mode = ANY (ARRAY['legacy'::text, 'dynamic'::text])))
+- `events_venue_booking_status_check`: CHECK ((venue_booking_status = ANY (ARRAY['not_booked'::text, 'pending'::text, 'booked'::text, 'cancelled'::text])))
+- `events_estimated_total_cost_check`: CHECK (((estimated_total_cost >= 0) AND (estimated_total_cost <= '1000000000000'::bigint)))
+- `events_contributions_locked_by_fkey`: FOREIGN KEY (contributions_locked_by) REFERENCES profiles(id)
+- `events_status_check`: CHECK ((status = ANY (ARRAY['draft'::text, 'published'::text, 'recruiting'::text, 'confirmed'::text, 'completed'::text, 'cancelled'::text])))
+- `dynamic_legacy_free`: CHECK (((contribution_mode <> 'dynamic'::text) OR (payment_mode = 'free'::text)))
+- `events_payment_timing_check`: CHECK ((payment_timing = ANY (ARRAY['before_event'::text, 'after_event'::text])))
+- `events_venue_snapshot_fields_check`: CHECK (dolend_private.valid_event_venue_snapshot(venue_snapshot))
 
 ## guest_sessions
 
@@ -180,7 +226,6 @@ Constraints:
 | --- | --- | --- | --- |
 | id | uuid | NO | gen_random_uuid() |
 | user_id | uuid | NO | — |
-| auth_provider | text | NO | 'legacy_phone'::text |
 | scope_event_id | uuid | NO | — |
 | token_hash | text | NO | — |
 | scope | text | NO | 'participation'::text |
@@ -267,6 +312,72 @@ Constraints:
 - `invoices_invoice_number_key`: UNIQUE (invoice_number)
 - `invoices_participant_id_fkey`: FOREIGN KEY (participant_id) REFERENCES event_participants(id) ON DELETE RESTRICT
 
+## manual_event_methods
+
+| Column | Type | Nullable | Default |
+| --- | --- | --- | --- |
+| event_id | uuid | NO | — |
+| method_id | uuid | NO | — |
+| enabled | boolean | NO | true |
+
+Constraints:
+
+- `manual_event_methods_event_id_fkey`: FOREIGN KEY (event_id) REFERENCES events(id)
+- `manual_event_methods_method_id_fkey`: FOREIGN KEY (method_id) REFERENCES organizer_payment_methods(id)
+- `manual_event_methods_pkey`: PRIMARY KEY (event_id, method_id)
+
+## manual_payment_records
+
+| Column | Type | Nullable | Default |
+| --- | --- | --- | --- |
+| id | uuid | NO | gen_random_uuid() |
+| charge_id | uuid | NO | — |
+| method_id | uuid | NO | — |
+| amount | bigint | NO | — |
+| status | text | NO | 'pending_verification'::text |
+| idempotency_key | text | NO | — |
+| proof_storage_path | text | YES | — |
+| recorded_by | uuid | YES | — |
+| verified_by | uuid | YES | — |
+| verified_at | timestamp with time zone | YES | — |
+| reason | text | YES | — |
+| paid_at | timestamp with time zone | NO | now() |
+| created_at | timestamp with time zone | NO | now() |
+
+Constraints:
+
+- `manual_payment_records_amount_check`: CHECK (((amount >= 1) AND (amount <= '1000000000000'::bigint)))
+- `manual_payment_records_status_check`: CHECK ((status = ANY (ARRAY['pending_verification'::text, 'verified'::text, 'rejected'::text])))
+- `manual_payment_records_idempotency_key_check`: CHECK (((length(idempotency_key) >= 1) AND (length(idempotency_key) <= 200)))
+- `manual_payment_records_check`: CHECK ((((status = 'pending_verification'::text) AND (verified_at IS NULL) AND (verified_by IS NULL)) OR ((status <> 'pending_verification'::text) AND (verified_at IS NOT NULL) AND (verified_by IS NOT NULL))))
+- `manual_payment_records_pkey`: PRIMARY KEY (id)
+- `manual_payment_records_charge_id_idempotency_key_key`: UNIQUE (charge_id, idempotency_key)
+- `manual_payment_records_charge_id_fkey`: FOREIGN KEY (charge_id) REFERENCES participant_charges(id)
+- `manual_payment_records_method_id_fkey`: FOREIGN KEY (method_id) REFERENCES organizer_payment_methods(id)
+- `manual_payment_records_recorded_by_fkey`: FOREIGN KEY (recorded_by) REFERENCES profiles(id)
+- `manual_payment_records_verified_by_fkey`: FOREIGN KEY (verified_by) REFERENCES profiles(id)
+
+## organizer_payment_methods
+
+| Column | Type | Nullable | Default |
+| --- | --- | --- | --- |
+| id | uuid | NO | gen_random_uuid() |
+| organizer_id | uuid | NO | — |
+| type | text | NO | — |
+| recipient_name | text | NO | — |
+| storage_path | text | YES | — |
+| bank_details | jsonb | YES | — |
+| is_active | boolean | NO | true |
+| created_at | timestamp with time zone | NO | now() |
+
+Constraints:
+
+- `organizer_payment_methods_type_check`: CHECK ((type = ANY (ARRAY['static_qris'::text, 'bank_transfer'::text, 'cash'::text])))
+- `organizer_payment_methods_recipient_name_check`: CHECK (((length(TRIM(BOTH FROM recipient_name)) >= 1) AND (length(TRIM(BOTH FROM recipient_name)) <= 120)))
+- `organizer_payment_methods_check`: CHECK (((type <> 'static_qris'::text) OR (storage_path IS NOT NULL)))
+- `organizer_payment_methods_pkey`: PRIMARY KEY (id)
+- `organizer_payment_methods_organizer_id_fkey`: FOREIGN KEY (organizer_id) REFERENCES profiles(id)
+
 ## outbox_jobs
 
 | Column | Type | Nullable | Default |
@@ -289,6 +400,26 @@ Constraints:
 - `outbox_jobs_attempts_check`: CHECK ((attempts >= 0))
 - `outbox_jobs_pkey`: PRIMARY KEY (id)
 - `outbox_jobs_dedupe_key_key`: UNIQUE (dedupe_key)
+
+## participant_charges
+
+| Column | Type | Nullable | Default |
+| --- | --- | --- | --- |
+| id | uuid | NO | gen_random_uuid() |
+| participant_id | uuid | NO | — |
+| amount | bigint | NO | — |
+| currency | text | NO | 'IDR'::text |
+| locked_at | timestamp with time zone | NO | now() |
+| locked_by | uuid | NO | — |
+
+Constraints:
+
+- `participant_charges_amount_check`: CHECK (((amount >= 0) AND (amount <= '1000000000000'::bigint)))
+- `participant_charges_currency_check`: CHECK ((currency = 'IDR'::text))
+- `participant_charges_pkey`: PRIMARY KEY (id)
+- `participant_charges_participant_id_key`: UNIQUE (participant_id)
+- `participant_charges_participant_id_fkey`: FOREIGN KEY (participant_id) REFERENCES event_participants(id)
+- `participant_charges_locked_by_fkey`: FOREIGN KEY (locked_by) REFERENCES profiles(id)
 
 ## participant_history
 
@@ -404,6 +535,7 @@ Constraints:
 | default_timezone | text | NO | 'Asia/Jakarta'::text |
 | created_at | timestamp with time zone | NO | now() |
 | updated_at | timestamp with time zone | NO | now() |
+| auth_provider | text | NO | 'legacy_phone'::text |
 
 Constraints:
 
@@ -413,7 +545,7 @@ Constraints:
 - `profile_avatar_path_length`: CHECK ((length(avatar_path) <= 512))
 - `profiles_user_id_key`: UNIQUE (user_id)
 - `profiles_user_id_fkey`: FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT
-- `profiles_auth_provider_check`: CHECK auth_provider IN ('google','legacy_phone')
+- `profiles_auth_provider_check`: CHECK ((auth_provider = ANY (ARRAY['google'::text, 'legacy_phone'::text])))
 
 ## rate_limit_counters
 
@@ -477,33 +609,9 @@ Constraints:
 
 - `users_pkey`: PRIMARY KEY (id)
 - `users_display_name_check`: CHECK (((length(TRIM(BOTH FROM display_name)) >= 1) AND (length(TRIM(BOTH FROM display_name)) <= 120)))
-- `users_phone_normalized_check`: CHECK phone_normalized IS NULL OR canonical `62...`
 - `users_phone_normalized_key`: UNIQUE (phone_normalized)
 - `users_state_check`: CHECK ((state = ANY (ARRAY['active'::text, 'suspended'::text, 'anonymized'::text])))
-
-## workspace_members
-
-| Column | Type | Nullable | Default |
-| --- | --- | --- | --- |
-| workspace_id | uuid | NO | — |
-| profile_id | uuid | NO | — |
-| role | text | NO | — |
-| created_at | timestamp with time zone | NO | now() |
-| updated_at | timestamp with time zone | NO | now() |
-
-Constraints: composite primary key `(workspace_id, profile_id)`, role `owner|organizer|member`, dan FK restrict ke `workspaces` serta `profiles`.
-
-## workspaces
-
-| Column | Type | Nullable | Default |
-| --- | --- | --- | --- |
-| id | uuid | NO | gen_random_uuid() |
-| name | text | NO | — |
-| created_by_profile_id | uuid | NO | — |
-| created_at | timestamp with time zone | NO | now() |
-| updated_at | timestamp with time zone | NO | now() |
-
-Constraints: nama 1-120 karakter dan FK restrict `created_by_profile_id` ke `profiles`.
+- `users_phone_normalized_check`: CHECK (((phone_normalized IS NULL) OR (phone_normalized ~ '^62[1-9][0-9]{6,12}$'::text)))
 
 ## venues
 
@@ -577,6 +685,35 @@ Constraints:
 - `webhook_events_pkey`: PRIMARY KEY (id)
 - `webhook_events_provider_external_event_id_key`: UNIQUE (provider, external_event_id)
 
-## Revisi hosted 31 Oktober 2026
+## workspace_members
 
-Kontrak TypeScript telah digenerate ulang dari hosted. Tambahan events: contribution_mode, venue_booking_status, estimated_total_cost, contributions_locked_at/by, payment_timing. Tambahan tabel: organizer_payment_methods, manual_event_methods, participant_charges, manual_payment_records, contribution_ledger. Seluruh tabel baru RLS aktif, akses browser langsung ditolak. Detail relasi dan balance: docs/DATABASE.md; endpoint: docs/MANUAL-PAYMENT-API.md.
+| Column | Type | Nullable | Default |
+| --- | --- | --- | --- |
+| workspace_id | uuid | NO | — |
+| profile_id | uuid | NO | — |
+| role | text | NO | — |
+| created_at | timestamp with time zone | NO | now() |
+| updated_at | timestamp with time zone | NO | now() |
+
+Constraints:
+
+- `workspace_members_role_check`: CHECK ((role = ANY (ARRAY['owner'::text, 'organizer'::text, 'member'::text])))
+- `workspace_members_pkey`: PRIMARY KEY (workspace_id, profile_id)
+- `workspace_members_workspace_id_fkey`: FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE RESTRICT
+- `workspace_members_profile_id_fkey`: FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE RESTRICT
+
+## workspaces
+
+| Column | Type | Nullable | Default |
+| --- | --- | --- | --- |
+| id | uuid | NO | gen_random_uuid() |
+| name | text | NO | — |
+| created_by_profile_id | uuid | NO | — |
+| created_at | timestamp with time zone | NO | now() |
+| updated_at | timestamp with time zone | NO | now() |
+
+Constraints:
+
+- `workspaces_name_check`: CHECK (((length(TRIM(BOTH FROM name)) >= 1) AND (length(TRIM(BOTH FROM name)) <= 120)))
+- `workspaces_pkey`: PRIMARY KEY (id)
+- `workspaces_created_by_profile_id_fkey`: FOREIGN KEY (created_by_profile_id) REFERENCES profiles(id) ON DELETE RESTRICT

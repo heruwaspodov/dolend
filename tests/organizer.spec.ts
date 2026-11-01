@@ -44,6 +44,29 @@ test('form membuat recruiting event tanpa venue wajib', async ({ page }) => {
   expect(created?.payment_timing).toBe('before_event');
 });
 
+test('form venue mengirim koordinat dan petunjuk bertemu', async ({ page }) => {
+  await withSession(page);
+  let created: Record<string, unknown> | undefined;
+  await page.route('**/dolend-api/v1/organizer/workspaces', route => route.fulfill({ status:200, contentType:'application/json', body:JSON.stringify({data:[{id:workspaceId,name:'Workspace Host',role:'owner'}]}) }));
+  await page.route('**/dolend-api/v1/activity-types', route => route.fulfill({ status:200, contentType:'application/json', body:JSON.stringify({data:[{id:activityId,slug:'badminton',name:'Badminton'}]}) }));
+  await page.route('**/dolend-api/v1/events', async route => { created=route.request().postDataJSON(); await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:{id:eventId}})}); });
+  await page.goto('/event/create/');
+  await page.getByLabel('Nama event').fill('Badminton dengan venue');
+  await page.getByLabel('Mulai').fill('2026-11-06T19:00');
+  await page.getByLabel('Selesai').fill('2026-11-06T21:00');
+  await page.getByLabel('Pendaftaran ditutup').fill('2026-11-05T19:00');
+  await page.getByLabel('Nama tempat').fill('GOR Jakarta');
+  await page.getByLabel('Alamat').fill('Jakarta Pusat');
+  await page.getByLabel('Latitude').fill('-6.2');
+  await page.getByLabel('Longitude').fill('106.816666');
+  await page.getByLabel('Petunjuk bertemu').fill('Tunggu di lobi utama.');
+  expect((await new AxeBuilder({page}).analyze()).violations).toEqual([]);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
+  await page.getByRole('button',{name:'Buat event'}).click();
+  await expect(page).toHaveURL(`/event/manage/?id=${eventId}`);
+  expect(created?.venue_snapshot).toEqual({name:'GOR Jakarta',address:'Jakarta Pusat',maps_url:'',latitude:-6.2,longitude:106.816666,meeting_instructions:'Tunggu di lobi utama.'});
+});
+
 test('ruang kelola memuat roster dan membuat tautan guest satu kali', async ({ page }) => {
   await withSession(page);
   const token = 'a'.repeat(43);
@@ -73,6 +96,23 @@ test('ruang kelola memuat roster dan membuat tautan guest satu kali', async ({ p
   await expect(page.getByText('Event dibatalkan. Riwayat peserta dan transaksi tetap tersimpan.')).toBeVisible();
   await expect(page.getByText(/dibatalkan$/)).toBeVisible();
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+});
+
+test('planning memperbarui snapshot venue lengkap', async ({page}) => {
+  await withSession(page);
+  let planning:Record<string,unknown>|undefined;
+  await page.route(`**/dolend-api/v1/organizer/events/${eventId}`,route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:publicEvent})}));
+  await page.route(`**/dolend-api/v1/events/${eventId}/roster`,route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:{estimated_total_cost:240000,contributions_locked_at:null,payment_timing:'before_event',estimated_per_person:null,summary:{charged:0,received:0,refunded:0,adjustments:0,outstanding:0,credit:0},participants:[]}})}));
+  await page.route(`**/dolend-api/v1/events/${eventId}/planning`,async route=>{planning=route.request().postDataJSON();await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:{id:eventId}})});});
+  await page.goto(`/event/manage/?id=${eventId}`);
+  await page.getByLabel('Nama venue').fill('GOR Jakarta');
+  await page.getByLabel('Alamat').fill('Jakarta Pusat');
+  await page.getByLabel('Latitude').fill('-6.2');
+  await page.getByLabel('Longitude').fill('106.816666');
+  await page.getByLabel('Petunjuk bertemu').fill('Masuk dari pintu timur.');
+  await page.getByRole('button',{name:'Simpan planning'}).click();
+  await expect(page.getByText('Rencana event berhasil diperbarui.')).toBeVisible();
+  expect(planning?.venue_snapshot).toEqual({name:'GOR Jakarta',address:'Jakarta Pusat',maps_url:'',latitude:-6.2,longitude:106.816666,meeting_instructions:'Masuk dari pintu timur.'});
 });
 
 test('event selesai menampilkan outstanding dari ledger', async ({ page }) => {

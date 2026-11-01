@@ -24,11 +24,14 @@ test('guest membuat booking dan membuka ulang status dari token fragment', async
       return;
     }
     await route.fulfill({ status: 200, contentType: 'application/json', headers: cors, body: JSON.stringify({ data: {
-      id: eventId, title: 'Badminton Rabu', description: 'Main santai.', starts_at: '2026-11-04T12:00:00.000Z', ends_at: '2026-11-04T14:00:00.000Z', timezone: 'Asia/Jakarta', capacity: 8, participants_count: 2, venue: { name: 'GOR Fixture', address: 'Jakarta', maps_url: 'https://www.google.com/maps/search/?api=1&query=Jakarta' }, price_amount: 0, currency: 'IDR',
+      id: eventId, title: 'Badminton Rabu', description: 'Main santai.', starts_at: '2026-11-04T12:00:00.000Z', ends_at: '2026-11-04T14:00:00.000Z', timezone: 'Asia/Jakarta', capacity: 8, participants_count: 2, venue: { name: 'GOR Fixture', address: 'Jakarta', maps_url: 'https://www.google.com/maps/search/?api=1&query=Jakarta', latitude:-6.2, longitude:106.816666, meeting_instructions:'Tunggu di lobi utama.' }, price_amount: 0, currency: 'IDR',
     } }) });
   });
 
   await page.goto(`/event/?id=${eventId}`);
+  await expect(page.getByText('Petunjuk bertemu:')).toBeVisible();
+  await expect(page.getByText('Tunggu di lobi utama.')).toBeVisible();
+  await expect(page.getByRole('link',{name:'Buka Google Maps'})).toHaveAttribute('href',/google\.com\/maps/);
   await page.getByLabel('Nama').fill('Dolen Guest');
   await page.getByLabel('Nomor WhatsApp').fill('0812 3456 7890');
   await page.getByRole('button', { name: 'Booking tempat' }).click();

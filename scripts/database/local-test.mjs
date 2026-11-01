@@ -35,6 +35,10 @@ try {
   };
   const join=async(e,userId=otherUser,actor=other)=> (await query('select * from public.join_event($1,$2,$3)',[e.id,userId,actor]))[0];
   const free=await event(); const participant=await join(free);
+  await db.query(`update public.events set venue_snapshot='{"name":"GOR","address":"Jakarta","maps_url":"","latitude":-6.2,"longitude":106.816666,"meeting_instructions":"Lobi utama"}' where id=$1`,[free.id]);
+  await expectFailure(`update public.events set venue_snapshot='{"latitude":91,"longitude":106.8}' where id=$1`,[free.id],/events_venue_snapshot_fields_check/);
+  await expectFailure(`update public.events set venue_snapshot='{"latitude":-6.2}' where id=$1`,[free.id],/events_venue_snapshot_fields_check/);
+  checks++;
   assert.equal(participant.status,'confirmed'); assert.equal((await join(free)).id,participant.id);
   assert.equal((await query('select count(*)::int n from public.invoices'))[0].n,0); checks++;
   await expectFailure('select * from public.join_event($1,$2,$3)',[free.id,otherUser,organizer],/ACTOR_MISMATCH/);

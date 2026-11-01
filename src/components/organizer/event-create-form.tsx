@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { organizerRequest, type ActivityType, type OrganizerWorkspace } from '@/lib/organizer-client';
 import { useOrganizerSession } from '@/lib/use-organizer-session';
+import { venueSnapshotFromForm } from '@/lib/venue-form';
 import { SessionGate } from './session-gate';
 
 const field = 'mt-2 min-h-11 border-slate-300 bg-white';
@@ -42,14 +43,13 @@ export function EventCreateForm() {
     const form = new FormData(event.currentTarget);
     const offset = zones.find((zone) => zone.value === timezone)?.offset ?? '+07:00';
     const iso = (name: string) => `${String(form.get(name))}:00${offset}`;
-    const venueName = String(form.get('venue_name') ?? '').trim();
-    const venueAddress = String(form.get('venue_address') ?? '').trim();
     try {
+      const venueSnapshot = venueSnapshotFromForm(form);
       const result = await organizerRequest<{ id: string }>('/events', session.access_token, { method: 'POST', body: JSON.stringify({
         workspace_id: form.get('workspace_id'), activity_type_id: form.get('activity_type_id'), title: form.get('title'), description: form.get('description') || undefined,
         starts_at: iso('starts_at'), ends_at: iso('ends_at'), registration_closes_at: iso('registration_closes_at'), timezone,
         capacity: Number(form.get('capacity')), estimated_total_cost: Number(form.get('estimated_total_cost')), payment_timing: form.get('payment_timing'),
-        ...(venueName || venueAddress ? { venue_snapshot: { name: venueName, address: venueAddress, maps_url: String(form.get('maps_url') ?? '').trim() } } : {}),
+        ...(venueSnapshot ? { venue_snapshot: venueSnapshot } : {}),
       }) });
       router.push(`/event/manage/?id=${result.id}`);
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Event belum dapat dibuat.'); setSaving(false); }
@@ -76,7 +76,10 @@ export function EventCreateForm() {
         <div className="sm:col-span-2"><Label htmlFor="timing">Waktu pembayaran</Label><select id="timing" name="payment_timing" className={select}><option value="before_event">Sebelum event</option><option value="after_event">Setelah event</option></select></div>
       </fieldset>
       <fieldset className="grid gap-5 sm:grid-cols-2"><legend className="mb-2 text-lg font-bold">Venue <span className="text-sm font-normal text-slate-500">(opsional)</span></legend><p className="-mt-3 text-sm text-slate-600 sm:col-span-2">Kosongkan jika tempat masih dibicarakan.</p>
-        <div><Label htmlFor="venue-name">Nama tempat</Label><Input id="venue-name" name="venue_name" maxLength={200} className={field} /></div><div><Label htmlFor="venue-address">Alamat</Label><Input id="venue-address" name="venue_address" maxLength={1000} className={field} /></div><div className="sm:col-span-2"><Label htmlFor="maps">Tautan Google Maps</Label><Input id="maps" name="maps_url" type="url" maxLength={2000} className={field} placeholder="https://www.google.com/maps/…" /></div>
+        <div><Label htmlFor="venue-name">Nama tempat</Label><Input id="venue-name" name="venue_name" maxLength={200} className={field} /></div><div><Label htmlFor="venue-address">Alamat</Label><Input id="venue-address" name="venue_address" maxLength={1000} className={field} /></div>
+        <div><Label htmlFor="latitude">Latitude</Label><Input id="latitude" name="latitude" type="number" inputMode="decimal" min={-90} max={90} step="any" className={field} placeholder="-6.200000" /></div><div><Label htmlFor="longitude">Longitude</Label><Input id="longitude" name="longitude" type="number" inputMode="decimal" min={-180} max={180} step="any" className={field} placeholder="106.816666" /></div>
+        <div className="sm:col-span-2"><Label htmlFor="maps">Tautan Google Maps <span className="font-normal text-slate-500">(opsional jika koordinat diisi)</span></Label><Input id="maps" name="maps_url" type="url" maxLength={2000} className={field} placeholder="https://www.google.com/maps/…" /></div>
+        <div className="sm:col-span-2"><Label htmlFor="meeting-instructions">Petunjuk bertemu</Label><textarea id="meeting-instructions" name="meeting_instructions" maxLength={1000} rows={3} className={`${select} py-3`} placeholder="Contoh: tunggu di lobi utama 15 menit sebelum mulai" /></div>
       </fieldset>
       {error && <p className="rounded-lg bg-rose-50 p-4 text-sm font-medium text-rose-800" role="alert">{error}</p>}
       <Button type="submit" disabled={saving || activities.length === 0} className="min-h-11 w-full bg-emerald-700 px-5 text-white hover:bg-emerald-800 sm:w-auto">{saving ? 'Membuat event…' : 'Buat event'}</Button>

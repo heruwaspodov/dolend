@@ -173,12 +173,19 @@ Deno.test('manual finance endpoints reject anonymous organizers and invalid payl
 });
 
 Deno.test('venue links only accept HTTPS Google Maps destinations', async () => {
-  const {isSafeMapsUrl}=await import('./manual-payments.ts');
+  const {isSafeMapsUrl,normalizeVenueSnapshot}=await import('./manual-payments.ts');
   assert(isSafeMapsUrl(''),'empty optional URL rejected');
   assert(isSafeMapsUrl('https://www.google.com/maps/place/Jakarta'),'Google Maps URL rejected');
   assert(isSafeMapsUrl('https://maps.google.com/?q=Jakarta'),'maps.google.com URL rejected');
   assert(!isSafeMapsUrl('http://www.google.com/maps/place/Jakarta'),'HTTP Maps URL accepted');
   assert(!isSafeMapsUrl('https://evil.example/maps'),'foreign venue URL accepted');
+  assert(!isSafeMapsUrl('https://user@www.google.com/maps/place/Jakarta'),'credentialed Maps URL accepted');
+  const venue=normalizeVenueSnapshot({name:' GOR ',address:' Jakarta ',maps_url:'',latitude:-6.2,longitude:106.816666,meeting_instructions:' Lobi utama '});
+  assert(venue.maps_url.includes('query=-6.2%2C106.816666'),'coordinate Maps URL was not generated');
+  assert(venue.name==='GOR'&&venue.meeting_instructions==='Lobi utama','venue snapshot was not normalized');
+  let pairRejected=false;
+  try{normalizeVenueSnapshot({name:'GOR',address:'Jakarta',maps_url:'',latitude:-6.2});}catch{pairRejected=true;}
+  assert(pairRejected,'partial coordinates accepted');
 });
 
 Deno.test('payment images reject spoofed content and oversized streams', async () => {

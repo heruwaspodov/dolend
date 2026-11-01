@@ -7,7 +7,7 @@ Prefix `/dolend-api/v1`. Organizer wajib JWT Google terverifikasi. Guest memakai
 | GET /organizer/events | Daftar event yang dapat dikelola beserta status planning dan lock |
 | GET /organizer/workspaces | Workspace dengan role owner/organizer untuk sesi Google |
 | GET /activity-types | Jenis aktivitas aktif untuk form create |
-| POST /events | Buat recruiting dynamic dengan workspace_id, activity_type_id, title, starts_at, ends_at, registration_closes_at, timezone, capacity, estimated_total_cost, payment_timing; venue_snapshot opsional |
+| POST /events | Buat recruiting dynamic dengan workspace_id, activity_type_id, title, starts_at, ends_at, registration_closes_at, timezone, capacity, estimated_total_cost, payment_timing; venue_snapshot opsional berisi name, address, maps_url, pasangan latitude/longitude, dan meeting_instructions |
 | GET /organizer/events/:id | Detail event milik organizer, termasuk status cancelled untuk rekonsiliasi |
 | GET /events/:id | DTO publik tanpa kontak, rekening, atau bukti |
 | PATCH /events/:id/planning | Ubah estimasi, snapshot/status venue, confirmed/completed |

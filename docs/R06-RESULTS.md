@@ -8,10 +8,10 @@ Runner lokal `npm run test:r06` memisahkan build normal dari build fixture agar 
 
 | Area | Hasil |
 | --- | --- |
-| Database | 14 migration direplay; 53 pemeriksaan transaksi, integritas, dan otorisasi lulus |
+| Database | 16 migration direplay; 56 pemeriksaan transaksi, integritas, dan otorisasi lulus |
 | Pembatalan dynamic | Before/after lock, retain/waive, retry, organizer lain ditolak, completed ditolak, receipt tetap tersimpan |
 | Build normal | 11 halaman static export berhasil dibuat |
-| Browser build normal | 16 checks desktop/mobile lulus |
+| Browser build normal | 20 checks desktop/mobile lulus |
 | Guest payment | Token fragment dikirim hanya sebagai header scoped; upload PNG menghasilkan storage path; laporan tetap pending verification |
 | Organizer | Create, roster, guest link rotation, pembatalan peserta/event, outstanding completed, review, dan tunai lulus |
 | Build fixture | 11 halaman static export dan fixture publik berhasil dibuat |
@@ -21,9 +21,10 @@ Callback OAuth palsu harus gagal dengan pesan aman dan URL yang sudah dibersihka
 
 ## Gate hosted yang tersisa
 
-- Migration sampai `20261031150000_dynamic_event_cancellation.sql` sudah diterapkan ke project hosted pada 1 November 2026.
-- Edge Function `dolend-api` versi 16 aktif dengan `STORAGE_PROVIDER=supabase` dan rate-limit pepper server-only.
+- Migration sampai `20261101121000_allow_service_role_venue_validation.sql` sudah diterapkan ke project hosted pada 1 November 2026.
+- Edge Function `dolend-api` versi 17 aktif dengan `STORAGE_PROVIDER=supabase` dan rate-limit pepper server-only.
 - E2E Supabase Storage lulus untuk upload QRIS authenticated serta alur guest-token → upload bukti → laporan pending → signed review organizer. Object QRIS/bukti tetap private; token guest lain dan organizer lain ditolak.
+- E2E venue hosted lulus untuk create/read snapshot koordinat dan petunjuk bertemu, pembuatan Maps URL otomatis, penolakan host asing, serta cleanup fixture. API `dolend-api` v17 aktif dan migration local/remote sejajar sampai `20261101121000`.
 - Regression database hosted lulus untuk concurrency join/callback/refund, RLS, expiry, late payment, dan cleanup fixture.
 - Concurrency dynamic manual lintas koneksi lulus melalui masing-masing 10 request paralel untuk lock, report dengan idempotency key sama, dan review; hasilnya satu payment serta satu receipt ledger.
 - Seluruh fixture Auth, event, guest, rate-limit, payment, ledger, workspace, dan object Storage dari runner hosted berhasil dibersihkan.

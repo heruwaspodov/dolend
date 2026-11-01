@@ -1726,6 +1726,16 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      cancel_dynamic_event: {
+        Args: {
+          p_actor: string
+          p_event: string
+          p_key: string
+          p_policy: string
+          p_reason: string
+        }
+        Returns: undefined
+      }
       cancel_dynamic_participant: {
         Args: {
           p_actor: string
@@ -1792,6 +1802,13 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      consume_guest_booking_limits: {
+        Args: { p_contact_hash: string; p_event: string; p_ip_hash: string }
+        Returns: {
+          allowed: boolean
+          retry_after_seconds: number
+        }[]
       }
       create_guest_booking: {
         Args: {
@@ -2019,6 +2036,30 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "manual_payment_records"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      rotate_guest_booking_token: {
+        Args: { p_actor: string; p_participant: string; p_token_hash: string }
+        Returns: {
+          attendance_at: string | null
+          cancellation_reason: string | null
+          cancelled_at: string | null
+          chargeable: boolean
+          confirmed_at: string | null
+          created_at: string
+          event_id: string
+          hold_expires_at: string | null
+          id: string
+          joined_as: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "event_participants"
           isOneToOne: true
           isSetofReturn: false
         }

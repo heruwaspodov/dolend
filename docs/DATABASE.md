@@ -110,6 +110,8 @@ No live email/SMS or money is sent. Generated dictionary/catalog checks contain 
 
 Private bucket, validasi file, signed URL, guest-token recovery, dan callback Google hosted sudah diverifikasi. Recycled-number handling dan pengujian keamanan terpadu tetap T20. Provider signature verification/reconciliation stays T16/T19; the service-only receipt RPC itself cannot verify a gateway signature. Default cancellation policies/refund entitlement need product decisions; T04 queues review and bounds financial totals rather than inventing automatic refunds.
 
+Snapshot venue event dapat menyimpan `latitude`/`longitude` sebagai pasangan numerik, `meeting_instructions` maksimum 1000 karakter, dan Maps URL yang sudah dinormalisasi API. Constraint `events_venue_snapshot_fields_check` menjaga pasangan serta rentang koordinat tanpa mengubah snapshot lama yang tidak memiliki koordinat.
+
 References: [Supabase migrations](https://supabase.com/docs/guides/deployment/database-migrations), [database functions](https://supabase.com/docs/guides/database/functions), [PostgreSQL locks](https://www.postgresql.org/docs/17/explicit-locking.html), [RLS](https://www.postgresql.org/docs/17/ddl-rowsecurity.html).
 
 ## Revisi iuran manual — 31 Oktober 2026

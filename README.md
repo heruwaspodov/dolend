@@ -159,7 +159,7 @@ npm run supabase -- functions deploy dolend-api \
 
 Gateway JWT verification tetap aktif; health hosted tanpa kredensial ditolak. Origin frontend staging/production harus dimasukkan ke `ALLOWED_ORIGINS` function setelah domain Hosting ditentukan. Jangan menyimpan access token, service-role key, atau secret provider di Git.
 
-Frontend memakai `output: 'export'` dan konfigurasi `firebase.json` yang menunjuk `out/`. Project Firebase `dolend-apps` dan site `dolend` sudah dipilih melalui target `web` di `.firebaserc`; default site `dolend-apps` bukan target deploy aplikasi ini. Tidak ada backend Next.js, Server Actions, atau runtime API route dalam rancangan ini. Link event memakai `/event/?id=<uuid>` dan client fetch, sehingga HTML shell tidak perlu dibangun ulang untuk setiap event. API event read nyata belum tersedia (T10). Callback auth lokal sudah menukar PKCE code dan bootstrap profile, tetapi baru dapat dipakai setelah Google provider serta redirect allowlist dikonfigurasi. Callback payment tetap shell dan tidak mengonfirmasi pembayaran.
+Frontend memakai `output: 'export'` dan konfigurasi `firebase.json` yang menunjuk `out/`. Project Firebase `dolend-apps` dan site `dolend` sudah dipilih melalui target `web` di `.firebaserc`; default site `dolend-apps` bukan target deploy aplikasi ini. Tidak ada backend Next.js, Server Actions, atau runtime API route dalam rancangan ini. Link event memakai `/event/?id=<uuid>` dan client fetch, sehingga HTML shell tidak perlu dibangun ulang untuk setiap event. API event read/create/manage dan callback Google hosted sudah aktif melalui Supabase Edge Function; callback payment tetap shell dan tidak mengonfirmasi pembayaran.
 
 ## Preview Firebase dan uji static hosting
 

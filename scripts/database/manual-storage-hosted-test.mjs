@@ -47,8 +47,11 @@ try{
  const publicFile=await fetch(`${url}/storage/v1/object/public/dolend-payments/${path}`);assert.notEqual(publicFile.status,200);
  const activity=(await payload(await request('/activity-types')))[0];
  const now=Date.now();
- const event=await payload(await request('/events',{token:owner,method:'POST',body:{workspace_id:ownerWorkspace.id,activity_type_id:activity.id,title:'Hosted guest proof fixture',description:'Temporary hosted Storage verification',starts_at:new Date(now+86400000).toISOString(),ends_at:new Date(now+90000000).toISOString(),registration_closes_at:new Date(now+43200000).toISOString(),timezone:'Asia/Jakarta',capacity:4,estimated_total_cost:120000,payment_timing:'before_event',venue_snapshot:{name:'Fixture venue',address:'Temporary test only',maps_url:'https://www.google.com/maps/search/?api=1&query=Jakarta'}}}));
+ const event=await payload(await request('/events',{token:owner,method:'POST',body:{workspace_id:ownerWorkspace.id,activity_type_id:activity.id,title:'Hosted guest proof fixture',description:'Temporary hosted Storage verification',starts_at:new Date(now+86400000).toISOString(),ends_at:new Date(now+90000000).toISOString(),registration_closes_at:new Date(now+43200000).toISOString(),timezone:'Asia/Jakarta',capacity:4,estimated_total_cost:120000,payment_timing:'before_event',venue_snapshot:{name:'Fixture venue',address:'Temporary test only',maps_url:'',latitude:-6.2,longitude:106.816666,meeting_instructions:'Meet at the main lobby'}}}));
  events.push(event.id);
+ const hostedEvent=await payload(await request(`/organizer/events/${event.id}`,{token:owner}));
+ assert.equal(hostedEvent.venue.latitude,-6.2);assert.equal(hostedEvent.venue.longitude,106.816666);assert.equal(hostedEvent.venue.meeting_instructions,'Meet at the main lobby');assert(hostedEvent.venue.maps_url.includes('query=-6.2%2C106.816666'));
+ r=await request(`/events/${event.id}/planning`,{token:owner,method:'PATCH',body:{venue_snapshot:{name:'Fixture venue',address:'Temporary test only',maps_url:'https://evil.example/maps'}}});assert.equal(r.status,422,'foreign Maps URL accepted');
  await payload(await request(`/events/${event.id}/payment-methods`,{token:owner,method:'POST',body:{method_id:method,enabled:true}}));
  const booking=await payload(await request(`/events/${event.id}/guest-bookings`,{method:'POST',body:{display_name:'Hosted guest proof',whatsapp:phone()}}));
  const guest=ok(await admin.from('event_participants').select('user_id').eq('id',booking.participant_id).single());businessUsers.push(guest.user_id);
@@ -74,7 +77,7 @@ try{
  assert.equal(receipts.length,1,'concurrent reviews created duplicate receipts');
  r=await request(`/payment-settings/${method}`,{token:owner,method:'PATCH',body:{is_active:false}});assert.equal(r.status,200);
  console.log('PASS hosted QRIS settings, real guest-token proof flow, and concurrent dynamic payment lock/report/review with one receipt');
- await writeFile('docs/manual-storage-hosted-results.json',JSON.stringify({date:new Date().toISOString().slice(0,10),project,passed:true,scope:'Supabase Storage adapter with synthetic Google-metadata organizer sessions and real guest booking token; QRIS upload/save/disable, guest proof upload/report/review signed URL, 10 concurrent lock/report/review requests with one payment and receipt, cross-token/cross-owner denial, private objects; not real Google OAuth'},null,2)+'\n');
+ await writeFile('docs/manual-storage-hosted-results.json',JSON.stringify({date:new Date().toISOString().slice(0,10),project,passed:true,scope:'Supabase Storage and venue API with synthetic Google-metadata organizer sessions and real guest booking token; coordinate snapshot/Maps URL generation/foreign-host denial, QRIS upload/save/disable, guest proof upload/report/review signed URL, 10 concurrent lock/report/review requests with one payment and receipt, cross-token/cross-owner denial, private objects; not real Google OAuth'},null,2)+'\n');
 }catch(error){console.error('Hosted storage test:',error.message);throw error;}finally{
  if(objects.length)ok(await admin.storage.from('dolend-payments').remove(objects));
  if(users.length){

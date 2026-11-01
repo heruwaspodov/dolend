@@ -11,14 +11,28 @@ const uuid = t.String({ format: 'uuid' });
 const amount = t.Integer({ minimum: 0, maximum: 1e12 });
 const key = t.String({ minLength: 1, maxLength: 200 });
 const reason = t.String({ minLength: 1, maxLength: 1000 });
+const venueSnapshot = t.Object({
+  name:t.String({maxLength:200}),address:t.String({maxLength:1000}),maps_url:t.String({maxLength:2000}),
+  latitude:t.Optional(t.Number({minimum:-90,maximum:90})),longitude:t.Optional(t.Number({minimum:-180,maximum:180})),
+  meeting_instructions:t.Optional(t.String({maxLength:1000})),
+});
+type VenueSnapshot = {name:string;address:string;maps_url:string;latitude?:number;longitude?:number;meeting_instructions?:string};
 export function isSafeMapsUrl(value: string) {
   if (!value) return true;
   try {
     const url = new URL(value);
-    return url.protocol === 'https:' && (url.hostname === 'maps.google.com' || (url.hostname === 'www.google.com' && url.pathname.startsWith('/maps')));
+    return url.protocol === 'https:' && !url.username && !url.password && !url.port && (url.hostname === 'maps.google.com' || (url.hostname === 'www.google.com' && url.pathname.startsWith('/maps')));
   } catch {
     return false;
   }
+}
+export function normalizeVenueSnapshot(venue:VenueSnapshot) {
+  const hasLatitude=venue.latitude!==undefined,hasLongitude=venue.longitude!==undefined;
+  if(hasLatitude!==hasLongitude)throw new FinanceError('INVALID_REQUEST');
+  const mapsUrl=venue.maps_url.trim() || (hasLatitude?`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${venue.latitude},${venue.longitude}`)}`:'');
+  if(!isSafeMapsUrl(mapsUrl))throw new FinanceError('INVALID_REQUEST');
+  const instructions=venue.meeting_instructions?.trim();
+  return {name:venue.name.trim(),address:venue.address.trim(),maps_url:mapsUrl,...(hasLatitude?{latitude:venue.latitude,longitude:venue.longitude}:{}),...(instructions?{meeting_instructions:instructions}:{})};
 }
 export async function imageBytes(request: Request):Promise<{bytes:Uint8Array;mime:'image/png'|'image/jpeg';extension:'png'|'jpg'}> {
   const reader = request.body?.getReader();
@@ -89,7 +103,7 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
     const {count}=await client().from('event_participants').select('id',{count:'exact',head:true}).eq('event_id',e.id).in('status',['confirmed','attended','no_show']);
     const {count:chargeable}=await client().from('event_participants').select('id',{count:'exact',head:true}).eq('event_id',e.id).eq('chargeable',true).eq('status','confirmed');
     const {venue_snapshot,...rest}=e;
-    return {...rest,participants_count:count??0,estimated_per_person:chargeable?Math.ceil(Number(e.estimated_total_cost)/chargeable):null,venue:{name:venue_snapshot?.name??'Venue belum ditentukan',address:venue_snapshot?.address??'',maps_url:venue_snapshot?.maps_url??''}};
+    return {...rest,participants_count:count??0,estimated_per_person:chargeable?Math.ceil(Number(e.estimated_total_cost)/chargeable):null,venue:{name:venue_snapshot?.name?.trim()||'Venue belum ditentukan',address:venue_snapshot?.address??'',maps_url:venue_snapshot?.maps_url??'',...(venue_snapshot?.latitude!==undefined?{latitude:Number(venue_snapshot.latitude),longitude:Number(venue_snapshot.longitude)}:{}),...(venue_snapshot?.meeting_instructions?{meeting_instructions:venue_snapshot.meeting_instructions}:{})}};
   }
   return new Elysia({ aot: false })
     .onBeforeHandle(({set}) => {set.headers['cache-control']='no-store';})
@@ -129,20 +143,20 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
     },{params:t.Object({id:uuid})})
     .post('/events',async ({request,body}) => {
       const id=await actor(request);
-      if(body.venue_snapshot && !isSafeMapsUrl(body.venue_snapshot.maps_url)) throw new FinanceError('INVALID_REQUEST');
+      const venue=body.venue_snapshot?normalizeVenueSnapshot(body.venue_snapshot):undefined;
       const {data:membership}=await client().from('workspace_members').select('role').eq('workspace_id',body.workspace_id).eq('profile_id',id).in('role',['owner','organizer']).maybeSingle();
       if(!membership) throw new FinanceError('FORBIDDEN');
-      const {data,error}=await client().from('events').insert({...body,organizer_profile_id:id,contribution_mode:'dynamic',payment_mode:'free',price_amount:0,status:'recruiting'}).select('id').single();
+      const {data,error}=await client().from('events').insert({...body,...(venue?{venue_snapshot:venue}:{}),organizer_profile_id:id,contribution_mode:'dynamic',payment_mode:'free',price_amount:0,status:'recruiting'}).select('id').single();
       if(error) throw new FinanceError('CONFLICT');
       return {data};
-    },{body:t.Object({workspace_id:uuid,activity_type_id:uuid,title:t.String({minLength:1,maxLength:200}),description:t.Optional(t.String({maxLength:10000})),starts_at:t.String({format:'date-time'}),ends_at:t.String({format:'date-time'}),registration_closes_at:t.String({format:'date-time'}),timezone:t.String({minLength:1,maxLength:100}),capacity:t.Integer({minimum:1,maximum:100000}),estimated_total_cost:amount,payment_timing:t.Union([t.Literal('before_event'),t.Literal('after_event')]),venue_snapshot:t.Optional(t.Object({name:t.String({maxLength:200}),address:t.String({maxLength:1000}),maps_url:t.String({maxLength:2000})}))},{additionalProperties:false})})
+    },{body:t.Object({workspace_id:uuid,activity_type_id:uuid,title:t.String({minLength:1,maxLength:200}),description:t.Optional(t.String({maxLength:10000})),starts_at:t.String({format:'date-time'}),ends_at:t.String({format:'date-time'}),registration_closes_at:t.String({format:'date-time'}),timezone:t.String({minLength:1,maxLength:100}),capacity:t.Integer({minimum:1,maximum:100000}),estimated_total_cost:amount,payment_timing:t.Union([t.Literal('before_event'),t.Literal('after_event')]),venue_snapshot:t.Optional(venueSnapshot)},{additionalProperties:false})})
     .patch('/events/:id/planning',async ({request,params,body}) => {
       await ownEvent(params.id,request);
-      if(body.venue_snapshot && !isSafeMapsUrl(body.venue_snapshot.maps_url)) throw new FinanceError('INVALID_REQUEST');
-      const {data,error}=await client().from('events').update(body).eq('id',params.id).eq('contribution_mode','dynamic').select('id,status,estimated_total_cost,venue_booking_status').single();
+      const update={...body,...(body.venue_snapshot?{venue_snapshot:normalizeVenueSnapshot(body.venue_snapshot)}:{})};
+      const {data,error}=await client().from('events').update(update).eq('id',params.id).eq('contribution_mode','dynamic').select('id,status,estimated_total_cost,venue_booking_status').single();
       if(error) throw new FinanceError('CONFLICT');
       return {data};
-    },{params:t.Object({id:uuid}),body:t.Object({estimated_total_cost:t.Optional(amount),venue_booking_status:t.Optional(t.Union([t.Literal('not_booked'),t.Literal('pending'),t.Literal('booked'),t.Literal('cancelled')])),status:t.Optional(t.Union([t.Literal('confirmed'),t.Literal('completed')])),venue_snapshot:t.Optional(t.Object({name:t.String({maxLength:200}),address:t.String({maxLength:1000}),maps_url:t.String({maxLength:2000})}))},{additionalProperties:false,minProperties:1})})
+    },{params:t.Object({id:uuid}),body:t.Object({estimated_total_cost:t.Optional(amount),venue_booking_status:t.Optional(t.Union([t.Literal('not_booked'),t.Literal('pending'),t.Literal('booked'),t.Literal('cancelled')])),status:t.Optional(t.Union([t.Literal('confirmed'),t.Literal('completed')])),venue_snapshot:t.Optional(venueSnapshot)},{additionalProperties:false,minProperties:1})})
     .post('/events/:id/join',async ({request,params}) => {
       const id=await actor(request);
       const {data:p}=await client().from('profiles').select('user_id').eq('id',id).single();

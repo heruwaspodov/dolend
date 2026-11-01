@@ -12,9 +12,10 @@ const sql=`select jsonb_build_object(
 ) as catalog`;
 const result=await exec('node_modules/.bin/supabase',['db','query','--linked','--project-ref','fpbefabsqryxmnmxufjw',sql,'--output','json'],{timeout:120000,maxBuffer:1024*1024});
 const catalog=JSON.parse(result.stdout).rows[0].catalog;
-if(catalog.tables.some(t=>!t.rls)||catalog.unindexed_fks!==0||catalog.functions.some(f=>f.anon_execute||f.member_execute))throw new Error('Catalog security/index invariant failed');
+const browserRpc=new Set(['bootstrap_google_profile']);
+if(catalog.tables.some(t=>!t.rls)||catalog.unindexed_fks!==0||catalog.functions.some(f=>f.anon_execute||(f.member_execute&&!browserRpc.has(f.name))))throw new Error('Catalog security/index invariant failed');
 const escape=value=>String(value??'—').replaceAll('|','\\|').replaceAll('\n',' ');
-let text='# Dolend data dictionary\n\nGenerated from the hosted public schema on 27 October 2026. No user data is included. All business tables have UUID primary keys and RLS enabled. Domain RPC execute is service-only; browser read scope is documented in DATABASE.md.\n';
+let text='# Dolend data dictionary\n\nGenerated from the hosted public schema on 1 November 2026. No user data is included. All business tables have UUID primary keys and RLS enabled. Domain mutation RPC is service-only except authenticated Google profile bootstrap; browser read scope is documented in DATABASE.md.\n';
 for(const table of catalog.tables.sort((a,b)=>a.name.localeCompare(b.name))){
  text+=`\n## ${table.name}\n\n| Column | Type | Nullable | Default |\n| --- | --- | --- | --- |\n`;
  for(const col of catalog.columns.filter(c=>c.table===table.name))text+=`| ${col.name} | ${col.type} | ${col.nullable} | ${escape(col.default)} |\n`;
@@ -22,6 +23,6 @@ for(const table of catalog.tables.sort((a,b)=>a.name.localeCompare(b.name))){
  for(const constraint of catalog.constraints.filter(c=>c.table===table.name))text+=`- \`${constraint.name}\`: ${escape(constraint.definition)}\n`;
 }
 await writeFile('docs/DATA-DICTIONARY.md',text);
-const summary={tables:catalog.tables.length,all_rls:true,unindexed_foreign_keys:catalog.unindexed_fks,service_only_rpc:catalog.functions.map(f=>f.name),migration_versions:catalog.migrations};
+const summary={tables:catalog.tables.length,all_rls:true,unindexed_foreign_keys:catalog.unindexed_fks,authenticated_rpc:[...browserRpc],service_only_rpc:catalog.functions.filter(f=>!browserRpc.has(f.name)).map(f=>f.name),migration_versions:catalog.migrations};
 await writeFile('docs/database-catalog-results.json',JSON.stringify(summary,null,2)+'\n');
 console.log(JSON.stringify(summary,null,2));
