@@ -28,6 +28,8 @@ Callback OAuth palsu harus gagal dengan pesan aman dan URL yang sudah dibersihka
 - Concurrency dynamic manual lintas koneksi lulus melalui masing-masing 10 request paralel untuk lock, report dengan idempotency key sama, dan review; hasilnya satu payment serta satu receipt ledger.
 - Seluruh fixture Auth, event, guest, rate-limit, payment, ledger, workspace, dan object Storage dari runner hosted berhasil dibersihkan.
 - Adapter Storage lokal mendukung Supabase dan S3-compatible dengan referensi campuran; konfigurasi S3 belum diuji terhadap bucket hosted nyata.
-- Workflow Firebase untuk commit `d87c2e3` selesai sukses sampai deploy dan verifikasi live; redirect Google pada domain Firebase dan pilot manual dengan event nyata tetap perlu diperiksa terpisah.
+- Workflow Firebase untuk commit `f6e7bf6` selesai sukses sampai deploy dan verifikasi live.
+- Login Google nyata dari `https://dolend.web.app/account/` berhasil kembali ke callback Firebase, menukar code PKCE, menjalankan bootstrap idempotent, membersihkan URL sensitif lewat navigasi, dan masuk ke `/dashboard/`.
+- OAuth masih berstatus testing; publishing/branding Google dan pilot manual dengan event nyata tetap perlu diselesaikan terpisah.
 
 Semua fixture Auth, database, dan Storage dari verifikasi hosted dibersihkan setelah pengujian.

@@ -1,6 +1,6 @@
 # Fondasi hybrid auth
 
-Status 31 Oktober 2026: Google OAuth menjadi login wajib untuk organizer dan opsional untuk peserta. Guest dapat booking tanpa akun memakai nama, WhatsApp, dan token booking scoped. Google Auth Platform dan OAuth Web Client pada project `dolend-apps` sudah dibuat, provider Google Supabase hosted sudah aktif, dan callback localhost serta Firebase sudah masuk allowlist. Login Google nyata dari localhost berhasil membuat sesi, menjalankan bootstrap profil/workspace, dan masuk ke dashboard organizer. OAuth masih berstatus testing dan akun yang dapat mencoba dibatasi ke test user Google Cloud.
+Status 1 November 2026: Google OAuth menjadi login wajib untuk organizer dan opsional untuk peserta. Guest dapat booking tanpa akun memakai nama, WhatsApp, dan token booking scoped. Google Auth Platform dan OAuth Web Client pada project `dolend-apps` sudah dibuat, provider Google Supabase hosted sudah aktif, dan callback localhost serta Firebase sudah masuk allowlist. Login Google nyata dari localhost dan `dolend.web.app` berhasil membuat sesi, menjalankan bootstrap profil/workspace, dan masuk ke dashboard organizer. OAuth masih berstatus testing dan akun yang dapat mencoba dibatasi ke test user Google Cloud.
 
 ## Batas identitas
 
@@ -33,13 +33,13 @@ Provider Google hosted memakai OAuth Web Client dari Google Cloud dengan callbac
 
 RPC `create_guest_booking()` mengunci event dan business user, menolak event tertutup serta duplicate booking, membuat guest session scoped, lalu memakai transaksi `join_event()`. WhatsApp adalah kontak, bukan bukti bahwa guest menguasai nomor tersebut. Duplicate booking tidak menerbitkan token baru. Claim riwayat tetap memerlukan proof kepemilikan tersendiri.
 
-Migration hardening `20261031120000_harden_guest_booking_identity.sql` menolak jalur guest bila nomor tersebut sudah terhubung ke `profiles`. Dengan demikian input nomor saja tidak dapat mengikat partisipasi baru ke business user milik akun Google. Migration ini lulus replay lokal dan belum diterapkan ke hosted.
+Migration hardening `20261031120000_harden_guest_booking_identity.sql` menolak jalur guest bila nomor tersebut sudah terhubung ke `profiles`. Dengan demikian input nomor saja tidak dapat mengikat partisipasi baru ke business user milik akun Google. Migration ini lulus replay lokal dan sudah diterapkan ke hosted pada 1 November 2026.
 
-Migration `20261031130000_guest_booking_rate_limit.sql` memakai `rate_limit_counters` yang sudah ada untuk membatasi satu event/contact sebanyak 5 percobaan dan satu event/IP sebanyak 30 percobaan per 15 menit. API menyimpan bucket HMAC-SHA256, bukan WhatsApp atau IP mentah, dan mengembalikan `429` serta `Retry-After`. Secret `RATE_LIMIT_PEPPER` minimal 32 karakter wajib tersedia sebelum endpoint guest diaktifkan. Migration dan secret ini belum diterapkan ke hosted.
+Migration `20261031130000_guest_booking_rate_limit.sql` memakai `rate_limit_counters` yang sudah ada untuk membatasi satu event/contact sebanyak 5 percobaan dan satu event/IP sebanyak 30 percobaan per 15 menit. API menyimpan bucket HMAC-SHA256, bukan WhatsApp atau IP mentah, dan mengembalikan `429` serta `Retry-After`. Migration dan secret server-only `RATE_LIMIT_PEPPER` sudah diterapkan ke hosted pada 1 November 2026.
 
 Recovery token tidak menerima pencarian nomor. Organizer Google yang berhak dapat memanggil `POST /participants/:id/guest-token`; RPC mengunci partisipasi, mencabut seluruh sesi aktif guest tersebut pada event yang sama, lalu mengembalikan token baru sekali dengan `Cache-Control: no-store`. UI distribusi ulang tautan dari roster masih task dashboard.
 
-Endpoint belum siap produksi sampai throttle dan rotasi token dibuktikan pada PostgreSQL hosted. Gateway Function tetap memerlukan project public key pada request guest; service-role dan rate-limit pepper tidak pernah dikirim ke browser.
+Throttle, rotasi token, dan guest proof flow sudah dibuktikan pada PostgreSQL/Edge Function hosted. Gateway Function tetap memerlukan project public key pada request guest; service-role dan rate-limit pepper tidak pernah dikirim ke browser. Publishing OAuth dan pilot operasional tetap diperlukan sebelum release produksi.
 
 ## API profil
 
@@ -62,4 +62,4 @@ npm run typecheck
 npm run test:account
 ```
 
-Hosted profile test 27 Oktober berbasis phone identity tidak mewakili kontrak baru. Verifikasi storage 31 Oktober memakai fixture metadata Google sintetis dan juga bukan bukti login OAuth asli. Jangan melakukan deploy lanjutan atau mengubah konfigurasi provider production tanpa persetujuan eksplisit.
+Hosted profile test 27 Oktober berbasis phone identity tidak mewakili kontrak baru. Pada 1 November, login OAuth asli diverifikasi dari localhost dan domain Firebase; runner Storage terpisah memakai fixture metadata Google sintetis untuk organizer dan token booking guest nyata. Publishing OAuth atau perubahan konfigurasi provider production tetap memerlukan persetujuan eksplisit.

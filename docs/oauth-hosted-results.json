@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-01",
+  "origin": "https://dolend.web.app/account/",
+  "passed": true,
+  "scope": "Real Google OAuth from Firebase Hosting through Supabase PKCE callback, idempotent profile/workspace bootstrap, sensitive callback query removed by navigation, and dashboard redirect; OAuth remains in testing mode",
+  "final_path": "/dashboard/"
+}
