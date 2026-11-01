@@ -53,13 +53,13 @@ test('loading, network error and retry recover using the same static shell', asy
   await expect(page.getByRole('heading', { name: 'Jalan sore bareng Dolend' })).toBeVisible();
 });
 
-test('auth callback shell loads and removes callback parameters', async ({ page }) => {
+test('auth callback shell rejects a fake code and removes callback parameters', async ({ page }) => {
   const response = await page.goto('/auth/callback/?code=fixture-code#access_token=fixture-token');
   expect(response?.status()).toBe(200);
-  await expect(page.getByText('Kembali ke Dolend', { exact: true })).toBeVisible();
+  await expect(page.getByText('Login Google belum dapat diselesaikan.', { exact:false })).toBeVisible();
   await expect(page).toHaveURL(/\/auth\/callback\/$/);
   await page.reload();
-  await expect(page.getByText('Kembali ke Dolend', { exact: true })).toBeVisible();
+  await expect(page.getByText('Login Google belum dapat diselesaikan.', { exact:false })).toBeVisible();
 });
 
 test('payment return shell never treats query success as payment confirmation', async ({ page }) => {
@@ -71,4 +71,15 @@ test('payment return shell never treats query success as payment confirmation', 
   await expect(page.getByText('Konfirmasi pembayaran', { exact: true })).toBeVisible();
   await page.getByRole('link', { name: 'Beranda', exact: true }).click();
   await expect(page.getByRole('heading', { name: /Main bareng seru/ })).toBeVisible();
+});
+
+test('organizer shells survive direct open and refresh without a Next server', async ({ page }) => {
+  const paths = ['/dashboard/', '/event/create/', `/event/manage/?id=${id}`];
+  for (const path of paths) {
+    const response = await page.goto(path);
+    expect(response?.status()).toBe(200);
+    await expect(page.getByRole('heading', { name: 'Masuk untuk mengelola event' })).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole('heading', { name: 'Masuk untuk mengelola event' })).toBeVisible();
+  }
 });

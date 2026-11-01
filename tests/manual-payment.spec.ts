@@ -1,20 +1,29 @@
 import {test,expect} from '@playwright/test';
 
-test('manual payment reports partial amount without claiming verified',async({page})=>{
+test('guest uploads optional proof and reports partial amount without claiming verified',async({page})=>{
  const id='11111111-1111-4111-8111-111111111111';
  const method='22222222-2222-4222-8222-222222222222';
- let reported=false;
+ const booking='a'.repeat(43);let reported=false;let uploaded=false;
  await page.route(`**/dolend-api/v1/charges/${id}`,route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:{id,amount:5001,balance:5001,records:reported?[{id:'report',amount:2000,status:'pending_verification'}]:[],methods:[{id:method,type:'bank_transfer',recipient_name:'Organizer',bank_details:{bank:'Bank fixture',account:'12345'},qris_url:null}]}})}));
+ await page.route(`**/dolend-api/v1/charges/${id}/proof`,async route=>{
+  expect(route.request().headers()['x-booking-token']).toBe(booking);
+  expect(route.request().headers()['content-type']).toBe('image/png');
+  expect(route.request().postDataBuffer()?.subarray(0,8).toString('hex')).toBe('89504e470d0a1a0a');
+  uploaded=true;await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:{storage_path:`proofs/${id}/fixture.png`}})});
+ });
  await page.route(`**/dolend-api/v1/charges/${id}/payments`,async route=>{
-  expect(route.request().headers()['x-booking-token']).toBe('a'.repeat(43));
+  expect(route.request().headers()['x-booking-token']).toBe(booking);
   expect(route.request().postDataJSON().amount).toBe(2000);
+  expect(route.request().postDataJSON().proof_storage_path).toBe(`proofs/${id}/fixture.png`);
   reported=true;await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:{status:'pending_verification'}})});
  });
- await page.goto(`/payment/?charge=${id}#booking=${'a'.repeat(43)}`);
+ await page.goto(`/payment/?charge=${id}#booking=${booking}`);
  await expect(page.getByText('Bank fixture · 12345')).toBeVisible();
  await page.getByLabel('Nominal yang dibayar (Rp)').fill('2000');
+ await page.getByLabel('Bukti opsional (PNG/JPG, maksimal 2 MB)').setInputFiles({name:'bukti.png',mimeType:'image/png',buffer:Buffer.from('89504e470d0a1a0a','hex')});
  await page.getByRole('button',{name:'Saya sudah bayar'}).click();
  await expect(page.getByRole('status')).toHaveText('Laporan diterima. Menunggu verifikasi organizer.');
+ expect(uploaded).toBe(true);
  expect(reported).toBe(true);
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });

@@ -6,7 +6,7 @@ const bookingToken = 'a'.repeat(43);
 
 test('guest membuat booking dan membuka ulang status dari token fragment', async ({ page, context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
-  await page.route(new RegExp(`/functions/v1/dolend-api/v1/events/${eventId}(?:/|$)`), async (route) => {
+  await page.route((url) => url.pathname.includes(`/events/${eventId}`), async (route) => {
     const request = route.request();
     const url = new URL(request.url());
     const cors = { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'GET, POST, OPTIONS', 'access-control-allow-headers': 'apikey, authorization, content-type, x-booking-token' };

@@ -14,7 +14,7 @@ const policies: { id: Policy; name: string; description: string; badge: string }
   { id: 'dp', name: 'DP 50% di Awal', description: 'Coba ilustrasi uang muka dan sisa pelunasan per peserta.', badge: 'DP 50% DI AWAL' },
   { id: 'nanti', name: 'Catat Bayar di Lokasi', description: 'Peserta mengonfirmasi tempat lebih dulu, lalu membayar saat bertemu.', badge: 'BAYAR DI LOKASI' },
 ];
-const names = ['Kamu (Organizer)', 'Rizky Pratama', 'Siti Aulia'];
+const names = ['Kamu (Organizer)', 'Heru Waspodo', 'Fembi Putri'];
 export function Simulator() {
   const [config, setConfig] = useState<DemoConfig>(defaultDemo);
   const [notice, setNotice] = useState('');

@@ -119,6 +119,7 @@ Untuk `/me` lokal, set `SUPABASE_URL` dan `SUPABASE_PUBLISHABLE_KEY` (atau `SUPA
 | `npm run test:landing` | Browser tests landing dan simulator pada build normal |
 | `npm run hosting:deploy` | Deploy langsung output build ke https://dolend.web.app/ |
 | `npm run test:hosting` | Uji browser desktop dan mobile terhadap static export |
+| `npm run test:r06` | Verifikasi lokal R06: database, build normal, alur guest/organizer, build fixture, dan static-hosting refresh |
 | `npm run hosting:preview` | Deploy channel `t03` ke site `dolend`, expiry 7 hari |
 
 Pemeriksaan sebelum mengirim perubahan:
