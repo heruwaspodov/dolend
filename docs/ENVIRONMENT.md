@@ -21,6 +21,11 @@ npm run env:check
 | `SUPABASE_URL` | Elysia lokal | Server env, URL bukan secret |
 | `SUPABASE_PUBLISHABLE_KEY` | Validasi JWT Elysia lokal | Public key di server env |
 | `SUPABASE_SERVICE_ROLE_KEY` | RPC guest/payment Elysia | Secret server-only; tidak boleh memakai prefix `NEXT_PUBLIC_` |
+| `STORAGE_PROVIDER` | Adapter file privat Elysia | `supabase` (default) atau `s3` |
+| `SUPABASE_STORAGE_BUCKET` | Adapter Supabase Storage | Default `dolend-payments` |
+| `S3_BUCKET`, `S3_REGION` | Adapter Amazon/S3-compatible | Wajib saat provider `s3` |
+| `S3_ENDPOINT`, `S3_FORCE_PATH_STYLE` | Adapter S3-compatible | Opsional untuk AWS; endpoint diperlukan untuk MinIO/R2/provider kompatibel |
+| `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_SESSION_TOKEN` | Adapter S3 | Secret server-only; session token opsional |
 | `RATE_LIMIT_PEPPER` | HMAC bucket throttle guest | Secret server-only minimal 32 karakter, berbeda per environment |
 | `ALLOWED_ORIGINS` | CORS Elysia | Public config |
 | `POC_MODE` | Route eksperimen | Harus `false` |
@@ -43,7 +48,9 @@ Migration SQL pada `supabase/migrations/` adalah source of truth schema. Ini men
 
 ## Hosted Edge Function
 
-Supabase menyediakan reserved secrets seperti `SUPABASE_URL`, anon/publishable compatibility key, dan service-role key kepada Edge Function hosted. `RATE_LIMIT_PEPPER` harus dibuat acak per environment dan dikelola melalui `supabase secrets set`, bukan file yang di-commit. SMS dan payment secrets tetap belum dibuat karena provider ditunda.
+Supabase menyediakan reserved secrets seperti `SUPABASE_URL`, anon/publishable compatibility key, dan service-role key kepada Edge Function hosted. `RATE_LIMIT_PEPPER` harus dibuat acak per environment dan dikelola melalui `supabase secrets set`, bukan file yang di-commit. `STORAGE_PROVIDER=supabase` memakai bucket private bawaan dan tidak memerlukan secret tambahan. Provider `s3` memakai secret server-only yang juga harus dikelola melalui secret manager, bukan Git. SMS dan payment secrets tetap belum dibuat karena provider ditunda.
+
+Referensi file lama tanpa prefix selalu dibaca dari Supabase. Objek baru pada provider S3 disimpan sebagai referensi `s3:<key>`, sehingga kedua backend dapat aktif bersamaan selama migrasi. Mengganti provider tidak memindahkan objek otomatis; salin objek secara terverifikasi sebelum mencabut kredensial Supabase lama.
 
 ## Firebase dan CI
 

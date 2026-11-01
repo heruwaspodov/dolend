@@ -19,9 +19,14 @@ assert.match(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, /^(sb_publishable
 assert.equal(process.env.NEXT_PUBLIC_POC_EVENT_FIXTURES, 'false', 'Fixture POC harus nonaktif untuk development normal');
 assert.equal(process.env.POC_MODE, 'false', 'Route POC harus nonaktif');
 assert.ok(process.env.ALLOWED_ORIGINS?.split(',').includes('http://localhost:3000'), 'Origin frontend lokal belum diizinkan');
+const storageProvider = process.env.STORAGE_PROVIDER ?? 'supabase';
+assert.ok(['supabase', 's3'].includes(storageProvider), 'STORAGE_PROVIDER harus supabase atau s3');
+if (storageProvider === 's3') {
+  for (const name of ['S3_BUCKET','S3_REGION','S3_ACCESS_KEY_ID','S3_SECRET_ACCESS_KEY']) assert.ok(process.env[name]?.trim(), `${name} wajib saat STORAGE_PROVIDER=s3`);
+}
 
 for (const [name, value] of Object.entries(process.env)) {
   if (name.startsWith('NEXT_PUBLIC_')) assert.ok(!/service_role|sb_secret_/i.test(value ?? ''), `${name} mengandung secret server`);
 }
 
-console.log('Environment Dolend valid: frontend, API lokal, dan project Supabase cocok.');
+console.log(`Environment Dolend valid: frontend, API lokal, project Supabase, dan Storage ${storageProvider} cocok.`);

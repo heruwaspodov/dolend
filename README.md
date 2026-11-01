@@ -114,6 +114,7 @@ Untuk `/me` lokal, set `SUPABASE_URL` dan `SUPABASE_PUBLISHABLE_KEY` (atau `SUPA
 | `npm run preview:fixture` | Buat data contoh baru setelah build selesai |
 | `npm run db:test` | Replay migration, invariant/RLS tests dan snapshot restore lokal |
 | `npm run db:test:hosted` | Scoped fixture test hosted; memerlukan DATABASE_TEST_PROJECT_REF eksplisit |
+| `npm run storage:test:hosted:supabase` | E2E private upload Supabase; membuat dan membersihkan fixture hosted |
 | `npm run db:catalog` | Verifikasi RLS/grants/FK indexes dan generate dictionary |
 | `npm run db:types` | Generate ulang TypeScript contracts dari schema hosted |
 | `npm run test:landing` | Browser tests landing dan simulator pada build normal |

@@ -24,6 +24,7 @@ Callback OAuth palsu harus gagal dengan pesan aman dan URL yang sudah dibersihka
 - Migration `20261031150000_dynamic_event_cancellation.sql` belum diterapkan ke project hosted.
 - Concurrency dynamic lintas koneksi belum dapat dijalankan sebelum migration hosted tersedia.
 - Upload bukti guest pada browser lokal memakai kontrak HTTP terkontrol; penyimpanan file guest nyata dan signed URL lintas owner masih perlu E2E hosted.
+- Adapter Storage lokal mendukung Supabase dan S3-compatible dengan referensi campuran; konfigurasi S3 belum diuji terhadap bucket hosted nyata.
 - Workflow Firebase untuk commit R05 `3179385` selesai sukses; redirect Google pada domain Firebase dan pilot manual dengan event nyata tetap perlu diperiksa terpisah.
 
 Tidak ada migration, deploy Edge Function, atau operasi data hosted yang dijalankan oleh verifikasi lokal ini.

@@ -2,9 +2,10 @@ import { FinanceError, manualPaymentRoutes } from './manual-payments.ts';
 import { Elysia, t } from 'elysia';
 import { AccountServiceError, createSupabaseAccountService, type AccountIdentity, type AccountService, type ProfilePatch } from './account.ts';
 import { clientAddressFrom, createSupabaseGuestBookingService, GuestBookingError, type GuestBookingService } from './guest-booking.ts';
+import { createObjectStorageFromEnv, type ObjectStorageRouter } from './object-storage.ts';
 
-type Options = { allowedOrigins: string[]; pocMode?: boolean; accountService?: AccountService | null; guestBookingService?: GuestBookingService | null };
-export function createApp({ allowedOrigins, pocMode = false, accountService, guestBookingService }: Options) {
+type Options = { allowedOrigins: string[]; pocMode?: boolean; accountService?: AccountService | null; guestBookingService?: GuestBookingService | null; objectStorage?: ObjectStorageRouter | null };
+export function createApp({ allowedOrigins, pocMode = false, accountService, guestBookingService, objectStorage }: Options) {
   const url = Deno.env.get('SUPABASE_URL');
   const key = Deno.env.get('SUPABASE_PUBLISHABLE_KEY') ?? Deno.env.get('SUPABASE_ANON_KEY');
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -13,6 +14,7 @@ export function createApp({ allowedOrigins, pocMode = false, accountService, gue
   const guestBookings = guestBookingService === undefined && url && serviceRoleKey && rateLimitPepper && rateLimitPepper.length>=32
     ? createSupabaseGuestBookingService(url, serviceRoleKey, rateLimitPepper)
     : guestBookingService;
+  const files=objectStorage===undefined?createObjectStorageFromEnv(name=>Deno.env.get(name),url&&serviceRoleKey?{url,serviceKey:serviceRoleKey}:null):objectStorage;
   const tokenFrom = (request: Request) => request.headers.get('authorization')?.match(/^Bearer (.+)$/i)?.[1];
   const authenticate = async (request: Request): Promise<{ token: string; identity: AccountIdentity } | null> => {
     const token = tokenFrom(request);
@@ -79,7 +81,7 @@ export function createApp({ allowedOrigins, pocMode = false, accountService, gue
       set.status = 500;
       return { error: { code: 'INTERNAL_ERROR', message: 'Terjadi kesalahan.' }, request_id };
     })
-    .use(manualPaymentRoutes(accounts, url, serviceRoleKey, rateLimitPepper, guestBookings))
+    .use(manualPaymentRoutes(accounts, url, serviceRoleKey, rateLimitPepper, guestBookings, files))
     .get('/health', ({ requestId }) => ({ data: { status: 'ok', service: 'dolend-api' }, request_id: requestId }))
     .get('/me', async ({ request, set, requestId }) => {
       if (!tokenFrom(request)) {

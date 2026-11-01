@@ -3,6 +3,7 @@ import { Elysia, t } from 'elysia';
 import { clientAddressFrom, createSupabaseGuestBookingService } from './guest-booking.ts';
 import type { GuestBookingService } from './guest-booking.ts';
 import type { AccountService } from './account.ts';
+import type { ObjectStorageRouter } from './object-storage.ts';
 
 export class FinanceError extends Error {}
 
@@ -10,7 +11,6 @@ const uuid = t.String({ format: 'uuid' });
 const amount = t.Integer({ minimum: 0, maximum: 1e12 });
 const key = t.String({ minLength: 1, maxLength: 200 });
 const reason = t.String({ minLength: 1, maxLength: 1000 });
-const bucket = 'dolend-payments';
 export function isSafeMapsUrl(value: string) {
   if (!value) return true;
   try {
@@ -20,7 +20,7 @@ export function isSafeMapsUrl(value: string) {
     return false;
   }
 }
-export async function imageBytes(request: Request) {
+export async function imageBytes(request: Request):Promise<{bytes:Uint8Array;mime:'image/png'|'image/jpeg';extension:'png'|'jpg'}> {
   const reader = request.body?.getReader();
   if (!reader) throw new FinanceError('INVALID_IMAGE');
   const chunks: Uint8Array[] = []; let size = 0;
@@ -40,7 +40,7 @@ export async function imageBytes(request: Request) {
   return { bytes, mime: png ? 'image/png' : 'image/jpeg', extension: png ? 'png' : 'jpg' };
 }
 
-export function manualPaymentRoutes(accounts: AccountService | null | undefined, url?: string, serviceKey?: string, rateLimitPepper?: string, guestBookingService?: GuestBookingService | null) {
+export function manualPaymentRoutes(accounts: AccountService | null | undefined, url?: string, serviceKey?: string, rateLimitPepper?: string, guestBookingService?: GuestBookingService | null, objectStorage?: ObjectStorageRouter | null) {
   const db = url && serviceKey ? createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } }) : null;
   const guestBookings=guestBookingService ?? (url&&serviceKey&&rateLimitPepper&&rateLimitPepper.length>=32?createSupabaseGuestBookingService(url,serviceKey,rateLimitPepper):null);
   async function actor(request: Request) {
@@ -50,6 +50,9 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
     return identity.id;
   }
   function client() { if (!db) throw new FinanceError('STORAGE_UNAVAILABLE'); return db; }
+  function files() {if(!objectStorage)throw new FinanceError('STORAGE_UNAVAILABLE');return objectStorage;}
+  function logicalKey(reference:string) {const storage=files();try{return storage.logicalKey(reference);}catch{throw new FinanceError('FORBIDDEN');}}
+  async function objectExists(reference:string) {try{return await files().exists(reference);}catch{throw new FinanceError('STORAGE_UNAVAILABLE');}}
   async function rpc(name: string, params: Record<string, unknown>) {
     const { data, error } = await client().rpc(name, params);
     if (error) throw new FinanceError(error.code === '42501' ? 'FORBIDDEN' : 'CONFLICT');
@@ -155,9 +158,8 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
     .post('/payment-settings', async ({ request,body }) => {
       const id = await actor(request);
       if (body.type === 'static_qris') {
-        if (!body.storage_path || !new RegExp(`^qris/${id}/[0-9a-f-]{36}\\.(png|jpg)$`).test(body.storage_path)) throw new FinanceError('FORBIDDEN');
-        const { data,error } = await client().storage.from(bucket).download(body.storage_path);
-        if (error || !data) throw new FinanceError('INVALID_IMAGE');
+        if (!body.storage_path || !new RegExp(`^qris/${id}/[0-9a-f-]{36}\\.(png|jpg)$`).test(logicalKey(body.storage_path))) throw new FinanceError('FORBIDDEN');
+        if (!await objectExists(body.storage_path)) throw new FinanceError('INVALID_IMAGE');
       }
       const { data,error } = await client().from('organizer_payment_methods').insert({ ...body,organizer_id:id }).select().single();
       if (error) throw new FinanceError('CONFLICT');
@@ -173,9 +175,8 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
       const id = await actor(request);
       const { bytes,mime,extension } = await imageBytes(request);
       const path = `qris/${id}/${crypto.randomUUID()}.${extension}`;
-      const {error} = await client().storage.from(bucket).upload(path,bytes,{contentType:mime,upsert:false});
-      if (error) throw new FinanceError('STORAGE_UNAVAILABLE');
-      return {data:{storage_path:path}};
+      try{return {data:{storage_path:await files().put(path,{bytes,contentType:mime})}};}
+      catch{throw new FinanceError('STORAGE_UNAVAILABLE');}
     }, {parse: 'none'})
     .get('/events/:id/roster',async ({request,params,set})=>{
       set.headers['cache-control']='no-store';await ownEvent(params.id,request);
@@ -231,8 +232,9 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
       const {data:methods} = enabled?.length ? await client().from('organizer_payment_methods').select('id,type,recipient_name,bank_details,storage_path').in('id',enabled.map(m=>m.method_id)).eq('is_active',true) : {data:[]};
       const visibleMethods = await Promise.all((methods ?? []).map(async m => {
         const {storage_path,...rest}=m;
-        const signed = storage_path ? await client().storage.from(bucket).createSignedUrl(storage_path,120,{download:true}) : null;
-        return {...rest,qris_url:signed?.data?.signedUrl ?? null};
+        let qris_url:string|null=null;
+        if(storage_path)try{qris_url=await files().signedDownloadUrl(storage_path,120);}catch{throw new FinanceError('STORAGE_UNAVAILABLE');}
+        return {...rest,qris_url};
       }));
       const net = (ledger ?? []).reduce((sum,l)=>sum+(l.entry_type==='receipt'? -Number(l.amount):Number(l.amount)),Number(c.amount));
       return {data:{id:c.id,amount:c.amount,balance:net,records:records??[],methods:visibleMethods}};
@@ -241,16 +243,14 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
       await chargeAccess(params.id,request);
       const {bytes,mime,extension}=await imageBytes(request);
       const path=`proof/${params.id}/${crypto.randomUUID()}.${extension}`;
-      const {error}=await client().storage.from(bucket).upload(path,bytes,{contentType:mime});
-      if (error) throw new FinanceError('STORAGE_UNAVAILABLE');
-      return {data:{storage_path:path}};
+      try{return {data:{storage_path:await files().put(path,{bytes,contentType:mime})}};}
+      catch{throw new FinanceError('STORAGE_UNAVAILABLE');}
     },{params:t.Object({id:uuid}),parse:'none'})
     .post('/charges/:id/payments',async ({request,params,body}) => {
       const access=await chargeAccess(params.id,request);
       if (body.proof_storage_path) {
-        if (!new RegExp(`^proof/${params.id}/[0-9a-f-]{36}\\.(png|jpg)$`).test(body.proof_storage_path)) throw new FinanceError('FORBIDDEN');
-        const {error}=await client().storage.from(bucket).download(body.proof_storage_path);
-        if (error) throw new FinanceError('INVALID_IMAGE');
+        if (!new RegExp(`^proof/${params.id}/[0-9a-f-]{36}\\.(png|jpg)$`).test(logicalKey(body.proof_storage_path))) throw new FinanceError('FORBIDDEN');
+        if (!await objectExists(body.proof_storage_path)) throw new FinanceError('INVALID_IMAGE');
       }
       return {data:await rpc('report_manual_payment',{p_charge:params.id,p_method:body.method_id,p_amount:body.amount,p_key:body.idempotency_key,p_actor:access.actor,p_guest_hash:access.hash,p_proof:body.proof_storage_path??null})};
     },{params:t.Object({id:uuid}),body:t.Object({method_id:uuid,amount:t.Integer({minimum:1,maximum:1e12}),idempotency_key:key,proof_storage_path:t.Optional(t.String({maxLength:512}))},{additionalProperties:false})})
@@ -259,7 +259,7 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
       await ownEvent(params.id,request);
       const {data,error}=await client().from('manual_payment_records').select('*,participant_charges!inner(participant_id,event_participants!inner(event_id))').eq('participant_charges.event_participants.event_id',params.id);
       if(error) throw new FinanceError('STORAGE_UNAVAILABLE');
-      return {data:await Promise.all((data??[]).map(async r=>({...r,proof_url:r.proof_storage_path?(await client().storage.from(bucket).createSignedUrl(r.proof_storage_path,120)).data?.signedUrl:null})))};
+      return {data:await Promise.all((data??[]).map(async r=>{let proof_url:string|null=null;if(r.proof_storage_path)try{proof_url=await files().signedDownloadUrl(r.proof_storage_path,120);}catch{throw new FinanceError('STORAGE_UNAVAILABLE');}return {...r,proof_url};}))};
     },{params:t.Object({id:uuid})})
     .post('/payments/:id/review',async ({request,params,body}) => ({data:await rpc('review_manual_payment',{p_payment:params.id,p_actor:await actor(request),p_decision:body.decision,p_reason:body.reason})}),{params:t.Object({id:uuid}),body:t.Object({decision:t.Union([t.Literal('verified'),t.Literal('rejected')]),reason},{additionalProperties:false})})
     .post('/charges/:id/adjustments',async ({request,params,body}) => ({data:await rpc('adjust_contribution',{p_charge:params.id,p_actor:await actor(request),p_type:body.type,p_amount:body.amount,p_reason:body.reason,p_key:body.idempotency_key})}),{params:t.Object({id:uuid}),body:t.Object({type:t.Union([t.Literal('refund'),t.Literal('adjustment')]),amount:t.Integer({minimum:-1e12,maximum:1e12}),reason,idempotency_key:key},{additionalProperties:false})});
