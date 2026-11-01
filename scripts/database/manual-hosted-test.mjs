@@ -25,5 +25,5 @@ try{
  const result=JSON.parse(stdout);
  if(!JSON.stringify(result).includes('manual_finance_passed'))throw new Error('Missing finance result');
  console.log('PASS hosted manual finance transaction tests; fixtures rolled back');
- await writeFile('docs/manual-finance-hosted-results.json',JSON.stringify({project,date:'2026-10-31',passed:true,fixture_cleanup:'transaction rollback',scope:'PostgreSQL transaction rules; not concurrent API/storage end-to-end'},null,2)+'\n');
+ await writeFile('docs/manual-finance-hosted-results.json',JSON.stringify({project,date:new Date().toISOString().slice(0,10),passed:true,fixture_cleanup:'transaction rollback',scope:'PostgreSQL transaction rules; not concurrent API/storage end-to-end'},null,2)+'\n');
 }finally{await rm(directory,{recursive:true,force:true});}

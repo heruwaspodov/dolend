@@ -24,6 +24,7 @@ const cleanup=async()=>{
  const events=state.events.length?state.events.map(uuid).join(','):'null::uuid';
  const businessUsers=state.businessUsers.length?state.businessUsers.map(uuid).join(','):'null::uuid';
  const users=state.users.length?state.users.map(u=>uuid(u.id)).join(','):'null::uuid';
+ const workspaces=(state.workspaces??[]).length?state.workspaces.map(uuid).join(','):'null::uuid';
  const sql=`begin;
  create temporary table dolend_test_cleanup_ids(id uuid primary key) on commit drop;
  insert into dolend_test_cleanup_ids select id from public.events where id in (${events});
@@ -41,9 +42,12 @@ const cleanup=async()=>{
  delete from public.participant_history where participant_id in (select id from dolend_test_cleanup_ids);
  delete from public.guest_sessions where scope_event_id in (${events});
  delete from public.event_invites where event_id in (${events});
+ delete from public.event_organizers where event_id in (${events});
  delete from public.event_participants where event_id in (${events});
  delete from public.event_payment_methods where event_id in (${events});
  delete from public.events where id in (${events});
+ delete from public.workspace_members where workspace_id in (${workspaces});
+ delete from public.workspaces where id in (${workspaces});
  delete from public.profiles where id in (${users});
  delete from public.users where id in (${businessUsers});
  commit;`;
@@ -60,15 +64,15 @@ const cleanup=async()=>{
 };
 if(process.argv[2]==='cleanup'){await cleanup();process.exit(0);}
 assert(!state,'Existing fixture state. Run cleanup before starting another run.');
-state={runId:randomUUID(),project,events:[],businessUsers:[],users:[]};await save();
-const report={date:'2026-10-27',project,checks:[]};
+state={runId:randomUUID(),project,events:[],businessUsers:[],users:[],workspaces:[]};await save();
+const report={date:new Date().toISOString().slice(0,10),project,checks:[]};
 const record=name=>{report.checks.push(name);console.log(`PASS ${name}`);};
 const newPhone=()=>`62819${randomBytes(6).readUIntBE(0,6).toString().slice(0,9).padEnd(9,'0')}`;
 try{
  const users=[];
  for(let n=0;n<2;n++){
   const email=`schema-${randomUUID()}@dolend.example`,password=randomBytes(32).toString('base64url'),phone=newPhone();
-  const user=ok(await admin.auth.admin.createUser({email,password,phone,phone_confirm:true,email_confirm:true,app_metadata:{dolend_schema_fixture:state.runId}}),'create fixture user').user;
+  const user=ok(await admin.auth.admin.createUser({email,password,phone,phone_confirm:true,email_confirm:true,app_metadata:{provider:'google',providers:['google'],dolend_schema_fixture:state.runId}}),'create fixture user').user;
   state.users.push({id:user.id});await save();
   const domainUser=ok(await admin.from('users').insert({display_name:'Dolend schema fixture',phone_normalized:phone,phone_verified_at:new Date().toISOString()}).select('id').single(),'create business user');
   state.businessUsers.push(domainUser.id);await save();
@@ -78,10 +82,13 @@ try{
   users.push({id:user.id,userId:domainUser.id,client});
  }
  const [owner,member]=users;
+ const workspace=ok(await admin.from('workspaces').insert({name:`Schema fixture ${state.runId}`,created_by_profile_id:owner.id}).select('id').single(),'create fixture workspace');
+ state.workspaces.push(workspace.id);await save();
+ ok(await admin.from('workspace_members').insert({workspace_id:workspace.id,profile_id:owner.id,role:'owner'}),'create owner membership');
  const activity=ok(await admin.from('activity_types').select('id').eq('slug','walking').single(),'category');
  const makeEvent=async(mode,capacity,visibility='unlisted',holdMinutes=15)=>{
   const now=Date.now();
-  const event=ok(await admin.from('events').insert({organizer_profile_id:owner.id,activity_type_id:activity.id,title:'Dolend schema fixture',description:state.runId,
+  const event=ok(await admin.from('events').insert({organizer_profile_id:owner.id,workspace_id:workspace.id,activity_type_id:activity.id,title:'Dolend schema fixture',description:state.runId,
    venue_snapshot:{name:'Fixture venue',address:'Fixture only',maps_url:'https://www.google.com/maps/search/?api=1&query=Jakarta'},
    starts_at:new Date(now+86400000).toISOString(),ends_at:new Date(now+90000000).toISOString(),registration_closes_at:new Date(now+80000000).toISOString(),
    capacity,visibility,payment_mode:mode,price_amount:mode==='free'?0:10000,payment_due_at:new Date(now+172800000).toISOString(),hold_minutes:holdMinutes}).select('id').single(),'create fixture event');

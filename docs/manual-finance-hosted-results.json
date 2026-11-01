@@ -1,6 +1,6 @@
 {
   "project": "fpbefabsqryxmnmxufjw",
-  "date": "2026-10-31",
+  "date": "2026-11-01",
   "passed": true,
   "fixture_cleanup": "transaction rollback",
   "scope": "PostgreSQL transaction rules; not concurrent API/storage end-to-end"

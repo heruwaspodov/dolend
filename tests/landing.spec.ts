@@ -32,13 +32,13 @@ test('calculator updates venue, schedule, rounded costs and DP balance', async (
 test('sample payment statuses change capacity without exceeding the selected limit', async ({ page }) => {
   await page.goto('/#simulasi');
   await expect(page.getByTestId('demo-quota')).toHaveText('2 / 12 terisi');
-  await page.getByRole('button', { name: 'Ubah status Rizky Pratama', exact: true }).click();
+  await page.getByRole('button', { name: 'Ubah status Heru Waspodo', exact: true }).click();
   await expect(page.getByTestId('demo-quota')).toHaveText('1 / 12 terisi');
   await page.getByRole('radio', { name: /Catat Bayar di Lokasi/ }).check();
   await expect(page.getByTestId('demo-quota')).toHaveText('3 / 12 terisi');
   await page.getByLabel('Maksimal Kuota (Orang)', { exact: true }).fill('2');
   await expect(page.getByTestId('demo-quota')).toHaveText('2 / 2 terisi');
-  await expect(page.getByRole('button', { name: 'Ubah status Siti Aulia', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Ubah status Fembi Putri', exact: true })).toHaveCount(0);
 });
 
 test('invalid numeric inputs show validation instead of NaN or Infinity', async ({ page }) => {

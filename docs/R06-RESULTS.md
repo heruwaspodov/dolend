@@ -21,10 +21,13 @@ Callback OAuth palsu harus gagal dengan pesan aman dan URL yang sudah dibersihka
 
 ## Gate hosted yang tersisa
 
-- Migration `20261031150000_dynamic_event_cancellation.sql` belum diterapkan ke project hosted.
-- Concurrency dynamic lintas koneksi belum dapat dijalankan sebelum migration hosted tersedia.
+- Migration sampai `20261031150000_dynamic_event_cancellation.sql` sudah diterapkan ke project hosted pada 1 November 2026.
+- Edge Function `dolend-api` versi 16 aktif dengan `STORAGE_PROVIDER=supabase` dan rate-limit pepper server-only.
+- E2E Supabase Storage lulus untuk upload QRIS authenticated, private object, cross-owner denial, disable method, dan cleanup fixture.
+- Regression database hosted lulus untuk concurrency join/callback/refund, RLS, expiry, late payment, dan cleanup fixture.
+- Concurrency khusus RPC dynamic manual masih perlu runner lintas koneksi tersendiri.
 - Upload bukti guest pada browser lokal memakai kontrak HTTP terkontrol; penyimpanan file guest nyata dan signed URL lintas owner masih perlu E2E hosted.
 - Adapter Storage lokal mendukung Supabase dan S3-compatible dengan referensi campuran; konfigurasi S3 belum diuji terhadap bucket hosted nyata.
 - Workflow Firebase untuk commit R05 `3179385` selesai sukses; redirect Google pada domain Firebase dan pilot manual dengan event nyata tetap perlu diperiksa terpisah.
 
-Tidak ada migration, deploy Edge Function, atau operasi data hosted yang dijalankan oleh verifikasi lokal ini.
+Semua fixture Auth, database, dan Storage dari verifikasi hosted dibersihkan setelah pengujian.

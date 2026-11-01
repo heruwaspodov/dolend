@@ -1,7 +1,7 @@
 {
-  "date": "2026-10-31",
+  "date": "2026-11-01",
   "project": "fpbefabsqryxmnmxufjw",
   "passed": true,
-  "scope": "Synthetic Google-metadata fixture sessions; QRIS upload/save/disable, cross-owner denial, private object; not real Google OAuth or financial E2E",
+  "scope": "Supabase Storage adapter with synthetic Google-metadata fixture sessions; QRIS upload/save/disable, cross-owner denial, private object; not real Google OAuth or financial E2E",
   "cleanup_verified": true
 }

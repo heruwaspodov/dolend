@@ -38,7 +38,7 @@ try{
  const publicFile=await fetch(`${url}/storage/v1/object/public/dolend-payments/${path}`);assert.notEqual(publicFile.status,200);
  r=await request(`/payment-settings/${method}`,owner,'PATCH',{is_active:false});assert.equal(r.status,200);
  console.log('PASS hosted authenticated QRIS upload, method save/disable, cross-owner denial and private object');
- await writeFile('docs/manual-storage-hosted-results.json',JSON.stringify({date:'2026-10-31',project,passed:true,scope:'Synthetic Google-metadata fixture sessions; QRIS upload/save/disable, cross-owner denial, private object; not real Google OAuth or financial E2E'},null,2)+'\n');
+ await writeFile('docs/manual-storage-hosted-results.json',JSON.stringify({date:new Date().toISOString().slice(0,10),project,passed:true,scope:'Supabase Storage adapter with synthetic Google-metadata fixture sessions; QRIS upload/save/disable, cross-owner denial, private object; not real Google OAuth or financial E2E'},null,2)+'\n');
 }catch(error){console.error('Hosted storage test:',error.message);throw error;}finally{
  if(objects.length)ok(await admin.storage.from('dolend-payments').remove(objects));
  if(users.length){
