@@ -39,6 +39,24 @@ try {
   await expectFailure(`update public.events set venue_snapshot='{"latitude":91,"longitude":106.8}' where id=$1`,[free.id],/events_venue_snapshot_fields_check/);
   await expectFailure(`update public.events set venue_snapshot='{"latitude":-6.2}' where id=$1`,[free.id],/events_venue_snapshot_fields_check/);
   checks++;
+  const [dynamicEvent]=await query(`insert into public.events(organizer_profile_id,workspace_id,activity_type_id,title,starts_at,ends_at,registration_closes_at,capacity,visibility,payment_mode,price_amount,contribution_mode,status,estimated_total_cost,payment_timing)
+    values($1,(select id from public.workspaces where created_by_profile_id=$1),(select id from public.activity_types limit 1),'Dynamic fixture',now()+interval '2 days',now()+interval '2 days 2 hours',now()+interval '1 day',2,'public','free',0,'dynamic','recruiting',20000,'before_event') returning id,version`,[organizer]);
+  await db.query(`insert into public.event_organizers(event_id,profile_id,role) values($1,$2,'owner')`,[dynamicEvent.id,organizer]);
+  const [editedDynamic]=await query(`select * from public.update_dynamic_event(p_event=>$1,p_actor=>$2,p_expected_version=>$3,p_title=>$4,p_estimated_total_cost=>$5)`,[dynamicEvent.id,organizer,dynamicEvent.version,'Dynamic fixture updated',30000]);
+  assert.equal(editedDynamic.version,dynamicEvent.version+1);assert.equal(editedDynamic.title,'Dynamic fixture updated');checks++;
+  const [editAudit]=await query(`select action,redacted_changes from public.audit_logs where entity_id=$1 and action='event.edit' order by created_at desc limit 1`,[dynamicEvent.id]);
+  assert.deepEqual(editAudit.redacted_changes.fields,['estimated_total_cost','title']);assert.equal(editAudit.redacted_changes.from_version,dynamicEvent.version);assert.equal(editAudit.redacted_changes.to_version,editedDynamic.version);checks++;
+  await expectFailure(`select * from public.update_dynamic_event(p_event=>$1,p_actor=>$2,p_expected_version=>$3,p_title=>$4)`,[dynamicEvent.id,organizer,dynamicEvent.version,'Stale edit'],/EVENT_VERSION_CONFLICT/);
+  await expectFailure(`select * from public.update_dynamic_event(p_event=>$1,p_actor=>$2,p_expected_version=>$3,p_title=>$4)`,[dynamicEvent.id,other,editedDynamic.version,'Foreign edit'],/ORGANIZER_REQUIRED/);
+  await join({id:dynamicEvent.id},otherUser,other);await join({id:dynamicEvent.id},ownerUser,organizer);
+  const [{version:occupiedVersion}]=await query(`select version from public.events where id=$1`,[dynamicEvent.id]);
+  await expectFailure(`select * from public.update_dynamic_event(p_event=>$1,p_actor=>$2,p_expected_version=>$3,p_capacity=>$4)`,[dynamicEvent.id,organizer,occupiedVersion,1],/CAPACITY_BELOW_OCCUPANCY/);
+  const [confirmedDynamic]=await query(`select * from public.update_dynamic_event(p_event=>$1,p_actor=>$2,p_expected_version=>$3,p_status=>'confirmed')`,[dynamicEvent.id,organizer,occupiedVersion]);
+  const [completedDynamic]=await query(`select * from public.update_dynamic_event(p_event=>$1,p_actor=>$2,p_expected_version=>$3,p_starts_at=>now()-interval '2 hours',p_ends_at=>now()-interval '1 hour',p_registration_closes_at=>now()-interval '3 hours',p_status=>'completed')`,[dynamicEvent.id,organizer,confirmedDynamic.version]);
+  assert.equal(completedDynamic.status,'completed');checks++;
+  const [statusAudit]=await query(`select action,redacted_changes from public.audit_logs where entity_id=$1 and action='event.status_change' order by created_at desc limit 1`,[dynamicEvent.id]);
+  assert.equal(statusAudit.redacted_changes.from_status,'confirmed');assert.equal(statusAudit.redacted_changes.to_status,'completed');checks++;
+  await expectFailure(`select * from public.update_dynamic_event(p_event=>$1,p_actor=>$2,p_expected_version=>$3,p_title=>$4)`,[dynamicEvent.id,organizer,completedDynamic.version,'Final edit'],/EVENT_FINALIZED/);
   assert.equal(participant.status,'confirmed'); assert.equal((await join(free)).id,participant.id);
   assert.equal((await query('select count(*)::int n from public.invoices'))[0].n,0); checks++;
   await expectFailure('select * from public.join_event($1,$2,$3)',[free.id,otherUser,organizer],/ACTOR_MISMATCH/);

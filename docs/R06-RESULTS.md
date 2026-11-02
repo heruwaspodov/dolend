@@ -1,6 +1,6 @@
 # Hasil verifikasi R06
 
-Tanggal: 1 November 2026.
+Tanggal: 3 November 2026.
 
 Runner lokal `npm run test:r06` memisahkan build normal dari build fixture agar adapter pratinjau tidak menyamarkan alur API nyata. Urutannya adalah replay database, build normal, browser checks guest/payment/organizer, build fixture, pembuatan fixture publik, lalu browser checks static hosting.
 
@@ -8,10 +8,10 @@ Runner lokal `npm run test:r06` memisahkan build normal dari build fixture agar 
 
 | Area | Hasil |
 | --- | --- |
-| Database | 16 migration direplay; 56 pemeriksaan transaksi, integritas, dan otorisasi lulus |
+| Database | 17 migration direplay; 64 pemeriksaan transaksi, integritas, dan otorisasi lulus |
 | Pembatalan dynamic | Before/after lock, retain/waive, retry, organizer lain ditolak, completed ditolak, receipt tetap tersimpan |
 | Build normal | 11 halaman static export berhasil dibuat |
-| Browser build normal | 20 checks desktop/mobile lulus |
+| Browser build normal | 22 checks desktop/mobile lulus |
 | Guest payment | Token fragment dikirim hanya sebagai header scoped; upload PNG menghasilkan storage path; laporan tetap pending verification |
 | Organizer | Create, roster, guest link rotation, pembatalan peserta/event, outstanding completed, review, dan tunai lulus |
 | Build fixture | 11 halaman static export dan fixture publik berhasil dibuat |
@@ -21,10 +21,10 @@ Callback OAuth palsu harus gagal dengan pesan aman dan URL yang sudah dibersihka
 
 ## Gate hosted yang tersisa
 
-- Migration sampai `20261101121000_allow_service_role_venue_validation.sql` sudah diterapkan ke project hosted pada 1 November 2026.
-- Edge Function `dolend-api` versi 17 aktif dengan `STORAGE_PROVIDER=supabase` dan rate-limit pepper server-only.
+- Migration sampai `20261103100000_harden_event_updates.sql` sudah diterapkan ke project hosted pada 3 November 2026.
+- Edge Function `dolend-api` versi 19 aktif dengan `STORAGE_PROVIDER=supabase` dan rate-limit pepper server-only.
 - E2E Supabase Storage lulus untuk upload QRIS authenticated serta alur guest-token → upload bukti → laporan pending → signed review organizer. Object QRIS/bukti tetap private; token guest lain dan organizer lain ditolak.
-- E2E venue hosted lulus untuk create/read snapshot koordinat dan petunjuk bertemu, pembuatan Maps URL otomatis, penolakan host asing, serta cleanup fixture. API `dolend-api` v17 aktif dan migration local/remote sejajar sampai `20261101121000`.
+- E2E venue dan versioned event edit hosted lulus untuk create/read snapshot, pembuatan Maps URL, penolakan host asing, optimistic conflict 409, audit field/version tanpa isi privat, penolakan organizer lain, serta cleanup fixture. API `dolend-api` v19 aktif dan migration local/remote sejajar sampai `20261103100000`.
 - Regression database hosted lulus untuk concurrency join/callback/refund, RLS, expiry, late payment, dan cleanup fixture.
 - Concurrency dynamic manual lintas koneksi lulus melalui masing-masing 10 request paralel untuk lock, report dengan idempotency key sama, dan review; hasilnya satu payment serta satu receipt ledger.
 - Seluruh fixture Auth, event, guest, rate-limit, payment, ledger, workspace, dan object Storage dari runner hosted berhasil dibersihkan.

@@ -188,6 +188,15 @@ Deno.test('venue links only accept HTTPS Google Maps destinations', async () => 
   assert(pairRejected,'partial coordinates accepted');
 });
 
+Deno.test('event planning requires an optimistic version', async () => {
+  const protectedApp=createApp({allowedOrigins:[],accountService:accountMock()});
+  const eventId='44444444-4444-4444-8444-444444444444';
+  const missing=await protectedApp.handle(new Request(`${base}/events/${eventId}/planning`,{method:'PATCH',headers:authHeaders,body:JSON.stringify({status:'confirmed'})}));
+  assert(missing.status===422||missing.status===400,`missing version accepted: ${missing.status}`);
+  const empty=await protectedApp.handle(new Request(`${base}/events/${eventId}/planning`,{method:'PATCH',headers:authHeaders,body:JSON.stringify({expected_version:1})}));
+  assert(empty.status===422||empty.status===400,`empty event patch accepted: ${empty.status}`);
+});
+
 Deno.test('payment images reject spoofed content and oversized streams', async () => {
   const {imageBytes}=await import('./manual-payments.ts');
   for (const bytes of [new TextEncoder().encode('not a PNG'),new Uint8Array(2097153)]) {

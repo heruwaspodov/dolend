@@ -1,6 +1,6 @@
 # Dolend data dictionary
 
-Generated from the hosted public schema on 1 November 2026. No user data is included. All business tables have UUID primary keys and RLS enabled. Domain mutation RPC is service-only except authenticated Google profile bootstrap; browser read scope is documented in DATABASE.md.
+Generated from the hosted public schema on 3 November 2026. No user data is included. All business tables have UUID primary keys and RLS enabled. Domain mutation RPC is service-only except authenticated Google profile bootstrap; browser read scope is documented in DATABASE.md.
 
 ## activity_types
 

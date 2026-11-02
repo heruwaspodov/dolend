@@ -8,7 +8,7 @@ const session = {
   access_token: 'organizer-browser-test-token', refresh_token: 'organizer-browser-test-refresh', token_type: 'bearer', expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3600,
   user: { id: '11111111-1111-4111-8111-111111111111', aud: 'authenticated', role: 'authenticated', email: 'host@example.com', email_confirmed_at: '2026-10-31T00:00:00.000Z', app_metadata: { provider: 'google', providers: ['google'] }, user_metadata: { full_name: 'Host Dolend' }, identities: [], created_at: '2026-10-31T00:00:00.000Z' },
 };
-const publicEvent = { id:eventId,title:'Badminton Jumat',description:'Main santai bersama',starts_at:'2026-11-06T19:00:00+07:00',ends_at:'2026-11-06T21:00:00+07:00',timezone:'Asia/Jakarta',capacity:12,participants_count:1,price_amount:0,currency:'IDR',status:'recruiting',venue_booking_status:'not_booked',estimated_total_cost:240000,contributions_locked_at:null,contribution_mode:'dynamic',venue:{name:'Venue belum ditentukan',address:'',maps_url:''} };
+const publicEvent = { id:eventId,title:'Badminton Jumat',description:'Main santai bersama',starts_at:'2026-11-06T19:00:00+07:00',ends_at:'2026-11-06T21:00:00+07:00',registration_closes_at:'2026-11-06T17:00:00+07:00',timezone:'Asia/Jakarta',capacity:12,participants_count:1,price_amount:0,currency:'IDR',status:'recruiting',venue_booking_status:'not_booked',estimated_total_cost:240000,contributions_locked_at:null,contribution_mode:'dynamic',payment_timing:'before_event',version:3,venue:{name:'Venue belum ditentukan',address:'',maps_url:''} };
 
 async function withSession(page: Page) {
   await page.addInitScript(({ value }) => localStorage.setItem('sb-fpbefabsqryxmnmxufjw-auth-token', JSON.stringify(value)), { value: session });
@@ -106,6 +106,8 @@ test('planning memperbarui snapshot venue lengkap', async ({page}) => {
   await page.route(`**/dolend-api/v1/events/${eventId}/planning`,async route=>{planning=route.request().postDataJSON();await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:{id:eventId}})});});
   await page.goto(`/event/manage/?id=${eventId}`);
   await page.getByLabel('Nama venue').fill('GOR Jakarta');
+  await page.getByLabel('Nama event').fill('Badminton Sabtu');
+  await page.getByLabel('Kapasitas').fill('16');
   await page.getByLabel('Alamat').fill('Jakarta Pusat');
   await page.getByLabel('Latitude').fill('-6.2');
   await page.getByLabel('Longitude').fill('106.816666');
@@ -113,6 +115,23 @@ test('planning memperbarui snapshot venue lengkap', async ({page}) => {
   await page.getByRole('button',{name:'Simpan planning'}).click();
   await expect(page.getByText('Rencana event berhasil diperbarui.')).toBeVisible();
   expect(planning?.venue_snapshot).toEqual({name:'GOR Jakarta',address:'Jakarta Pusat',maps_url:'',latitude:-6.2,longitude:106.816666,meeting_instructions:'Masuk dari pintu timur.'});
+  expect(planning?.expected_version).toBe(3);
+  expect(planning?.title).toBe('Badminton Sabtu');
+  expect(planning?.capacity).toBe(16);
+});
+
+test('planning memuat ulang event saat versi sudah berubah', async ({page}) => {
+  await withSession(page);
+  let reads=0;
+  await page.route(`**/dolend-api/v1/organizer/events/${eventId}`,route=>{reads++;return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:{...publicEvent,version:reads===1?3:4,title:reads===1?publicEvent.title:'Badminton diperbarui organizer lain'}})});});
+  await page.route(`**/dolend-api/v1/events/${eventId}/roster`,route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:{estimated_total_cost:240000,contributions_locked_at:null,payment_timing:'before_event',estimated_per_person:null,summary:{charged:0,received:0,refunded:0,adjustments:0,outstanding:0,credit:0},participants:[]}})}));
+  await page.route(`**/dolend-api/v1/events/${eventId}/planning`,route=>route.fulfill({status:409,contentType:'application/json',body:JSON.stringify({error:{code:'VERSION_CONFLICT',message:'Permintaan belum dapat diproses.'}})}));
+  await page.goto(`/event/manage/?id=${eventId}`);
+  await page.getByLabel('Nama event').fill('Edit lokal yang stale');
+  await page.getByRole('button',{name:'Simpan planning'}).click();
+  await expect(page.getByText('Event berubah di tab lain.',{exact:false})).toBeVisible();
+  await expect(page.getByLabel('Nama event')).toHaveValue('Badminton diperbarui organizer lain');
+  expect(reads).toBe(2);
 });
 
 test('event selesai menampilkan outstanding dari ledger', async ({ page }) => {

@@ -28,7 +28,8 @@
     "manual_event_access",
     "rotate_guest_booking_token",
     "cancel_dynamic_participant",
-    "cancel_dynamic_event"
+    "cancel_dynamic_event",
+    "update_dynamic_event"
   ],
   "migration_versions": [
     "20261027060000",
@@ -46,6 +47,7 @@
     "20261031140000",
     "20261031150000",
     "20261101120000",
-    "20261101121000"
+    "20261101121000",
+    "20261103100000"
   ]
 }

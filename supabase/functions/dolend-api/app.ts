@@ -66,8 +66,8 @@ export function createApp({ allowedOrigins, pocMode = false, accountService, gue
       }
       if (error instanceof FinanceError) {
         const kind=error.message;
-        set.status=kind==='UNAUTHORIZED'?401:kind==='FORBIDDEN'?403:kind==='CONFLICT'?409:kind==='STORAGE_UNAVAILABLE'?503:422;
-        return {error:{code:kind,message:'Permintaan pembayaran belum dapat diproses.'}};
+        set.status=kind==='UNAUTHORIZED'?401:kind==='FORBIDDEN'?403:kind==='CONFLICT'||kind==='VERSION_CONFLICT'?409:kind==='STORAGE_UNAVAILABLE'?503:422;
+        return {error:{code:kind,message:'Permintaan belum dapat diproses.'}};
       }
       const request_id = crypto.randomUUID();
       if (code === 'VALIDATION' || code === 'PARSE') {

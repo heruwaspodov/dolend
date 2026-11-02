@@ -1,7 +1,7 @@
 {
-  "date": "2026-11-01",
+  "date": "2026-11-03",
   "project": "fpbefabsqryxmnmxufjw",
   "passed": true,
-  "scope": "Supabase Storage and venue API with synthetic Google-metadata organizer sessions and real guest booking token; coordinate snapshot/Maps URL generation/foreign-host denial, QRIS upload/save/disable, guest proof upload/report/review signed URL, 10 concurrent lock/report/review requests with one payment and receipt, cross-token/cross-owner denial, private objects; not real Google OAuth",
+  "scope": "Supabase Storage, venue, and versioned event-edit API with synthetic Google-metadata organizer sessions and real guest booking token; optimistic conflict/audit/cross-owner denial, coordinate snapshot/Maps URL generation/foreign-host denial, QRIS upload/save/disable, guest proof upload/report/review signed URL, 10 concurrent lock/report/review requests with one payment and receipt, cross-token denial, private objects; not real Google OAuth",
   "cleanup_verified": true
 }

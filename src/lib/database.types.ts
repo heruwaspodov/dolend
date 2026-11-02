@@ -2100,6 +2100,64 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      update_dynamic_event: {
+        Args: {
+          p_actor: string
+          p_capacity?: number
+          p_description?: string
+          p_ends_at?: string
+          p_estimated_total_cost?: number
+          p_event: string
+          p_expected_version: number
+          p_payment_timing?: string
+          p_registration_closes_at?: string
+          p_starts_at?: string
+          p_status?: string
+          p_timezone?: string
+          p_title?: string
+          p_venue_booking_status?: string
+          p_venue_snapshot?: Json
+        }
+        Returns: {
+          activity_type_id: string
+          cancellation_policy: Json
+          capacity: number
+          contribution_mode: string
+          contributions_locked_at: string | null
+          contributions_locked_by: string | null
+          created_at: string
+          currency: string
+          description: string
+          ends_at: string
+          estimated_total_cost: number
+          hold_minutes: number
+          id: string
+          manual_review_minutes: number
+          organizer_profile_id: string
+          payment_due_at: string | null
+          payment_mode: string
+          payment_timing: string
+          price_amount: number
+          registration_closes_at: string
+          starts_at: string
+          status: string
+          timezone: string
+          title: string
+          updated_at: string
+          venue_booking_status: string
+          venue_id: string | null
+          venue_snapshot: Json
+          version: number
+          visibility: string
+          workspace_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "events"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
     }
     Enums: {
       [_ in never]: never

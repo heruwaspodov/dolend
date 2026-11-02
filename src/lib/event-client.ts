@@ -4,13 +4,16 @@ export type PublicEvent = {
   description: string;
   starts_at: string;
   ends_at: string;
+  registration_closes_at?: string;
   timezone: string;
   capacity: number;
+  version?: number;
   participants_count: number;
   venue: { name: string; address: string; maps_url: string; latitude?: number; longitude?: number; meeting_instructions?: string };
   contribution_mode?: 'legacy' | 'dynamic';
   estimated_per_person?: number | null;
   contributions_locked_at?: string | null;
+  payment_timing?: 'before_event' | 'after_event';
   price_amount: number;
   currency: 'IDR';
 };

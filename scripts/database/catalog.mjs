@@ -15,7 +15,8 @@ const catalog=JSON.parse(result.stdout).rows[0].catalog;
 const browserRpc=new Set(['bootstrap_google_profile']);
 if(catalog.tables.some(t=>!t.rls)||catalog.unindexed_fks!==0||catalog.functions.some(f=>f.anon_execute||(f.member_execute&&!browserRpc.has(f.name))))throw new Error('Catalog security/index invariant failed');
 const escape=value=>String(value??'—').replaceAll('|','\\|').replaceAll('\n',' ');
-let text='# Dolend data dictionary\n\nGenerated from the hosted public schema on 1 November 2026. No user data is included. All business tables have UUID primary keys and RLS enabled. Domain mutation RPC is service-only except authenticated Google profile bootstrap; browser read scope is documented in DATABASE.md.\n';
+const generatedDate=new Intl.DateTimeFormat('en-GB',{day:'numeric',month:'long',year:'numeric',timeZone:'Asia/Jakarta'}).format(new Date());
+let text=`# Dolend data dictionary\n\nGenerated from the hosted public schema on ${generatedDate}. No user data is included. All business tables have UUID primary keys and RLS enabled. Domain mutation RPC is service-only except authenticated Google profile bootstrap; browser read scope is documented in DATABASE.md.\n`;
 for(const table of catalog.tables.sort((a,b)=>a.name.localeCompare(b.name))){
  text+=`\n## ${table.name}\n\n| Column | Type | Nullable | Default |\n| --- | --- | --- | --- |\n`;
  for(const col of catalog.columns.filter(c=>c.table===table.name))text+=`| ${col.name} | ${col.type} | ${col.nullable} | ${escape(col.default)} |\n`;

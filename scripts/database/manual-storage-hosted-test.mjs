@@ -33,6 +33,10 @@ async function request(path,{token,bookingToken,method='GET',body}={}){
 }
 async function payload(response){const value=await response.json();assert(response.ok,`${response.status}: ${JSON.stringify(value)}`);return value.data;}
 const phone=()=>`0812${String(randomBytes(4).readUInt32BE()%100000000).padStart(8,'0')}`;
+const jakartaDate=()=>{
+ const parts=Object.fromEntries(new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Jakarta',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date()).map(part=>[part.type,part.value]));
+ return `${parts.year}-${parts.month}-${parts.day}`;
+};
 try{
  const owner=await fixture(),other=await fixture();
  const empty=await request('/profile/bootstrap',{token:owner,method:'POST'});assert.equal(empty.status,400,'empty JSON must be rejected safely');
@@ -51,7 +55,13 @@ try{
  events.push(event.id);
  const hostedEvent=await payload(await request(`/organizer/events/${event.id}`,{token:owner}));
  assert.equal(hostedEvent.venue.latitude,-6.2);assert.equal(hostedEvent.venue.longitude,106.816666);assert.equal(hostedEvent.venue.meeting_instructions,'Meet at the main lobby');assert(hostedEvent.venue.maps_url.includes('query=-6.2%2C106.816666'));
- r=await request(`/events/${event.id}/planning`,{token:owner,method:'PATCH',body:{venue_snapshot:{name:'Fixture venue',address:'Temporary test only',maps_url:'https://evil.example/maps'}}});assert.equal(r.status,422,'foreign Maps URL accepted');
+ r=await request(`/events/${event.id}/planning`,{token:owner,method:'PATCH',body:{expected_version:hostedEvent.version,venue_snapshot:{name:'Fixture venue',address:'Temporary test only',maps_url:'https://evil.example/maps'}}});assert.equal(r.status,422,'foreign Maps URL accepted');
+ const editedEvent=await payload(await request(`/events/${event.id}/planning`,{token:owner,method:'PATCH',body:{expected_version:hostedEvent.version,venue_booking_status:'pending'}}));
+ assert.equal(editedEvent.version,hostedEvent.version+1,'event version did not advance');
+ r=await request(`/events/${event.id}/planning`,{token:owner,method:'PATCH',body:{expected_version:hostedEvent.version,venue_booking_status:'booked'}});const stalePayload=await r.json();assert.equal(r.status,409,`stale event edit did not conflict: ${JSON.stringify(stalePayload)}`);assert.equal(stalePayload.error.code,'VERSION_CONFLICT');
+ r=await request(`/events/${event.id}/planning`,{token:other,method:'PATCH',body:{expected_version:editedEvent.version,venue_booking_status:'booked'}});assert.equal(r.status,403,'another organizer edited event');
+ const eventAudit=ok(await admin.from('audit_logs').select('action,redacted_changes').eq('entity_id',event.id).eq('action','event.edit').single());
+ assert.deepEqual(eventAudit.redacted_changes.fields,['venue_booking_status']);assert.equal(eventAudit.redacted_changes.from_version,hostedEvent.version);assert.equal(eventAudit.redacted_changes.to_version,editedEvent.version);
  await payload(await request(`/events/${event.id}/payment-methods`,{token:owner,method:'POST',body:{method_id:method,enabled:true}}));
  const booking=await payload(await request(`/events/${event.id}/guest-bookings`,{method:'POST',body:{display_name:'Hosted guest proof',whatsapp:phone()}}));
  const guest=ok(await admin.from('event_participants').select('user_id').eq('id',booking.participant_id).single());businessUsers.push(guest.user_id);
@@ -77,7 +87,7 @@ try{
  assert.equal(receipts.length,1,'concurrent reviews created duplicate receipts');
  r=await request(`/payment-settings/${method}`,{token:owner,method:'PATCH',body:{is_active:false}});assert.equal(r.status,200);
  console.log('PASS hosted QRIS settings, real guest-token proof flow, and concurrent dynamic payment lock/report/review with one receipt');
- await writeFile('docs/manual-storage-hosted-results.json',JSON.stringify({date:new Date().toISOString().slice(0,10),project,passed:true,scope:'Supabase Storage and venue API with synthetic Google-metadata organizer sessions and real guest booking token; coordinate snapshot/Maps URL generation/foreign-host denial, QRIS upload/save/disable, guest proof upload/report/review signed URL, 10 concurrent lock/report/review requests with one payment and receipt, cross-token/cross-owner denial, private objects; not real Google OAuth'},null,2)+'\n');
+ await writeFile('docs/manual-storage-hosted-results.json',JSON.stringify({date:jakartaDate(),project,passed:true,scope:'Supabase Storage, venue, and versioned event-edit API with synthetic Google-metadata organizer sessions and real guest booking token; optimistic conflict/audit/cross-owner denial, coordinate snapshot/Maps URL generation/foreign-host denial, QRIS upload/save/disable, guest proof upload/report/review signed URL, 10 concurrent lock/report/review requests with one payment and receipt, cross-token denial, private objects; not real Google OAuth'},null,2)+'\n');
 }catch(error){console.error('Hosted storage test:',error.message);throw error;}finally{
  if(objects.length)ok(await admin.storage.from('dolend-payments').remove(objects));
  if(users.length){

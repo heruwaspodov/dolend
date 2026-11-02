@@ -69,7 +69,7 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
   async function objectExists(reference:string) {try{return await files().exists(reference);}catch{throw new FinanceError('STORAGE_UNAVAILABLE');}}
   async function rpc(name: string, params: Record<string, unknown>) {
     const { data, error } = await client().rpc(name, params);
-    if (error) throw new FinanceError(error.code === '42501' ? 'FORBIDDEN' : 'CONFLICT');
+    if (error) throw new FinanceError(error.code === '42501' ? 'FORBIDDEN' : error.message.includes('EVENT_VERSION_CONFLICT') ? 'VERSION_CONFLICT' : 'CONFLICT');
     return data;
   }
   async function ownEvent(event: string, request: Request) {
@@ -96,7 +96,7 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
     return { c, actor: id, hash: null };
   }
   async function eventDto(eventId: string, publicOnly: boolean) {
-    let query=client().from('events').select('id,title,description,starts_at,ends_at,timezone,capacity,price_amount,currency,status,venue_snapshot,venue_booking_status,estimated_total_cost,contributions_locked_at,contribution_mode').eq('id',eventId);
+    let query=client().from('events').select('id,title,description,starts_at,ends_at,registration_closes_at,timezone,capacity,price_amount,currency,status,venue_snapshot,venue_booking_status,estimated_total_cost,contributions_locked_at,contribution_mode,payment_timing,version').eq('id',eventId);
     if(publicOnly)query=query.in('status',['published','recruiting','confirmed','completed']);
     const {data:e,error}=await query.single();
     if(error)throw new FinanceError('FORBIDDEN');
@@ -109,8 +109,8 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
     .onBeforeHandle(({set}) => {set.headers['cache-control']='no-store';})
     .onError(({ error, set }) => {
       const code = error instanceof Error ? error.message : '';
-      if (!['UNAUTHORIZED','FORBIDDEN','CONFLICT','STORAGE_UNAVAILABLE','INVALID_IMAGE','IMAGE_TOO_LARGE','INVALID_REQUEST'].includes(code)) return;
-      set.status = code === 'UNAUTHORIZED' ? 401 : code === 'FORBIDDEN' ? 403 : code === 'CONFLICT' ? 409 : code === 'STORAGE_UNAVAILABLE' ? 503 : 422;
+      if (!['UNAUTHORIZED','FORBIDDEN','CONFLICT','VERSION_CONFLICT','STORAGE_UNAVAILABLE','INVALID_IMAGE','IMAGE_TOO_LARGE','INVALID_REQUEST'].includes(code)) return;
+      set.status = code === 'UNAUTHORIZED' ? 401 : code === 'FORBIDDEN' ? 403 : code === 'CONFLICT' || code === 'VERSION_CONFLICT' ? 409 : code === 'STORAGE_UNAVAILABLE' ? 503 : 422;
       return { error: { code, message: 'Permintaan belum dapat diproses.' } };
     })
     .get('/organizer/events',async ({request})=>{
@@ -151,12 +151,13 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
       return {data};
     },{body:t.Object({workspace_id:uuid,activity_type_id:uuid,title:t.String({minLength:1,maxLength:200}),description:t.Optional(t.String({maxLength:10000})),starts_at:t.String({format:'date-time'}),ends_at:t.String({format:'date-time'}),registration_closes_at:t.String({format:'date-time'}),timezone:t.String({minLength:1,maxLength:100}),capacity:t.Integer({minimum:1,maximum:100000}),estimated_total_cost:amount,payment_timing:t.Union([t.Literal('before_event'),t.Literal('after_event')]),venue_snapshot:t.Optional(venueSnapshot)},{additionalProperties:false})})
     .patch('/events/:id/planning',async ({request,params,body}) => {
-      await ownEvent(params.id,request);
-      const update={...body,...(body.venue_snapshot?{venue_snapshot:normalizeVenueSnapshot(body.venue_snapshot)}:{})};
-      const {data,error}=await client().from('events').update(update).eq('id',params.id).eq('contribution_mode','dynamic').select('id,status,estimated_total_cost,venue_booking_status').single();
-      if(error) throw new FinanceError('CONFLICT');
-      return {data};
-    },{params:t.Object({id:uuid}),body:t.Object({estimated_total_cost:t.Optional(amount),venue_booking_status:t.Optional(t.Union([t.Literal('not_booked'),t.Literal('pending'),t.Literal('booked'),t.Literal('cancelled')])),status:t.Optional(t.Union([t.Literal('confirmed'),t.Literal('completed')])),venue_snapshot:t.Optional(venueSnapshot)},{additionalProperties:false,minProperties:1})})
+      const actorId=await actor(request);
+      const {expected_version,...patch}=body;
+      return {data:await rpc('update_dynamic_event',{
+        p_event:params.id,p_actor:actorId,p_expected_version:expected_version,
+        ...Object.fromEntries(Object.entries(patch).map(([field,value])=>[`p_${field}`,field==='venue_snapshot'&&value?normalizeVenueSnapshot(value as VenueSnapshot):value])),
+      })};
+    },{params:t.Object({id:uuid}),body:t.Object({expected_version:t.Integer({minimum:1}),title:t.Optional(t.String({minLength:1,maxLength:200})),description:t.Optional(t.String({maxLength:10000})),starts_at:t.Optional(t.String({format:'date-time'})),ends_at:t.Optional(t.String({format:'date-time'})),registration_closes_at:t.Optional(t.String({format:'date-time'})),timezone:t.Optional(t.String({minLength:1,maxLength:100})),capacity:t.Optional(t.Integer({minimum:1,maximum:100000})),estimated_total_cost:t.Optional(amount),payment_timing:t.Optional(t.Union([t.Literal('before_event'),t.Literal('after_event')])),venue_booking_status:t.Optional(t.Union([t.Literal('not_booked'),t.Literal('pending'),t.Literal('booked'),t.Literal('cancelled')])),status:t.Optional(t.Union([t.Literal('confirmed'),t.Literal('completed')])),venue_snapshot:t.Optional(venueSnapshot)},{additionalProperties:false,minProperties:2})})
     .post('/events/:id/join',async ({request,params}) => {
       const id=await actor(request);
       const {data:p}=await client().from('profiles').select('user_id').eq('id',id).single();

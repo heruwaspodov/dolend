@@ -11,8 +11,8 @@ Brief produk T01 selesai untuk sumber yang tersedia dan **T02 kompatibilitas Ely
 - Next.js menghasilkan static export untuk beranda, `/account/`, `/event/`, `/auth/callback/`, dan `/payment/`. Target Hosting: project `dolend-apps`, site `dolend`.
 - Elysia sudah di-deploy ke Supabase. Sepuluh test lokal serta smoke HTTP hosted 120 request lulus pada 27 Oktober 2026.
 - Hosted user JWT, RPC/RLS dengan 20 write konkuren, private Storage, raw-signature webhook/deduplication, dan instalasi source bersih sudah lulus. Probe serta fixture sementara telah dihapus.
-- Migration hybrid auth additive dan dynamic manual contributions telah diterapkan manual ke hosted pada 31 Oktober 2026 tanpa menjatuhkan data lama. Tipe database sudah digenerate ulang dari schema hosted.
-- T08 memakai Google OAuth untuk organizer, callback PKCE, bootstrap profile/workspace, role organizer per workspace/event, serta guest booking nama+WhatsApp dengan token hash-only. Snapshot API/frontend 31 Oktober sudah dideploy manual; login Google asli dan redirect production belum dibuktikan karena verifikasi hosted memakai fixture metadata Google sintetis.
+- Migration hybrid auth, dynamic manual contributions, venue validation, dan optimistic event update telah diterapkan manual ke hosted sampai 3 November 2026 tanpa menjatuhkan data lama. Tipe database digenerate ulang dari schema hosted.
+- T08 memakai Google OAuth untuk organizer, callback PKCE, bootstrap profile/workspace, role organizer per workspace/event, serta guest booking nama+WhatsApp dengan token hash-only. Login Google asli dari localhost dan Firebase Hosting sudah berhasil masuk dashboard; OAuth masih berstatus testing sampai branding/publishing diselesaikan.
 
 Detail progres dan kriteria penerimaan ada di [PLAN.md](PLAN.md) dan [hasil POC](docs/POC-RESULTS.md).
 
