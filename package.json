@@ -37,6 +37,7 @@
     "test:demo": "playwright test tests/demo.spec.ts",
     "test:account": "playwright test tests/account.spec.ts",
     "test:organizer": "playwright test tests/organizer.spec.ts",
+    "test:participation": "playwright test tests/event-booking.spec.ts tests/event-participation.spec.ts",
     "test:r06": "node scripts/verify-r06.mjs",
     "test:phone": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test src/lib/phone.test.ts"
   },

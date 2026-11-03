@@ -49,6 +49,11 @@ try {
   await expectFailure(`select * from public.update_dynamic_event(p_event=>$1,p_actor=>$2,p_expected_version=>$3,p_title=>$4)`,[dynamicEvent.id,organizer,dynamicEvent.version,'Stale edit'],/EVENT_VERSION_CONFLICT/);
   await expectFailure(`select * from public.update_dynamic_event(p_event=>$1,p_actor=>$2,p_expected_version=>$3,p_title=>$4)`,[dynamicEvent.id,other,editedDynamic.version,'Foreign edit'],/ORGANIZER_REQUIRED/);
   await join({id:dynamicEvent.id},otherUser,other);await join({id:dynamicEvent.id},ownerUser,organizer);
+  const [memberParticipation]=await query('select id from public.event_participants where event_id=$1 and user_id=$2',[dynamicEvent.id,otherUser]);
+  const [selfCancelled]=await query('select * from public.cancel_own_dynamic_participation($1,$2,null,$3)',[dynamicEvent.id,other,'Tidak jadi ikut']);
+  assert.equal(selfCancelled.id,memberParticipation.id);assert.equal(selfCancelled.status,'cancelled');
+  assert.equal((await query('select to_status from public.participant_history where participant_id=$1 order by created_at desc limit 1',[memberParticipation.id]))[0].to_status,'cancelled');checks++;
+  await join({id:dynamicEvent.id},otherUser,other);
   const [{version:occupiedVersion}]=await query(`select version from public.events where id=$1`,[dynamicEvent.id]);
   await expectFailure(`select * from public.update_dynamic_event(p_event=>$1,p_actor=>$2,p_expected_version=>$3,p_capacity=>$4)`,[dynamicEvent.id,organizer,occupiedVersion,1],/CAPACITY_BELOW_OCCUPANCY/);
   const [confirmedDynamic]=await query(`select * from public.update_dynamic_event(p_event=>$1,p_actor=>$2,p_expected_version=>$3,p_status=>'confirmed')`,[dynamicEvent.id,organizer,occupiedVersion]);
@@ -131,6 +136,15 @@ try {
   await db.query('select * from public.rotate_guest_booking_token($1,$2,$3)',[tokenBooking.id,organizer,rotatedHash]);
   assert.equal((await query('select * from public.get_guest_booking($1,$2)',[guestEvent.id,tokenHash])).length,0);
   assert.equal((await query('select status from public.get_guest_booking($1,$2)',[guestEvent.id,rotatedHash]))[0].status,'confirmed');checks++;
+  const [selfCancelEvent]=await query(`insert into public.events(organizer_profile_id,workspace_id,activity_type_id,title,starts_at,ends_at,registration_closes_at,capacity,visibility,payment_mode,price_amount,contribution_mode,status,estimated_total_cost,payment_timing)
+    values($1,(select id from public.workspaces where created_by_profile_id=$1),(select id from public.activity_types limit 1),'Self cancel fixture',now()+interval '2 days',now()+interval '2 days 2 hours',now()+interval '1 day',2,'unlisted','free',0,'dynamic','recruiting',12000,'before_event') returning id`,[organizer]);
+  const selfCancelHash='d'.repeat(64);
+  const [guestToCancel]=await query('select * from public.create_guest_booking($1,$2,$3,$4)',[selfCancelEvent.id,'Guest cancel','628123450006',selfCancelHash]);
+  await db.query('select public.lock_contributions($1,$2)',[selfCancelEvent.id,organizer]);
+  await expectFailure('select * from public.cancel_own_dynamic_participation($1,null,$2,$3)',[selfCancelEvent.id,'e'.repeat(64),'Bukan pemilik'],/PARTICIPATION_NOT_FOUND/);
+  const [guestCancelled]=await query('select * from public.cancel_own_dynamic_participation($1,null,$2,$3)',[selfCancelEvent.id,selfCancelHash,'Berhalangan']);
+  assert.equal(guestCancelled.id,guestToCancel.id);assert.equal(guestCancelled.status,'cancelled');
+  assert.equal(Number((await query('select amount from public.participant_charges where participant_id=$1',[guestToCancel.id]))[0].amount),12000);checks++;
   const challenge=(await query("insert into public.verification_challenges(phone_normalized,auth_user_id,purpose,verified_at,expires_at) values('628123450003',$1,'claim',now(),now()+interval '1 hour') returning id",[guestAuth]))[0];
   await expectFailure('select * from public.claim_guest_identity($1,$2)',[other,challenge.id],/INVALID_IDENTITY_PROOF/);
   const claimed=(await query('select * from public.claim_guest_identity($1,$2)',[guestAuth,challenge.id]))[0];

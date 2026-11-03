@@ -25,6 +25,12 @@ test('guest membuat booking dan membuka ulang status dari token fragment', async
       await route.fulfill({ status: 200, contentType: 'application/json', headers: cors, body: JSON.stringify({ data: { participant_id: '66666666-6666-4666-8666-666666666666', status: 'confirmed', hold_expires_at: null, confirmed_at: '2026-10-28T00:00:00.000Z', updated_at: '2026-10-28T00:00:00.000Z' } }) });
       return;
     }
+    if (url.pathname.endsWith('/participation/cancel') && request.method() === 'POST') {
+      expect(request.headers()['x-booking-token']).toBe(bookingToken);
+      expect(request.postDataJSON().reason).toBe('Jadwal berubah');
+      await route.fulfill({status:200,contentType:'application/json',headers:cors,body:JSON.stringify({data:{participant_id:'66666666-6666-4666-8666-666666666666',status:'cancelled',hold_expires_at:null,confirmed_at:null,updated_at:'2026-10-28T01:00:00.000Z'}})});
+      return;
+    }
     expect(request.headers()['x-invite-token']).toBe(inviteToken);
     await route.fulfill({ status: 200, contentType: 'application/json', headers: cors, body: JSON.stringify({ data: {
       id: eventId, title: 'Badminton Rabu', description: 'Main santai.', starts_at: '2026-11-04T12:00:00.000Z', ends_at: '2026-11-04T14:00:00.000Z', timezone: 'Asia/Jakarta', capacity: 8, participants_count: 2, venue: { name: 'GOR Fixture', address: 'Jakarta', maps_url: 'https://www.google.com/maps/search/?api=1&query=Jakarta', latitude:-6.2, longitude:106.816666, meeting_instructions:'Tunggu di lobi utama.' }, price_amount: 0, currency: 'IDR',
@@ -46,6 +52,10 @@ test('guest membuat booking dan membuka ulang status dari token fragment', async
 
   await page.reload();
   await expect(page.getByText('Booking sudah dikonfirmasi.')).toBeVisible();
+  await page.locator('summary').filter({hasText:'Batalkan booking'}).click();
+  await page.getByLabel('Alasan').fill('Jadwal berubah');
+  await page.getByRole('button',{name:'Batalkan booking'}).click();
+  await expect(page.getByText('Booking sudah dibatalkan.')).toBeVisible();
   const results = await new AxeBuilder({ page }).analyze();
   expect(results.violations).toEqual([]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();

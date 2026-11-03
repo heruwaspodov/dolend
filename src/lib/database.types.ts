@@ -1810,6 +1810,30 @@ export type Database = {
           retry_after_seconds: number
         }[]
       }
+      create_event_invite: {
+        Args: {
+          p_actor: string
+          p_event: string
+          p_expires_at?: string
+          p_token_hash: string
+        }
+        Returns: {
+          created_at: string
+          created_by: string
+          event_id: string
+          expires_at: string | null
+          id: string
+          revoked_at: string | null
+          token_hash: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "event_invites"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       create_guest_booking: {
         Args: {
           p_display_name: string
@@ -2040,6 +2064,25 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      revoke_event_invite: {
+        Args: { p_actor: string; p_invite: string }
+        Returns: {
+          created_at: string
+          created_by: string
+          event_id: string
+          expires_at: string | null
+          id: string
+          revoked_at: string | null
+          token_hash: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "event_invites"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       rotate_guest_booking_token: {
         Args: { p_actor: string; p_participant: string; p_token_hash: string }
         Returns: {
@@ -2157,6 +2200,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      verify_event_invite: {
+        Args: { p_event: string; p_token_hash: string }
+        Returns: boolean
       }
     }
     Enums: {

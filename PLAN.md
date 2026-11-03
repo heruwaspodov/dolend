@@ -379,7 +379,7 @@ Setiap task adalah pekerjaan yang dapat ditinjau. Dependencies menyebut ID task 
 
 ### T11 — Share WhatsApp dan invitation
 
-**Status: Selesai lokal, belum dideploy, 3 November 2026.** Event create kini memilih public atau unlisted. Canonical link memakai shell statis `/event/?id=<uuid>`; token unlisted 256-bit berada di fragment, disimpan database hanya sebagai SHA-256, diteruskan ke API lewat header, dan dipertahankan ketika guest mendapat booking token. Organizer dapat membuat undangan dengan expiry, melihat metadata tanpa hash, mencabut secara idempotent, menyalin link, atau membuka share WhatsApp secara eksplisit. Public read, member join, dan guest booking memverifikasi akses event; discovery tetap hanya public. Replay 18 migration, 68 assertion database, 21 API test, build statis, dan 18 browser check desktop/mobile lulus. Migration/API/frontend hosted belum diterapkan tanpa persetujuan deployment.
+**Status: Selesai dan live, 3 November 2026.** Event create kini memilih public atau unlisted. Canonical link memakai shell statis `/event/?id=<uuid>`; token unlisted 256-bit berada di fragment, disimpan database hanya sebagai SHA-256, diteruskan ke API lewat header, dan dipertahankan ketika guest mendapat booking token. Organizer dapat membuat undangan dengan expiry, melihat metadata tanpa hash, mencabut secara idempotent, menyalin link, atau membuka share WhatsApp secara eksplisit. Public read, member join, dan guest booking memverifikasi akses event; discovery tetap hanya public. Migration additive diterapkan ke project `fpbefabsqryxmnmxufjw`, `dolend-api` dideploy, smoke hosted 120/120 lulus, dan workflow commit `7439c63` berhasil menerbitkan Firebase Hosting.
 
 - **Description:** buat canonical link dan teks ajakan, copy link, undangan unlisted, revoke dan expiry.
 - **Deliverables:** share builder, invite API/UI, public event DTO, invite token handling.
@@ -387,6 +387,8 @@ Setiap task adalah pekerjaan yang dapat ditinjau. Dependencies menyebut ID task 
 - **Acceptance criteria:** link event baru terbuka tanpa rebuild; pesan memuat detail benar dan encoded; invite revoked/expired gagal; unlisted tidak muncul dalam discovery; share tidak mengandung kredensial pengelolaan atau data peserta; aplikasi tidak mengirim WhatsApp otomatis.
 
 ### T12 — Join guest/member, roster, dan kapasitas
+
+**Status: Selesai lokal, deployment perubahan T12 belum dilakukan, 3 November 2026.** Guest tetap dapat booking tanpa akun dan hanya membaca status miliknya lewat booking token. Akun Google kini dapat membaca partisipasi sendiri, join sebagai member—termasuk akun yang juga organizer—serta membatalkan partisipasinya tanpa memilih participant/user ID dari client. Guest juga dapat membatalkan dari tautan booking. Pembatalan mandiri setelah lock selalu mempertahankan tagihan untuk review organizer; hanya organizer yang dapat waive. History status tetap dicatat trigger. Race 20 join/5 slot, retry duplikat, release seat, RLS/ownership, dan claim dengan proof nomor sudah memiliki bukti hosted/database sebelumnya; SMS/proof issuance tetap ditunda sehingga claim tidak diekspos ke UI. Replay 19 migration, 71 assertion database, 21 API test, static build, dan 4 browser check desktop/mobile lulus.
 
 - **Description:** implementasi verified guest session, member join, atomic slot reservation, cancellation, dan guest-to-member claim.
 - **Deliverables:** join API/UI, roster API/UI, capacity RPC, guest access/claim, status history.
@@ -597,4 +599,4 @@ Dokumentasi resmi diperiksa 27 Oktober 2026. Referensi mendukung keputusan arsit
 
 Paket hasil mencakup rencana, aplikasi statis, POC runtime, database Supabase, landing/playground, CI/CD dan bukti verifikasi dalam `docs/`. Integrasi Auth, event API, undangan dan pembayaran produksi masih mengikuti backlog.
 
-Langkah berikutnya: review lalu deploy T11 dengan persetujuan eksplisit, kemudian lanjutkan T12 join/member dan hardening kapasitas; R06 S3 hosted tetap opsional untuk pilot manual. Redirect Google pada domain Firebase, concurrency dynamic lintas koneksi, E2E Storage guest nyata, venue, dan optimistic event update sudah lulus; migration sampai T10, API v19, Supabase Storage, dan Firebase Hosting sudah aktif hosted. Jangan mengaktifkan payment gateway sementara. DP 50% pada playground tetap simulasi front-end.
+Langkah berikutnya: review lalu deploy perubahan T12 dengan persetujuan eksplisit, kemudian lanjutkan T13 hardening private Storage; R06 S3 hosted tetap opsional untuk pilot manual. T11, redirect Google pada domain Firebase, concurrency dynamic lintas koneksi, E2E Storage guest nyata, venue, dan optimistic event update sudah aktif hosted. Jangan mengaktifkan payment gateway sementara. DP 50% pada playground tetap simulasi front-end.

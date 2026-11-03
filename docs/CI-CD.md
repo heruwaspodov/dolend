@@ -8,7 +8,7 @@ Status: **baseline CI/CD frontend selesai**. [Run pertama 40465855465](https://g
 
 Pull request menjalankan checks tanpa kredensial deploy. Push ke `main` atau workflow_dispatch pada `main` menjalankan checks, lalu deploy jika semuanya sukses. Branch lain tidak boleh deploy. Node LTS 24 dan dependency npm dipin melalui .node-version/package-lock; action pihak ketiga dipin ke commit SHA yang terverifikasi.
 
-Job checks: npm ci → lint → Deno API/probe typecheck dan 8 handler tests → 38 kelompok test schema/RLS/transaksi/restore lokal → normal static build → TypeScript → 18 browser tests landing dengan Chromium → stamp release → verifikasi export → upload artefak `out/`.
+Job checks: npm ci → lint → Deno API/probe tests → test schema/RLS/transaksi/restore lokal → normal static build → TypeScript → browser tests landing/demo/account/participation dengan Chromium → stamp release → verifikasi export → upload artefak `out/`.
 
 Job deploy bergantung pada checks. Job ini mengambil artefak yang sama, bukan membangun ulang; memverifikasi commit dan target Hosting, memperoleh kredensial OIDC sementara, lalu menjalankan deploy hanya `hosting:web` pada project `dolend-apps`/site `dolend`. `/release.json` menunjukkan commit/run/build yang terbit; job memverifikasi commit live cocok dengan commit workflow. Metadata release memakai Cache-Control no-store.
 

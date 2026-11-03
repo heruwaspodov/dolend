@@ -67,6 +67,7 @@ Undangan event memakai token 256-bit di URL fragment `#invite=...`, sehingga bro
 | rotate_guest_booking_token | Service-only; organizer event saja; mengunci guest participant aktif, mencabut sesi lama, membuat token hash baru, dan mencatat audit tanpa memakai nomor sebagai proof |
 | create_event_invite / revoke_event_invite | Service-only; organizer event saja; token SHA-256, expiry dibatasi waktu event, row lock, revoke idempotent, dan audit tanpa token |
 | verify_event_invite | Service-only; menerima hash token dan hanya mengizinkan event unlisted berstatus peserta-visible dengan undangan aktif yang belum kedaluwarsa |
+| cancel_own_dynamic_participation | Service-only; resolves participant dari JWT profile atau guest token, tidak menerima participant ID, mempertahankan charge setelah lock, melepas seat, dan mencatat history/audit |
 | update_dynamic_event | Service-only; mengunci event, memverifikasi role organizer dan expected version, menjalankan invariant lifecycle/kapasitas, menaikkan version, lalu mencatat nama field yang berubah tanpa menyimpan isi privat di audit |
 | bootstrap_google_profile | Authenticated only; validates Google provider/email from `auth.users`; idempotently creates business user, profile, personal workspace and owner membership |
 | cancel_dynamic_event | Service-only; organizer event saja; mengunci event, membatalkan peserta aktif melalui policy retain/waive, mempertahankan ledger, dan aman diulang setelah status cancelled |

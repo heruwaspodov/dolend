@@ -7,9 +7,9 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { fetchPublicEvent, isEventPreview, isUuid, safeMapsUrl, type PublicEvent } from '@/lib/event-client';
-import { GuestBookingForm } from './guest-booking-form';
+import { EventParticipation } from './event-participation';
 
-type Result = { id: string; kind: 'found'; event: PublicEvent; inviteToken?:string } | { id: string; kind: 'missing' } | { id: string; kind: 'error' };
+type Result = { id: string; kind: 'found'; event: PublicEvent; inviteToken?:string;bookingToken?:string } | { id: string; kind: 'missing' } | { id: string; kind: 'error' };
 export function EventDetail() {
   const id = useSearchParams().get('id') ?? '';
   const [result, setResult] = useState<Result | null>(null);
@@ -23,7 +23,7 @@ export function EventDetail() {
     const timeout = setTimeout(() => controller.abort('timeout'), 15000);
     let active = true;
     fetchPublicEvent(id, controller.signal,inviteToken,bookingToken).then((event) => {
-      if (active) setResult(event ? { id, kind: 'found', event,inviteToken } : { id, kind: 'missing' });
+      if (active) setResult(event ? { id, kind: 'found', event,inviteToken,bookingToken } : { id, kind: 'missing' });
     }).catch(() => {
       if (active) setResult({ id, kind: 'error' });
     }).finally(() => clearTimeout(timeout));
@@ -50,11 +50,7 @@ export function EventDetail() {
         <div><dt className="font-medium">{event.contribution_mode === 'dynamic' ? 'Estimasi iuran per orang' : 'Biaya per orang'}</dt><dd className="mt-1 text-sm text-muted-foreground">{event.contribution_mode === 'dynamic' ? (event.contributions_locked_at ? 'Iuran sudah dikunci. Lihat tagihan pribadi melalui tautan booking.' : event.estimated_per_person == null ? 'Belum ada peserta yang dikenai iuran.' : `${new Intl.NumberFormat('id-ID', {style:'currency',currency:'IDR',maximumFractionDigits:0}).format(event.estimated_per_person)} · belum final, dibulatkan ke atas`) : event.price_amount === 0 ? 'Gratis' : new Intl.NumberFormat('id-ID', { style: 'currency', currency: event.currency, maximumFractionDigits: 0 }).format(event.price_amount)}</dd></div>
       </dl>
     </CardContent></Card>
-    {isEventPreview
-      ? <p className="text-sm text-muted-foreground">Pendaftaran aktivitas belum dibuka pada pratinjau.</p>
-      : seats > 0
-        ? <GuestBookingForm eventId={event.id} inviteToken={result.inviteToken} />
-        : <p className="text-sm text-muted-foreground">Kapasitas aktivitas sudah penuh.</p>}
+    {isEventPreview?<p className="text-sm text-muted-foreground">Pendaftaran aktivitas belum dibuka pada pratinjau.</p>:<EventParticipation eventId={event.id} inviteToken={result.inviteToken} bookingToken={result.bookingToken} seats={seats}/>}
   </article>;
 }
 function State({ title, description, children }: { title: string; description: string; children?: React.ReactNode }) {

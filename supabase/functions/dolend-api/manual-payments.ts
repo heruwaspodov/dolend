@@ -70,8 +70,21 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
   async function objectExists(reference:string) {try{return await files().exists(reference);}catch{throw new FinanceError('STORAGE_UNAVAILABLE');}}
   async function rpc(name: string, params: Record<string, unknown>) {
     const { data, error } = await client().rpc(name, params);
-    if (error) throw new FinanceError(error.code === '42501' ? 'FORBIDDEN' : error.message.includes('EVENT_VERSION_CONFLICT') ? 'VERSION_CONFLICT' : 'CONFLICT');
+    if (error) {
+      const domain=['EVENT_FULL','REGISTRATION_CLOSED','INVALID_EVENT_STATE','ATTENDANCE_RECORDED','REASON_REQUIRED'];
+      const known=domain.find(code=>error.message.includes(code));
+      throw new FinanceError(error.code === '42501' ? 'FORBIDDEN' : error.message.includes('EVENT_VERSION_CONFLICT') ? 'VERSION_CONFLICT' : known??'CONFLICT');
+    }
     return data;
+  }
+  const participantDto=(participant:Record<string,unknown>)=>({
+    id:participant.id,status:participant.status,joined_as:participant.joined_as,hold_expires_at:participant.hold_expires_at,
+    confirmed_at:participant.confirmed_at,cancelled_at:participant.cancelled_at,updated_at:participant.updated_at,
+  });
+  async function tokenHash(token:string) {
+    if(!/^[A-Za-z0-9_-]{43}$/.test(token))throw new FinanceError('FORBIDDEN');
+    const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(token));
+    return Array.from(new Uint8Array(digest),byte=>byte.toString(16).padStart(2,'0')).join('');
   }
   async function ownEvent(event: string, request: Request) {
     const id = await actor(request);
@@ -119,8 +132,8 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
     .onBeforeHandle(({set}) => {set.headers['cache-control']='no-store';})
     .onError(({ error, set }) => {
       const code = error instanceof Error ? error.message : '';
-      if (!['UNAUTHORIZED','FORBIDDEN','CONFLICT','VERSION_CONFLICT','STORAGE_UNAVAILABLE','INVALID_IMAGE','IMAGE_TOO_LARGE','INVALID_REQUEST'].includes(code)) return;
-      set.status = code === 'UNAUTHORIZED' ? 401 : code === 'FORBIDDEN' ? 403 : code === 'CONFLICT' || code === 'VERSION_CONFLICT' ? 409 : code === 'STORAGE_UNAVAILABLE' ? 503 : 422;
+      if (!['UNAUTHORIZED','FORBIDDEN','CONFLICT','VERSION_CONFLICT','EVENT_FULL','REGISTRATION_CLOSED','INVALID_EVENT_STATE','ATTENDANCE_RECORDED','REASON_REQUIRED','STORAGE_UNAVAILABLE','INVALID_IMAGE','IMAGE_TOO_LARGE','INVALID_REQUEST'].includes(code)) return;
+      set.status = code === 'UNAUTHORIZED' ? 401 : code === 'FORBIDDEN' ? 403 : ['CONFLICT','VERSION_CONFLICT','EVENT_FULL','REGISTRATION_CLOSED','INVALID_EVENT_STATE','ATTENDANCE_RECORDED'].includes(code) ? 409 : code === 'STORAGE_UNAVAILABLE' ? 503 : 422;
       return { error: { code, message: 'Permintaan belum dapat diproses.' } };
     })
     .get('/organizer/events',async ({request})=>{
@@ -175,8 +188,29 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
       catch(error) { if(error instanceof FinanceError&&error.message==='FORBIDDEN')await rpc('manual_event_access',{p_event:params.id,p_actor:id});else throw error; }
       const {data:p}=await client().from('profiles').select('user_id').eq('id',id).single();
       if(!p) throw new FinanceError('FORBIDDEN');
-      return {data:await rpc('join_event',{p_event_id:params.id,p_user_id:p.user_id,p_actor_profile_id:id})};
+      return {data:participantDto(await rpc('join_event',{p_event_id:params.id,p_user_id:p.user_id,p_actor_profile_id:id}))};
     },{params:t.Object({id:uuid})})
+    .get('/events/:id/participation',async ({request,params})=>{
+      const bookingToken=request.headers.get('x-booking-token');
+      if(bookingToken) {
+        const rows=await rpc('get_guest_booking',{p_event:params.id,p_token_hash:await tokenHash(bookingToken)});
+        return {data:(Array.isArray(rows)?rows[0]:rows)??null};
+      }
+      const actorId=await actor(request);
+      const {data:profile,error:profileError}=await client().from('profiles').select('user_id').eq('id',actorId).single();
+      if(profileError||!profile)throw new FinanceError('FORBIDDEN');
+      const {data,error}=await client().from('event_participants').select('id,status,joined_as,hold_expires_at,confirmed_at,cancelled_at,updated_at').eq('event_id',params.id).eq('user_id',profile.user_id).maybeSingle();
+      if(error)throw new FinanceError('STORAGE_UNAVAILABLE');
+      return {data:data??null};
+    },{params:t.Object({id:uuid})})
+    .post('/events/:id/participation/cancel',async ({request,params,body})=>{
+      const bookingToken=request.headers.get('x-booking-token');
+      const actorId=bookingToken?null:await actor(request);
+      const participant=await rpc('cancel_own_dynamic_participation',{
+        p_event:params.id,p_actor:actorId,p_guest_hash:bookingToken?await tokenHash(bookingToken):null,p_reason:body.reason,
+      });
+      return {data:participantDto(participant)};
+    },{params:t.Object({id:uuid}),body:t.Object({reason:t.String({minLength:1,maxLength:1000})},{additionalProperties:false})})
     .get('/events/:id/invites',async ({request,params})=>{
       await ownEvent(params.id,request);
       const {data,error}=await client().from('event_invites').select('id,expires_at,revoked_at,created_at').eq('event_id',params.id).order('created_at',{ascending:false});

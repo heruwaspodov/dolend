@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { createGuestBooking, getGuestBooking } from '@/lib/guest-booking-client';
+import { cancelGuestParticipation } from '@/lib/participation-client';
 
 const statusLabel: Record<string,string> = {
   held: 'Tempat ditahan, lanjutkan pembayaran sesuai petunjuk organizer.',
@@ -17,7 +18,7 @@ const statusLabel: Record<string,string> = {
   cancelled: 'Booking sudah dibatalkan.',
 };
 
-export function GuestBookingForm({ eventId,inviteToken }: { eventId: string; inviteToken?:string }) {
+export function GuestBookingForm({ eventId,inviteToken,bookingToken }: { eventId: string; inviteToken?:string;bookingToken?:string }) {
   const [displayName, setDisplayName] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
   const [status, setStatus] = useState('');
@@ -27,10 +28,11 @@ export function GuestBookingForm({ eventId,inviteToken }: { eventId: string; inv
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
   const [chargeId,setChargeId] = useState<string | null>(null);
+  const [issuedBookingToken,setIssuedBookingToken]=useState('');
 
   useEffect(() => {
     const hash = new URLSearchParams(window.location.hash.slice(1));
-    const token = hash.get('booking');
+    const token = bookingToken??hash.get('booking');
     if (!token) {
       const frame = requestAnimationFrame(() => setLoadingStatus(false));
       return () => cancelAnimationFrame(frame);
@@ -47,7 +49,7 @@ export function GuestBookingForm({ eventId,inviteToken }: { eventId: string; inv
       })
       .finally(() => setLoadingStatus(false));
     return () => controller.abort();
-  }, [eventId]);
+  }, [bookingToken,eventId]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -58,6 +60,7 @@ export function GuestBookingForm({ eventId,inviteToken }: { eventId: string; inv
       const hash = new URLSearchParams({ ...(inviteToken?{invite:inviteToken}:{}),booking: booking.booking_token }).toString();
       window.history.replaceState(window.history.state, '', `${window.location.pathname}${window.location.search}#${hash}`);
       setStatus(booking.status);
+      setIssuedBookingToken(booking.booking_token);
       setBookingUrl(window.location.href);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'Booking belum dapat dibuat.');
@@ -75,6 +78,14 @@ export function GuestBookingForm({ eventId,inviteToken }: { eventId: string; inv
     }
   }
 
+  async function cancelBooking(formEvent:FormEvent<HTMLFormElement>) {
+    formEvent.preventDefault();const token=bookingToken??issuedBookingToken;if(!token)return;setSubmitting(true);setError('');
+    const reason=String(new FormData(formEvent.currentTarget).get('reason')??'').trim();
+    try{const participation=await cancelGuestParticipation(eventId,token,reason);setStatus(participation.status);}
+    catch(requestError){setError(requestError instanceof Error?requestError.message:'Booking belum dapat dibatalkan.');}
+    finally{setSubmitting(false);}
+  }
+
   if (loadingStatus) return <Card aria-busy="true"><CardContent className="pt-6"><p className="flex items-center gap-2 text-sm text-muted-foreground"><LoaderCircle className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />Memeriksa tautan booking…</p></CardContent></Card>;
 
   if (status && bookingUrl) return <Card><CardHeader><CardTitle role="heading" aria-level={2} className="flex items-center gap-2"><CheckCircle2 className="size-5 text-emerald-700" aria-hidden="true" />Status booking</CardTitle></CardHeader><CardContent>
@@ -82,6 +93,7 @@ export function GuestBookingForm({ eventId,inviteToken }: { eventId: string; inv
     <div className="mt-5 space-y-2"><Label htmlFor="booking-link">Tautan booking rahasia</Label><Input id="booking-link" readOnly value={bookingUrl} className="min-h-11" /></div>
     <Button type="button" variant="outline" className="mt-3 min-h-11" onClick={copyBookingLink}><Copy aria-hidden="true" />{copied ? 'Tautan tersalin' : 'Salin tautan booking'}</Button>
     {chargeId && <Button asChild className="mt-3 min-h-11"><a href={`/payment/?charge=${chargeId}${new URL(bookingUrl).hash}`}>Lihat tagihan dan pembayaran</a></Button>}
+    {!['attended','no_show','cancelled'].includes(status)&&<details className="mt-5 border-t pt-4"><summary className="min-h-11 cursor-pointer py-3 text-sm font-medium">Batalkan booking</summary><form className="pt-3" onSubmit={cancelBooking}><Label htmlFor="guest-cancel-reason">Alasan</Label><Input id="guest-cancel-reason" name="reason" required maxLength={1000} className="mt-2 min-h-11"/><p className="mt-2 text-xs leading-relaxed text-muted-foreground">Jika iuran sudah dikunci, pembatalan tidak otomatis menghapus tagihan. Hubungi organizer untuk penyesuaian.</p><Button type="submit" variant="destructive" disabled={submitting} className="mt-3 min-h-11">{submitting?'Membatalkan…':'Batalkan booking'}</Button></form></details>}
     <p className="mt-3 text-xs leading-relaxed text-muted-foreground">Siapa pun yang memiliki tautan ini dapat melihat status booking. Jangan bagikan ke orang lain.</p>
     {error && <p className="mt-3 text-sm font-medium text-rose-700" role="alert">{error}</p>}
   </CardContent></Card>;

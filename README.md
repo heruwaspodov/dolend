@@ -11,9 +11,10 @@ Brief produk T01 selesai untuk sumber yang tersedia dan **T02 kompatibilitas Ely
 - Next.js menghasilkan static export untuk beranda, `/account/`, `/event/`, `/auth/callback/`, dan `/payment/`. Target Hosting: project `dolend-apps`, site `dolend`.
 - Elysia sudah di-deploy ke Supabase. Sepuluh test lokal serta smoke HTTP hosted 120 request lulus pada 27 Oktober 2026.
 - Hosted user JWT, RPC/RLS dengan 20 write konkuren, private Storage, raw-signature webhook/deduplication, dan instalasi source bersih sudah lulus. Probe serta fixture sementara telah dihapus.
-- Migration hybrid auth, dynamic manual contributions, venue validation, dan optimistic event update telah diterapkan manual ke hosted sampai 3 November 2026 tanpa menjatuhkan data lama. Tipe database digenerate ulang dari schema hosted.
+- Migration hybrid auth, dynamic manual contributions, venue validation, optimistic event update, dan event invitation telah diterapkan manual ke hosted sampai 3 November 2026 tanpa menjatuhkan data lama. Tipe database terakhir digenerate sebelum migration invitation; regenerate lagi setelah rilis T12.
 - T08 memakai Google OAuth untuk organizer, callback PKCE, bootstrap profile/workspace, role organizer per workspace/event, serta guest booking nama+WhatsApp dengan token hash-only. Login Google asli dari localhost dan Firebase Hosting sudah berhasil masuk dashboard; OAuth masih berstatus testing sampai branding/publishing diselesaikan.
-- T11 lokal menambahkan event public/unlisted, tautan undangan hash-only dengan expiry/revoke, copy link, dan tombol WhatsApp eksplisit. Token invite berada di fragment URL dan aplikasi tidak mengirim WhatsApp otomatis.
+- T11 live menambahkan event public/unlisted, tautan undangan hash-only dengan expiry/revoke, copy link, dan tombol WhatsApp eksplisit. Token invite berada di fragment URL dan aplikasi tidak mengirim WhatsApp otomatis.
+- T12 lokal menghubungkan join/status/cancel member Google dan cancel guest dari tautan booking. Akun organizer tetap akun biasa yang dapat ikut event; pembatalan mandiri setelah lock mempertahankan tagihan sampai organizer memutuskan penyesuaian.
 
 Detail progres dan kriteria penerimaan ada di [PLAN.md](PLAN.md) dan [hasil POC](docs/POC-RESULTS.md).
 
@@ -107,6 +108,8 @@ Untuk `/me` lokal, set `SUPABASE_URL` dan `SUPABASE_PUBLISHABLE_KEY` (atau `SUPA
 | `npm run api:test:hosted-profile` | Test profil/JWT/RLS hosted dengan fixture sementara |
 | `npm run test:phone` | Unit test normalisasi nomor Indonesia |
 | `npm run test:account` | Browser test fondasi akun pada desktop dan mobile |
+| `npm run test:organizer` | Browser test dashboard, create/manage event, dan roster |
+| `npm run test:participation` | Browser test booking/cancel guest serta join/cancel akun Google |
 | `npm run api:smoke` | Smoke HTTP ke `API_BASE_URL` yang ditentukan |
 | `npm run supabase -- <command>` | Supabase CLI lokal |
 | `npm run ui -- add <component>` | Menambah komponen shadcn/ui |
