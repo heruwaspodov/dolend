@@ -11,10 +11,10 @@ Brief produk T01 selesai untuk sumber yang tersedia dan **T02 kompatibilitas Ely
 - Next.js menghasilkan static export untuk beranda, `/account/`, `/event/`, `/auth/callback/`, dan `/payment/`. Target Hosting: project `dolend-apps`, site `dolend`.
 - Elysia sudah di-deploy ke Supabase. Sepuluh test lokal serta smoke HTTP hosted 120 request lulus pada 27 Oktober 2026.
 - Hosted user JWT, RPC/RLS dengan 20 write konkuren, private Storage, raw-signature webhook/deduplication, dan instalasi source bersih sudah lulus. Probe serta fixture sementara telah dihapus.
-- Migration hybrid auth, dynamic manual contributions, venue validation, optimistic event update, dan event invitation telah diterapkan manual ke hosted sampai 3 November 2026 tanpa menjatuhkan data lama. Tipe database terakhir digenerate sebelum migration invitation; regenerate lagi setelah rilis T12.
+- Migration hybrid auth, dynamic manual contributions, venue validation, optimistic event update, event invitation, dan self-participation telah diterapkan manual ke hosted sampai 3 November 2026 tanpa menjatuhkan data lama. Tipe database sudah digenerate ulang dari schema hosted.
 - T08 memakai Google OAuth untuk organizer, callback PKCE, bootstrap profile/workspace, role organizer per workspace/event, serta guest booking nama+WhatsApp dengan token hash-only. Login Google asli dari localhost dan Firebase Hosting sudah berhasil masuk dashboard; OAuth masih berstatus testing sampai branding/publishing diselesaikan.
 - T11 live menambahkan event public/unlisted, tautan undangan hash-only dengan expiry/revoke, copy link, dan tombol WhatsApp eksplisit. Token invite berada di fragment URL dan aplikasi tidak mengirim WhatsApp otomatis.
-- T12 lokal menghubungkan join/status/cancel member Google dan cancel guest dari tautan booking. Akun organizer tetap akun biasa yang dapat ikut event; pembatalan mandiri setelah lock mempertahankan tagihan sampai organizer memutuskan penyesuaian.
+- T12 backend live menghubungkan join/status/cancel member Google dan cancel guest dari tautan booking. Akun organizer tetap akun biasa yang dapat ikut event; pembatalan mandiri setelah lock mempertahankan tagihan sampai organizer memutuskan penyesuaian.
 
 Detail progres dan kriteria penerimaan ada di [PLAN.md](PLAN.md) dan [hasil POC](docs/POC-RESULTS.md).
 

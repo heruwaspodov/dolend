@@ -1755,6 +1755,35 @@ export type Database = {
         }
         Returns: undefined
       }
+      cancel_own_dynamic_participation: {
+        Args: {
+          p_actor: string
+          p_event: string
+          p_guest_hash: string
+          p_reason: string
+        }
+        Returns: {
+          attendance_at: string | null
+          cancellation_reason: string | null
+          cancelled_at: string | null
+          chargeable: boolean
+          confirmed_at: string | null
+          created_at: string
+          event_id: string
+          hold_expires_at: string | null
+          id: string
+          joined_as: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "event_participants"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       cancel_participation: {
         Args: {
           p_actor_profile_id?: string
