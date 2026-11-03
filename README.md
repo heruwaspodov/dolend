@@ -13,6 +13,7 @@ Brief produk T01 selesai untuk sumber yang tersedia dan **T02 kompatibilitas Ely
 - Hosted user JWT, RPC/RLS dengan 20 write konkuren, private Storage, raw-signature webhook/deduplication, dan instalasi source bersih sudah lulus. Probe serta fixture sementara telah dihapus.
 - Migration hybrid auth, dynamic manual contributions, venue validation, dan optimistic event update telah diterapkan manual ke hosted sampai 3 November 2026 tanpa menjatuhkan data lama. Tipe database digenerate ulang dari schema hosted.
 - T08 memakai Google OAuth untuk organizer, callback PKCE, bootstrap profile/workspace, role organizer per workspace/event, serta guest booking nama+WhatsApp dengan token hash-only. Login Google asli dari localhost dan Firebase Hosting sudah berhasil masuk dashboard; OAuth masih berstatus testing sampai branding/publishing diselesaikan.
+- T11 lokal menambahkan event public/unlisted, tautan undangan hash-only dengan expiry/revoke, copy link, dan tombol WhatsApp eksplisit. Token invite berada di fragment URL dan aplikasi tidak mengirim WhatsApp otomatis.
 
 Detail progres dan kriteria penerimaan ada di [PLAN.md](PLAN.md) dan [hasil POC](docs/POC-RESULTS.md).
 
@@ -79,7 +80,7 @@ npm run api:dev
 
 Health API: [localhost:8000/dolend-api/v1/health](http://localhost:8000/dolend-api/v1/health). Watch mode aktif. `/me`, `/profile/bootstrap`, dan `/profile` membutuhkan user JWT Google melalui Supabase; anon key bukan identitas pengguna. Guest booking memakai `POST /events/:id/guest-bookings` dan service-role hanya di backend.
 
-`api:dev` membaca `.env.local` dan menjalankan API dengan watch mode. Perintah ekuivalennya:
+`api:dev` membaca `.env.local` dan menjalankan API dengan watch mode. Event unlisted dibuka melalui `/event/?id=<uuid>#invite=<token>`; fragment diteruskan client sebagai header API dan dipertahankan saat guest mendapat token booking. Perintah ekuivalennya:
 
 ```sh
 npx deno run --env-file=.env.local \

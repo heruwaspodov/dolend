@@ -17,7 +17,7 @@ const statusLabel: Record<string,string> = {
   cancelled: 'Booking sudah dibatalkan.',
 };
 
-export function GuestBookingForm({ eventId }: { eventId: string }) {
+export function GuestBookingForm({ eventId,inviteToken }: { eventId: string; inviteToken?:string }) {
   const [displayName, setDisplayName] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
   const [status, setStatus] = useState('');
@@ -54,8 +54,8 @@ export function GuestBookingForm({ eventId }: { eventId: string }) {
     setSubmitting(true);
     setError('');
     try {
-      const booking = await createGuestBooking(eventId, { display_name: displayName.trim(), whatsapp: whatsapp.trim() });
-      const hash = new URLSearchParams({ booking: booking.booking_token }).toString();
+      const booking = await createGuestBooking(eventId, { display_name: displayName.trim(), whatsapp: whatsapp.trim() },inviteToken);
+      const hash = new URLSearchParams({ ...(inviteToken?{invite:inviteToken}:{}),booking: booking.booking_token }).toString();
       window.history.replaceState(window.history.state, '', `${window.location.pathname}${window.location.search}#${hash}`);
       setStatus(booking.status);
       setBookingUrl(window.location.href);

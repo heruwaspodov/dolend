@@ -162,6 +162,13 @@ try {
   await expectFailure('delete from public.audit_logs',[],/permission denied/);
   await db.exec('reset role');
   const unlisted=await event('free',2,'unlisted');
+  const inviteHash='b'.repeat(64);
+  const invite=(await query('select * from public.create_event_invite($1,$2,$3,$4)',[unlisted.id,organizer,inviteHash,null]))[0];
+  assert.equal((await query('select public.verify_event_invite($1,$2) valid',[unlisted.id,inviteHash]))[0].valid,true);checks++;
+  await expectFailure('select * from public.revoke_event_invite($1,$2)',[invite.id,other],/ORGANIZER_REQUIRED/);
+  await db.query('select * from public.revoke_event_invite($1,$2)',[invite.id,organizer]);
+  assert.equal((await query('select public.verify_event_invite($1,$2) valid',[unlisted.id,inviteHash]))[0].valid,false);checks++;
+  await expectFailure("select * from public.create_event_invite($1,$2,$3,now()-interval '1 minute')",[unlisted.id,organizer,'c'.repeat(64)],/INVALID_INVITE_EXPIRY/);
   await db.exec(`set role anon`);
   const projection=await query('select * from public.public_events');
   assert(!projection.some(row=>row.id===unlisted.id));assert(projection.every(row=>!('phone_normalized' in row)&&!('private_note' in row.venue)));checks++;

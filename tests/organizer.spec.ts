@@ -8,7 +8,11 @@ const session = {
   access_token: 'organizer-browser-test-token', refresh_token: 'organizer-browser-test-refresh', token_type: 'bearer', expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3600,
   user: { id: '11111111-1111-4111-8111-111111111111', aud: 'authenticated', role: 'authenticated', email: 'host@example.com', email_confirmed_at: '2026-10-31T00:00:00.000Z', app_metadata: { provider: 'google', providers: ['google'] }, user_metadata: { full_name: 'Host Dolend' }, identities: [], created_at: '2026-10-31T00:00:00.000Z' },
 };
-const publicEvent = { id:eventId,title:'Badminton Jumat',description:'Main santai bersama',starts_at:'2026-11-06T19:00:00+07:00',ends_at:'2026-11-06T21:00:00+07:00',registration_closes_at:'2026-11-06T17:00:00+07:00',timezone:'Asia/Jakarta',capacity:12,participants_count:1,price_amount:0,currency:'IDR',status:'recruiting',venue_booking_status:'not_booked',estimated_total_cost:240000,contributions_locked_at:null,contribution_mode:'dynamic',payment_timing:'before_event',version:3,venue:{name:'Venue belum ditentukan',address:'',maps_url:''} };
+const publicEvent = { id:eventId,title:'Badminton Jumat',description:'Main santai bersama',starts_at:'2026-11-06T19:00:00+07:00',ends_at:'2026-11-06T21:00:00+07:00',registration_closes_at:'2026-11-06T17:00:00+07:00',timezone:'Asia/Jakarta',capacity:12,participants_count:1,price_amount:0,currency:'IDR',status:'recruiting',visibility:'unlisted',venue_booking_status:'not_booked',estimated_total_cost:240000,contributions_locked_at:null,contribution_mode:'dynamic',payment_timing:'before_event',version:3,venue:{name:'Venue belum ditentukan',address:'',maps_url:''} };
+
+test.beforeEach(async({page})=>{
+  await page.route(`**/dolend-api/v1/events/${eventId}/invites`,route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:[]})}));
+});
 
 async function withSession(page: Page) {
   await page.addInitScript(({ value }) => localStorage.setItem('sb-fpbefabsqryxmnmxufjw-auth-token', JSON.stringify(value)), { value: session });
@@ -42,6 +46,29 @@ test('form membuat recruiting event tanpa venue wajib', async ({ page }) => {
   expect(created?.venue_snapshot).toBeUndefined();
   expect(created?.starts_at).toBe('2026-11-06T19:00:00+07:00');
   expect(created?.payment_timing).toBe('before_event');
+  expect(created?.visibility).toBe('unlisted');
+});
+
+test('organizer membuat, membagikan, dan mencabut undangan event',async({page,context})=>{
+  await context.grantPermissions(['clipboard-read','clipboard-write']);
+  await withSession(page);
+  const inviteId='99999999-9999-4999-8999-999999999999';
+  const inviteToken='i'.repeat(43);
+  let revoked=false;
+  await page.route(`**/dolend-api/v1/organizer/events/${eventId}`,route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:publicEvent})}));
+  await page.route(`**/dolend-api/v1/events/${eventId}/roster`,route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:{estimated_total_cost:240000,contributions_locked_at:null,payment_timing:'before_event',estimated_per_person:null,summary:{charged:0,received:0,refunded:0,adjustments:0,outstanding:0,credit:0},participants:[]}})}));
+  await page.route(`**/dolend-api/v1/events/${eventId}/invites`,route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:route.request().method()==='POST'?{id:inviteId,token:inviteToken,created_at:'2026-11-03T10:00:00Z',expires_at:'2026-11-06T10:00:00Z',revoked_at:null}:[]})}));
+  await page.route(`**/dolend-api/v1/invites/${inviteId}/revoke`,route=>{revoked=true;return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:{id:inviteId,created_at:'2026-11-03T10:00:00Z',expires_at:'2026-11-06T10:00:00Z',revoked_at:'2026-11-03T11:00:00Z'}})});});
+  await page.goto(`/event/manage/?id=${eventId}`);
+  await page.getByRole('button',{name:'Buat tautan undangan'}).click();
+  const expected=`${page.url().split('/event/manage/')[0]}/event/?id=${eventId}#invite=${inviteToken}`;
+  await expect(page.getByLabel('Tautan yang dibagikan')).toHaveValue(expected);
+  await expect(page.getByRole('link',{name:'Bagikan via WhatsApp'})).toHaveAttribute('href',new RegExp('^https://wa.me/\\?text='));
+  await page.getByRole('button',{name:'Salin tautan'}).click();
+  expect(await page.evaluate(()=>navigator.clipboard.readText())).toBe(expected);
+  await page.getByRole('button',{name:'Cabut undangan'}).click();
+  expect(revoked).toBeTruthy();
+  await expect(page.getByText('Undangan dicabut dan tidak dapat dipakai lagi.')).toBeVisible();
 });
 
 test('form venue mengirim koordinat dan petunjuk bertemu', async ({ page }) => {

@@ -124,6 +124,12 @@ try{
  const loser=guests[joins.findIndex(r=>r.error)];await rpc('join_event',joinArgs(loser));
  assert.equal(ok(await admin.from('event_participants').select('id').eq('event_id',free.id).eq('status','confirmed'),'roster after replacement').length,5);record('cancellation releases one seat and replacement preserves capacity');
  const paid=await makeEvent('before_event',1);
+ const inviteHash=createHash('sha256').update(randomBytes(32)).digest('hex');
+ const invite=await rpc('create_event_invite',{p_event:paid.id,p_actor:owner.id,p_token_hash:inviteHash,p_expires_at:new Date(Date.now()+3600000).toISOString()});
+ assert.equal(await rpc('verify_event_invite',{p_event:paid.id,p_token_hash:inviteHash}),true);
+ assert((await admin.rpc('revoke_event_invite',{p_invite:invite.id,p_actor:member.id})).error);
+ await rpc('revoke_event_invite',{p_invite:invite.id,p_actor:owner.id});
+ assert.equal(await rpc('verify_event_invite',{p_event:paid.id,p_token_hash:inviteHash}),false);record('invite unlisted verifies hash, rejects foreign revoke, and fails after revoke');
  const paidP=await rpc('join_event',{p_event_id:paid.id,p_user_id:member.userId,p_actor_profile_id:member.id});
  const paidI=ok(await admin.from('invoices').select('id').eq('participant_id',paidP.id).single(),'invoice');
  const attempt=await rpc('create_payment_attempt',{p_invoice_id:paidI.id,p_method_id:paid.method,p_key:'gateway',p_actor_profile_id:member.id});

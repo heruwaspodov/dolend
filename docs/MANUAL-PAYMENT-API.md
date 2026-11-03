@@ -1,15 +1,17 @@
 # API iuran manual
 
-Prefix `/dolend-api/v1`. Organizer wajib JWT Google terverifikasi. Guest memakai `x-booking-token`; UUID tagihan tidak memberi akses. Semua body menolak field tambahan.
+Prefix `/dolend-api/v1`. Organizer wajib JWT Google terverifikasi. Guest memakai `x-booking-token`; event unlisted memakai `x-invite-token`; UUID tagihan atau event tidak memberi akses. Semua body menolak field tambahan.
 
 | Endpoint | Fungsi |
 | --- | --- |
 | GET /organizer/events | Daftar event yang dapat dikelola beserta status planning dan lock |
 | GET /organizer/workspaces | Workspace dengan role owner/organizer untuk sesi Google |
 | GET /activity-types | Jenis aktivitas aktif untuk form create |
-| POST /events | Buat recruiting dynamic dengan workspace_id, activity_type_id, title, starts_at, ends_at, registration_closes_at, timezone, capacity, estimated_total_cost, payment_timing; venue_snapshot opsional berisi name, address, maps_url, pasangan latitude/longitude, dan meeting_instructions |
+| POST /events | Buat recruiting dynamic dengan workspace_id, activity_type_id, title, starts_at, ends_at, registration_closes_at, timezone, capacity, estimated_total_cost, payment_timing, dan visibility public/unlisted; venue_snapshot opsional berisi name, address, maps_url, pasangan latitude/longitude, dan meeting_instructions |
 | GET /organizer/events/:id | Detail event milik organizer, termasuk status cancelled untuk rekonsiliasi |
-| GET /events/:id | DTO publik tanpa kontak, rekening, atau bukti |
+| GET /events/:id | DTO peserta tanpa kontak, rekening, bukti, atau kredensial pengelolaan; event unlisted wajib undangan aktif |
+| GET/POST /events/:id/invites | Organizer melihat metadata undangan atau membuat token 256-bit yang dikembalikan sekali; hash saja yang disimpan |
+| POST /invites/:id/revoke | Organizer event mencabut undangan; operasi aman diulang |
 | PATCH /events/:id/planning | Ubah judul/deskripsi, jadwal, kapasitas, timing/estimasi biaya, snapshot/status venue, confirmed/completed; wajib expected_version dan stale edit mengembalikan 409 VERSION_CONFLICT |
 | POST /events/:id/join | Member/organizer ikut dengan user dari sesi |
 | POST /events/:id/participants | Organizer menambah guest (display_name, whatsapp); simpan/distribusikan token booking secara privat |

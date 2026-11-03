@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { fetchPublicEvent, isEventPreview, isUuid, safeMapsUrl, type PublicEvent } from '@/lib/event-client';
 import { GuestBookingForm } from './guest-booking-form';
 
-type Result = { id: string; kind: 'found'; event: PublicEvent } | { id: string; kind: 'missing' } | { id: string; kind: 'error' };
+type Result = { id: string; kind: 'found'; event: PublicEvent; inviteToken?:string } | { id: string; kind: 'missing' } | { id: string; kind: 'error' };
 export function EventDetail() {
   const id = useSearchParams().get('id') ?? '';
   const [result, setResult] = useState<Result | null>(null);
@@ -17,10 +17,13 @@ export function EventDetail() {
   useEffect(() => {
     if (!isUuid(id)) return;
     const controller = new AbortController();
+    const fragment=new URLSearchParams(window.location.hash.slice(1));
+    const inviteToken=fragment.get('invite')??undefined;
+    const bookingToken=fragment.get('booking')??undefined;
     const timeout = setTimeout(() => controller.abort('timeout'), 15000);
     let active = true;
-    fetchPublicEvent(id, controller.signal).then((event) => {
-      if (active) setResult(event ? { id, kind: 'found', event } : { id, kind: 'missing' });
+    fetchPublicEvent(id, controller.signal,inviteToken,bookingToken).then((event) => {
+      if (active) setResult(event ? { id, kind: 'found', event,inviteToken } : { id, kind: 'missing' });
     }).catch(() => {
       if (active) setResult({ id, kind: 'error' });
     }).finally(() => clearTimeout(timeout));
@@ -50,7 +53,7 @@ export function EventDetail() {
     {isEventPreview
       ? <p className="text-sm text-muted-foreground">Pendaftaran aktivitas belum dibuka pada pratinjau.</p>
       : seats > 0
-        ? <GuestBookingForm eventId={event.id} />
+        ? <GuestBookingForm eventId={event.id} inviteToken={result.inviteToken} />
         : <p className="text-sm text-muted-foreground">Kapasitas aktivitas sudah penuh.</p>}
   </article>;
 }

@@ -14,6 +14,7 @@ export type PublicEvent = {
   estimated_per_person?: number | null;
   contributions_locked_at?: string | null;
   payment_timing?: 'before_event' | 'after_event';
+  visibility?: 'public' | 'unlisted';
   price_amount: number;
   currency: 'IDR';
 };
@@ -45,18 +46,20 @@ function parseEvent(value: unknown, expectedId: string): PublicEvent {
   new Intl.DateTimeFormat('id-ID', { timeZone: event.timezone });
   return value as PublicEvent;
 }
-export async function fetchPublicEvent(id: string, signal: AbortSignal): Promise<PublicEvent | null> {
+export async function fetchPublicEvent(id: string, signal: AbortSignal, inviteToken?:string,bookingToken?:string): Promise<PublicEvent | null> {
   const api = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '');
   if (!isEventPreview && !api) throw new Error('API_UNAVAILABLE');
   const endpoint = isEventPreview ? `/__poc/events/${id}.json` : `${api}/events/${id}`;
   const headers: Record<string, string> = { Accept: 'application/json' };
+  if(inviteToken)headers['x-invite-token']=inviteToken;
+  if(bookingToken)headers['x-booking-token']=bookingToken;
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   if (!isEventPreview && key) {
     headers.apikey = key;
     if (key.startsWith('eyJ')) headers.Authorization = `Bearer ${key}`;
   }
   const response = await fetch(endpoint, { signal, cache: 'no-store', headers });
-  if (response.status === 404) return null;
+  if (response.status === 403 || response.status === 404) return null;
   if (!response.ok) throw new Error('API_UNAVAILABLE');
   const json = await response.json();
   return parseEvent(json.data, id);

@@ -1,9 +1,8 @@
 'use client';
 
-import Link from 'next/link';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Ban, Check, Copy, LockKeyhole, RotateCcw, UserPlus } from 'lucide-react';
+import { Ban, Check, Copy, LockKeyhole, MessageCircle, RotateCcw, UserPlus } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,6 +11,7 @@ import { displayParticipantName, organizerRequest, type EventRoster } from '@/li
 import { isUuid, type PublicEvent } from '@/lib/event-client';
 import { useOrganizerSession } from '@/lib/use-organizer-session';
 import { venueSnapshotFromForm } from '@/lib/venue-form';
+import { canonicalEventUrl, eventShareText, whatsAppShareUrl } from '@/lib/event-share';
 import { SessionGate } from './session-gate';
 
 const rupiah = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 });
@@ -19,7 +19,8 @@ const field = 'mt-2 min-h-11 border-slate-300 bg-white';
 const select = `${field} w-full rounded-lg border px-3 text-sm outline-none focus-visible:border-emerald-700 focus-visible:ring-3 focus-visible:ring-emerald-700/20`;
 const zoneOffsets:Record<string,string>={'Asia/Jakarta':'+07:00','Asia/Makassar':'+08:00','Asia/Jayapura':'+09:00'};
 type Notice = { kind: 'success' | 'error'; text: string } | null;
-type ManagedEvent = PublicEvent & { status: 'recruiting' | 'confirmed' | 'completed' | 'cancelled'; venue_booking_status: string; version: number; registration_closes_at:string; payment_timing:'before_event'|'after_event' };
+type ManagedEvent = PublicEvent & { status: 'recruiting' | 'confirmed' | 'completed' | 'cancelled'; visibility:'public'|'unlisted'; venue_booking_status: string; version: number; registration_closes_at:string; payment_timing:'before_event'|'after_event' };
+type EventInvite={id:string;expires_at:string|null;revoked_at:string|null;created_at:string};
 
 function localDateTime(value:string,timeZone:string) {
   const parts=Object.fromEntries(new Intl.DateTimeFormat('sv-SE',{timeZone,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date(value)).map(part=>[part.type,part.value]));
@@ -35,15 +36,21 @@ export function EventManager() {
   const [busy, setBusy] = useState('');
   const [notice, setNotice] = useState<Notice>(null);
   const [bookingLink, setBookingLink] = useState('');
+  const [invites,setInvites]=useState<EventInvite[]>([]);
+  const [shareLink,setShareLink]=useState('');
+  const [loadedAt,setLoadedAt]=useState(0);
 
   const load = useCallback(async (token: string) => {
     setLoading(true);
     try {
-      const [nextEvent, nextRoster] = await Promise.all([
+      const [nextEvent, nextRoster,nextInvites] = await Promise.all([
         organizerRequest<ManagedEvent>(`/organizer/events/${eventId}`, token),
         organizerRequest<EventRoster>(`/events/${eventId}/roster`, token),
+        organizerRequest<EventInvite[]>(`/events/${eventId}/invites`,token),
       ]);
-      setEvent(nextEvent); setRoster(nextRoster);
+      setEvent(nextEvent); setRoster(nextRoster);setInvites(nextInvites);
+      setLoadedAt(Date.now());
+      setShareLink(nextEvent.visibility==='public'?canonicalEventUrl(window.location.origin,eventId):'');
     } catch (reason) { setNotice({ kind: 'error', text: reason instanceof Error ? reason.message : 'Event belum dapat dimuat.' }); }
     finally { setLoading(false); }
   }, [eventId]);
@@ -138,13 +145,33 @@ export function EventManager() {
     finally { setBusy(''); }
   }
 
+  async function createInvite(formEvent:FormEvent<HTMLFormElement>) {
+    formEvent.preventDefault();if(!session||!event)return;setBusy('invite');setNotice(null);
+    const form=new FormData(formEvent.currentTarget);const local=String(form.get('expires_at')??'');
+    const offset=zoneOffsets[event.timezone]??'+07:00';
+    try {
+      const invite=await organizerRequest<EventInvite&{token:string}>(`/events/${eventId}/invites`,session.access_token,{method:'POST',body:JSON.stringify(local?{expires_at:`${local}:00${offset}`}:{})});
+      setShareLink(canonicalEventUrl(window.location.origin,eventId,invite.token));
+      setInvites(current=>[{id:invite.id,expires_at:invite.expires_at,revoked_at:invite.revoked_at,created_at:invite.created_at},...current]);
+      setNotice({kind:'success',text:'Undangan dibuat. Tautan rahasia hanya ditampilkan pada halaman ini sekarang.'});
+    } catch(reason) {setNotice({kind:'error',text:reason instanceof Error?reason.message:'Undangan belum dapat dibuat.'});}
+    finally {setBusy('');}
+  }
+
+  async function revokeInvite(inviteId:string) {
+    if(!session)return;setBusy(`invite-${inviteId}`);setNotice(null);
+    try {const revoked=await organizerRequest<EventInvite>(`/invites/${inviteId}/revoke`,session.access_token,{method:'POST'});setInvites(current=>current.map(invite=>invite.id===inviteId?revoked:invite));setShareLink('');setNotice({kind:'success',text:'Undangan dicabut dan tidak dapat dipakai lagi.'});}
+    catch(reason){setNotice({kind:'error',text:reason instanceof Error?reason.message:'Undangan belum dapat dicabut.'});}
+    finally{setBusy('');}
+  }
+
   if (!session) return <SessionGate ready={ready} />;
   if (!eventId || !isUuid(eventId)) return <p className="rounded-xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-800" role="alert">Tautan kelola event tidak valid.</p>;
   if (loading) return <p className="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-600" role="status">Memuat ruang kelola…</p>;
   if (!event || !roster) return <>{notice && <NoticeBox notice={notice} />}</>;
 
   return <div className="space-y-6">
-    <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"><div><p className="text-xs font-bold tracking-widest text-emerald-700 uppercase">Kelola event</p><h1 className="mt-2 text-3xl font-extrabold tracking-tight">{event.title}</h1><p className="mt-2 text-sm text-slate-600">{event.participants_count} dari {event.capacity} tempat terisi · {event.status === 'cancelled' ? 'dibatalkan' : event.status === 'completed' ? 'selesai' : event.status === 'confirmed' ? 'terkonfirmasi' : 'mencari peserta'}</p></div>{event.status !== 'cancelled' && <Button asChild variant="outline" className="min-h-11"><Link href={`/event/?id=${eventId}`}>Lihat halaman peserta</Link></Button>}</header>
+    <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"><div><p className="text-xs font-bold tracking-widest text-emerald-700 uppercase">Kelola event</p><h1 className="mt-2 text-3xl font-extrabold tracking-tight">{event.title}</h1><p className="mt-2 text-sm text-slate-600">{event.participants_count} dari {event.capacity} tempat terisi · {event.status === 'cancelled' ? 'dibatalkan' : event.status === 'completed' ? 'selesai' : event.status === 'confirmed' ? 'terkonfirmasi' : 'mencari peserta'}</p></div>{event.status !== 'cancelled'&&shareLink&&<Button asChild variant="outline" className="min-h-11"><a href={shareLink}>Lihat halaman peserta</a></Button>}</header>
     {notice && <NoticeBox notice={notice} />}
     {bookingLink && <section className="rounded-xl border border-amber-200 bg-amber-50 p-4" aria-labelledby="booking-link-title"><h2 id="booking-link-title" className="font-bold text-amber-950">Tautan booking rahasia</h2><p className="mt-2 break-all text-xs leading-relaxed text-amber-950">{bookingLink}</p><Button type="button" variant="outline" className="mt-3 min-h-11 bg-white" onClick={() => void navigator.clipboard.writeText(bookingLink)}><Copy aria-hidden="true" />Salin tautan</Button></section>}
     <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
@@ -172,6 +199,11 @@ export function EventManager() {
         </section>
       </div>
       <aside className="space-y-6">{event.status !== 'completed' && event.status !== 'cancelled' && <form onSubmit={addGuest} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" aria-labelledby="add-guest-title"><UserPlus className="size-6 text-emerald-700" aria-hidden="true" /><h2 id="add-guest-title" className="mt-3 text-lg font-bold">Tambahkan guest</h2><p className="mt-2 text-sm leading-relaxed text-slate-600">Dolend membuat tautan rahasia yang hanya ditampilkan sekali.</p><div className="mt-5"><Label htmlFor="guest-name">Nama peserta</Label><Input id="guest-name" name="display_name" required maxLength={120} className={field} /></div><div className="mt-4"><Label htmlFor="guest-whatsapp">Nomor WhatsApp</Label><Input id="guest-whatsapp" name="whatsapp" type="tel" inputMode="tel" required minLength={8} maxLength={32} className={field} placeholder="08…" /></div><Button type="submit" disabled={busy === 'guest'} className="mt-5 min-h-11 w-full bg-emerald-700 text-white hover:bg-emerald-800">{busy === 'guest' ? 'Menambahkan…' : 'Tambahkan peserta'}</Button></form>}
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" aria-labelledby="share-event-title"><h2 id="share-event-title" className="text-lg font-bold">Bagikan event</h2><p className="mt-2 text-sm leading-relaxed text-slate-600">{event.visibility==='public'?'Tautan publik dapat dibuka siapa pun.':'Event hanya dapat dibuka memakai undangan aktif.'} WhatsApp hanya dibuka setelah kamu menekan tombol.</p>
+          {event.visibility==='unlisted'&&event.status!=='completed'&&event.status!=='cancelled'&&<form className="mt-5" onSubmit={createInvite}><Label htmlFor="invite-expiry">Undangan berlaku sampai</Label><Input id="invite-expiry" name="expires_at" type="datetime-local" defaultValue={localDateTime(event.registration_closes_at,event.timezone)} max={localDateTime(event.ends_at,event.timezone)} required className={field}/><Button type="submit" disabled={busy==='invite'} className="mt-3 min-h-11 w-full">{busy==='invite'?'Membuat…':'Buat tautan undangan'}</Button></form>}
+          {shareLink&&<div className="mt-5 rounded-lg bg-slate-50 p-4"><Label htmlFor="share-link">Tautan yang dibagikan</Label><Input id="share-link" readOnly value={shareLink} className={field}/><div className="mt-3 grid gap-2 sm:grid-cols-2"><Button type="button" variant="outline" className="min-h-11" onClick={()=>void navigator.clipboard.writeText(shareLink)}><Copy aria-hidden="true"/>Salin tautan</Button><Button asChild className="min-h-11 bg-emerald-700 text-white hover:bg-emerald-800"><a href={whatsAppShareUrl(eventShareText({title:event.title,startsAt:event.starts_at,timezone:event.timezone,venueName:event.venue.name,url:shareLink}))} target="_blank" rel="noopener noreferrer"><MessageCircle aria-hidden="true"/>Bagikan via WhatsApp</a></Button></div></div>}
+          {event.visibility==='unlisted'&&<div className="mt-5"><h3 className="text-sm font-bold">Riwayat undangan</h3>{invites.length===0?<p className="mt-2 text-sm text-slate-600">Belum ada undangan.</p>:<ul className="mt-2 space-y-2">{invites.map(invite=><li key={invite.id} className="rounded-lg border border-slate-200 p-3 text-xs"><p>{invite.revoked_at?'Dicabut':invite.expires_at&&Date.parse(invite.expires_at)<=loadedAt?'Kedaluwarsa':'Aktif'} · {invite.expires_at?`sampai ${new Intl.DateTimeFormat('id-ID',{dateStyle:'medium',timeStyle:'short',timeZone:event.timezone}).format(new Date(invite.expires_at))}`:'tanpa batas'}</p>{!invite.revoked_at&&(!invite.expires_at||Date.parse(invite.expires_at)>loadedAt)&&<Button type="button" variant="ghost" className="mt-2 min-h-11 px-2 text-rose-800" disabled={busy===`invite-${invite.id}`} onClick={()=>void revokeInvite(invite.id)}>Cabut undangan</Button>}</li>)}</ul>}</div>}
+        </section>
         <section className="rounded-2xl border border-slate-200 bg-white p-5"><h2 className="text-lg font-bold">Tahap event</h2><p className="mt-2 text-sm text-slate-600">{event.status === 'cancelled' ? 'Event sudah dibatalkan. Riwayat tetap tersedia untuk rekonsiliasi.' : event.status === 'completed' ? 'Event selesai. Periksa outstanding dan refund sebelum menutup administrasi.' : 'Konfirmasi saat waktu dan venue sudah siap. Tandai selesai setelah aktivitas berakhir.'}</p>{event.status !== 'completed' && event.status !== 'cancelled' && <div className="mt-5 grid gap-3">{event.status === 'recruiting' && <Button type="button" variant="outline" className="min-h-11" disabled={busy === 'confirmed'} onClick={() => changeStatus('confirmed')}>Konfirmasi event</Button>}<Button type="button" variant="outline" className="min-h-11" disabled={busy === 'completed'} onClick={() => changeStatus('completed')}>Tandai selesai</Button></div>}{event.status !== 'completed' && event.status !== 'cancelled' && <details className="mt-5 border-t border-slate-200 pt-4"><summary className="min-h-11 cursor-pointer py-3 text-sm font-medium text-rose-800">Batalkan event</summary><form onSubmit={cancelEvent} className="space-y-4 pt-3"><p className="text-xs leading-relaxed text-slate-600">Semua peserta aktif akan dibatalkan. Pilih apakah tagihan yang sudah dikunci tetap ditagih atau dihapus.</p><div><Label htmlFor="event-cancel-policy">Kebijakan tagihan</Label><select id="event-cancel-policy" name="policy" className={select}><option value="waive">Hapus sisa tagihan</option><option value="retain">Pertahankan tagihan</option></select></div><div><Label htmlFor="event-cancel-reason">Alasan pembatalan</Label><Input id="event-cancel-reason" name="reason" required maxLength={1000} className={field} /></div><Button type="submit" variant="destructive" disabled={busy === 'cancel-event'} className="min-h-11 w-full"><Ban aria-hidden="true" />{busy === 'cancel-event' ? 'Membatalkan…' : 'Batalkan event'}</Button></form></details>}</section>
       </aside>
     </div>

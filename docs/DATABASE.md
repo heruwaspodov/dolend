@@ -54,6 +54,8 @@ All 25 tables have RLS. Every foreign key has a leading-column index. Transactio
 
 Guest session rows are not readable from a browser. Elysia creates a 256-bit bearer token, stores only its SHA-256 through a service-only RPC, and never accepts arbitrary actor/profile/user IDs from client input. Service-role bypasses RLS; never expose its key and never treat RLS as a substitute for API authorization. Mutating schemas, roles, triggers, or ledger through privileged database maintenance is outside the runtime boundary.
 
+Undangan event memakai token 256-bit di URL fragment `#invite=...`, sehingga browser tidak mengirim token pada request halaman statis, referrer, atau query log. Client meneruskannya hanya sebagai `x-invite-token` ke API. List/revoke hanya mengembalikan metadata; token mentah hanya muncul pada respons create satu kali. Event `unlisted` tetap dikecualikan dari `public_events` discovery. Booking guest yang sudah terbentuk tetap dapat membuka DTO event memakai `x-booking-token` miliknya setelah invite dicabut atau kedaluwarsa, tetapi token booking tidak dapat dipakai membuat booking baru.
+
 ## Domain transactions
 
 | RPC | Main invariants |
@@ -63,6 +65,8 @@ Guest session rows are not readable from a browser. Elysia creates a 256-bit bea
 | get_guest_booking | Service-only; menerima event+token hash dan mengembalikan hanya status/timestamp partisipasi scoped yang masih aktif |
 | consume_guest_booking_limits | Service-only; atomik fixed-window counter per event/contact HMAC dan event/IP HMAC; tidak menyimpan identifier mentah; mengembalikan allowed serta Retry-After |
 | rotate_guest_booking_token | Service-only; organizer event saja; mengunci guest participant aktif, mencabut sesi lama, membuat token hash baru, dan mencatat audit tanpa memakai nomor sebagai proof |
+| create_event_invite / revoke_event_invite | Service-only; organizer event saja; token SHA-256, expiry dibatasi waktu event, row lock, revoke idempotent, dan audit tanpa token |
+| verify_event_invite | Service-only; menerima hash token dan hanya mengizinkan event unlisted berstatus peserta-visible dengan undangan aktif yang belum kedaluwarsa |
 | update_dynamic_event | Service-only; mengunci event, memverifikasi role organizer dan expected version, menjalankan invariant lifecycle/kapasitas, menaikkan version, lalu mencatat nama field yang berubah tanpa menyimpan isi privat di audit |
 | bootstrap_google_profile | Authenticated only; validates Google provider/email from `auth.users`; idempotently creates business user, profile, personal workspace and owner membership |
 | cancel_dynamic_event | Service-only; organizer event saja; mengunci event, membatalkan peserta aktif melalui policy retain/waive, mempertahankan ledger, dan aman diulang setelah status cancelled |

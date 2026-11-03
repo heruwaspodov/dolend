@@ -379,6 +379,8 @@ Setiap task adalah pekerjaan yang dapat ditinjau. Dependencies menyebut ID task 
 
 ### T11 — Share WhatsApp dan invitation
 
+**Status: Selesai lokal, belum dideploy, 3 November 2026.** Event create kini memilih public atau unlisted. Canonical link memakai shell statis `/event/?id=<uuid>`; token unlisted 256-bit berada di fragment, disimpan database hanya sebagai SHA-256, diteruskan ke API lewat header, dan dipertahankan ketika guest mendapat booking token. Organizer dapat membuat undangan dengan expiry, melihat metadata tanpa hash, mencabut secara idempotent, menyalin link, atau membuka share WhatsApp secara eksplisit. Public read, member join, dan guest booking memverifikasi akses event; discovery tetap hanya public. Replay 18 migration, 68 assertion database, 21 API test, build statis, dan 18 browser check desktop/mobile lulus. Migration/API/frontend hosted belum diterapkan tanpa persetujuan deployment.
+
 - **Description:** buat canonical link dan teks ajakan, copy link, undangan unlisted, revoke dan expiry.
 - **Deliverables:** share builder, invite API/UI, public event DTO, invite token handling.
 - **Dependencies:** T03, T10.
@@ -595,4 +597,4 @@ Dokumentasi resmi diperiksa 27 Oktober 2026. Referensi mendukung keputusan arsit
 
 Paket hasil mencakup rencana, aplikasi statis, POC runtime, database Supabase, landing/playground, CI/CD dan bukti verifikasi dalam `docs/`. Integrasi Auth, event API, undangan dan pembayaran produksi masih mengikuti backlog.
 
-Langkah berikutnya: lanjutkan T11 share WhatsApp/invitation, kemudian R06 untuk S3 hosted opsional dan pilot manual. Redirect Google pada domain Firebase, concurrency dynamic lintas koneksi, E2E Storage guest nyata, venue, dan optimistic event update sudah lulus; migration, API v19, Supabase Storage, dan Firebase Hosting sudah aktif hosted. Jangan mengaktifkan payment gateway sementara. DP 50% pada playground tetap simulasi front-end.
+Langkah berikutnya: review lalu deploy T11 dengan persetujuan eksplisit, kemudian lanjutkan T12 join/member dan hardening kapasitas; R06 S3 hosted tetap opsional untuk pilot manual. Redirect Google pada domain Firebase, concurrency dynamic lintas koneksi, E2E Storage guest nyata, venue, dan optimistic event update sudah lulus; migration sampai T10, API v19, Supabase Storage, dan Firebase Hosting sudah aktif hosted. Jangan mengaktifkan payment gateway sementara. DP 50% pada playground tetap simulasi front-end.

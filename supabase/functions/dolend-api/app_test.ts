@@ -1,6 +1,7 @@
 import { createApp } from './app.ts';
 import { AccountServiceError, type AccountIdentity, type AccountService, type Profile, type ProfilePatch } from './account.ts';
 import { GuestBookingError, type GuestBookingService } from './guest-booking.ts';
+import type { EventInviteService } from './event-invite.ts';
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
@@ -18,6 +19,7 @@ function accountMock(overrides: Partial<AccountService> = {}): AccountService {
   };
 }
 const authHeaders = { authorization: 'Bearer valid-token', 'content-type': 'application/json' };
+const openEventInvites:EventInviteService={canAccess:async()=>true};
 Deno.test('health, CORS and prefix', async () => {
   const response = await app.handle(new Request(`${base}/health`, { headers: { origin: 'http://localhost:3000' } }));
   assert(response.status === 200, `health: ${response.status}`);
@@ -98,7 +100,7 @@ Deno.test('guest booking returns a one-time bearer token and maps safe errors', 
     get: async (eventId, token) => token === 'a'.repeat(43) ? { participant_id: eventId, charge_id: null, status: 'confirmed', hold_expires_at: null, confirmed_at: '2026-10-28T00:00:00.000Z', updated_at: '2026-10-28T00:00:00.000Z' } : null,
     recover: async () => ({participant_id:eventId,event_id:eventId,booking_token:'recovered-token'}),
   };
-  const bookingApp = createApp({ allowedOrigins: [], guestBookingService });
+  const bookingApp = createApp({ allowedOrigins: [], guestBookingService,eventInviteService:openEventInvites });
   const eventId = '44444444-4444-4444-8444-444444444444';
   const response = await bookingApp.handle(new Request(`${base}/events/${eventId}/guest-bookings`, {
     method: 'POST', headers: { 'content-type': 'application/json', 'x-forwarded-for': 'spoofed, 203.0.113.8' }, body: JSON.stringify({ display_name: 'Guest', whatsapp: '081234567890' }),
@@ -111,7 +113,7 @@ Deno.test('guest booking returns a one-time bearer token and maps safe errors', 
   assert(statusResponse.status === 200, 'booking status unavailable with token');
   assert((await statusResponse.json()).data.status === 'confirmed', 'wrong booking status');
   assert((await bookingApp.handle(new Request(`${base}/events/${eventId}/guest-bookings/me`))).status === 401, 'missing booking token accepted');
-  const conflictApp = createApp({ allowedOrigins: [], guestBookingService: {
+  const conflictApp = createApp({ allowedOrigins: [], eventInviteService:openEventInvites,guestBookingService: {
     create: async () => { throw new GuestBookingError('BOOKING_ALREADY_EXISTS'); },
     get: async () => null,
     recover: async () => { throw new GuestBookingError('BOOKING_UNAVAILABLE'); },
@@ -121,7 +123,7 @@ Deno.test('guest booking returns a one-time bearer token and maps safe errors', 
   }));
   assert(conflict.status === 409, 'duplicate booking did not conflict');
   assert(!JSON.stringify(await conflict.json()).includes('secret-token'), 'booking token leaked');
-  const limitedApp = createApp({ allowedOrigins: [], guestBookingService: {
+  const limitedApp = createApp({ allowedOrigins: [], eventInviteService:openEventInvites,guestBookingService: {
     create: async () => { throw new GuestBookingError('RATE_LIMITED',321); },
     get: async () => null,
     recover: async () => { throw new GuestBookingError('BOOKING_UNAVAILABLE'); },
@@ -131,11 +133,22 @@ Deno.test('guest booking returns a one-time bearer token and maps safe errors', 
   }));
   assert(limited.status === 429, 'rate limit did not return 429');
   assert(limited.headers.get('retry-after') === '321', 'retry window missing');
-  const recoveryApp=createApp({allowedOrigins:[],accountService:accountMock(),guestBookingService});
+  const recoveryApp=createApp({allowedOrigins:[],accountService:accountMock(),guestBookingService,eventInviteService:openEventInvites});
   const recovered=await recoveryApp.handle(new Request(`${base}/participants/${eventId}/guest-token`,{method:'POST',headers:{authorization:'Bearer valid-token'}}));
   assert(recovered.status===200,'organizer could not rotate guest token');
   assert(recovered.headers.get('cache-control')==='no-store','recovered token response is cacheable');
   assert((await recovered.json()).data.booking_token==='recovered-token','recovered token missing');
+});
+Deno.test('guest booking rejects a missing or revoked event invitation',async()=>{
+  let created=false;
+  const protectedApp=createApp({allowedOrigins:[],eventInviteService:{canAccess:async(_event,token)=>token==='valid-invite'},guestBookingService:{
+    create:async()=>{created=true;return {participant_id:'44444444-4444-4444-8444-444444444444',status:'confirmed',booking_token:'booking'};},
+    get:async()=>null,recover:async()=>{throw new GuestBookingError('BOOKING_UNAVAILABLE');},
+  }});
+  const response=await protectedApp.handle(new Request(`${base}/events/44444444-4444-4444-8444-444444444444/guest-bookings`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({display_name:'Guest',whatsapp:'081234567890'})}));
+  assert(response.status===403,`missing invite accepted: ${response.status}`);
+  assert((await response.json()).error.code==='INVITE_REQUIRED','wrong invite error');
+  assert(!created,'booking was created before invite verification');
 });
 Deno.test('POC route absent by default', async () => {
   const production = createApp({ allowedOrigins: [] });

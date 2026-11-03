@@ -49,6 +49,7 @@ export function EventCreateForm() {
         workspace_id: form.get('workspace_id'), activity_type_id: form.get('activity_type_id'), title: form.get('title'), description: form.get('description') || undefined,
         starts_at: iso('starts_at'), ends_at: iso('ends_at'), registration_closes_at: iso('registration_closes_at'), timezone,
         capacity: Number(form.get('capacity')), estimated_total_cost: Number(form.get('estimated_total_cost')), payment_timing: form.get('payment_timing'),
+        visibility:form.get('visibility'),
         ...(venueSnapshot ? { venue_snapshot: venueSnapshot } : {}),
       }) });
       router.push(`/event/manage/?id=${result.id}`);
@@ -66,6 +67,7 @@ export function EventCreateForm() {
         <div><Label htmlFor="activity">Jenis aktivitas</Label><select id="activity" name="activity_type_id" required className={select}>{activities.map((activity) => <option key={activity.id} value={activity.id}>{activity.name}</option>)}</select></div>
         <div className="sm:col-span-2"><Label htmlFor="title">Nama event</Label><Input id="title" name="title" required maxLength={200} className={field} placeholder="Badminton Jumat malam" /></div>
         <div className="sm:col-span-2"><Label htmlFor="description">Deskripsi <span className="font-normal text-slate-500">(opsional)</span></Label><textarea id="description" name="description" maxLength={10000} rows={4} className={`${select} py-3`} placeholder="Level permainan, perlengkapan, atau catatan lain" /></div>
+        <div className="sm:col-span-2"><Label htmlFor="visibility">Akses event</Label><select id="visibility" name="visibility" defaultValue="unlisted" className={select}><option value="unlisted">Hanya lewat undangan</option><option value="public">Publik</option></select><p className="mt-2 text-xs leading-relaxed text-slate-600">Event undangan tidak tampil di discovery dan hanya dapat dibuka lewat tautan aktif.</p></div>
       </fieldset>
       <fieldset className="grid gap-5 sm:grid-cols-2"><legend className="mb-5 text-lg font-bold">Waktu</legend>
         <div><Label htmlFor="starts">Mulai</Label><Input id="starts" name="starts_at" type="datetime-local" required className={field} /></div><div><Label htmlFor="ends">Selesai</Label><Input id="ends" name="ends_at" type="datetime-local" required className={field} /></div>

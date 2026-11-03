@@ -4,6 +4,7 @@ import { clientAddressFrom, createSupabaseGuestBookingService } from './guest-bo
 import type { GuestBookingService } from './guest-booking.ts';
 import type { AccountService } from './account.ts';
 import type { ObjectStorageRouter } from './object-storage.ts';
+import type { EventInviteService } from './event-invite.ts';
 
 export class FinanceError extends Error {}
 
@@ -54,7 +55,7 @@ export async function imageBytes(request: Request):Promise<{bytes:Uint8Array;mim
   return { bytes, mime: png ? 'image/png' : 'image/jpeg', extension: png ? 'png' : 'jpg' };
 }
 
-export function manualPaymentRoutes(accounts: AccountService | null | undefined, url?: string, serviceKey?: string, rateLimitPepper?: string, guestBookingService?: GuestBookingService | null, objectStorage?: ObjectStorageRouter | null) {
+export function manualPaymentRoutes(accounts: AccountService | null | undefined, url?: string, serviceKey?: string, rateLimitPepper?: string, guestBookingService?: GuestBookingService | null, objectStorage?: ObjectStorageRouter | null, eventInviteService?: EventInviteService | null) {
   const db = url && serviceKey ? createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } }) : null;
   const guestBookings=guestBookingService ?? (url&&serviceKey&&rateLimitPepper&&rateLimitPepper.length>=32?createSupabaseGuestBookingService(url,serviceKey,rateLimitPepper):null);
   async function actor(request: Request) {
@@ -77,6 +78,15 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
     await rpc('manual_event_access', { p_event: event, p_actor: id });
     return id;
   }
+  async function publicEventAccess(event:string,request:Request) {
+    if(!eventInviteService)throw new FinanceError('STORAGE_UNAVAILABLE');
+    try {
+      if(!await eventInviteService.canAccess(event,request.headers.get('x-invite-token'),request.headers.get('x-booking-token')))throw new FinanceError('FORBIDDEN');
+    } catch(error) {
+      if(error instanceof FinanceError)throw error;
+      throw new FinanceError('STORAGE_UNAVAILABLE');
+    }
+  }
   async function chargeAccess(charge: string, request: Request) {
     const { data: c, error } = await client().from('participant_charges').select('*,event_participants!inner(event_id,user_id)').eq('id',charge).single();
     if (error || !c) throw new FinanceError('FORBIDDEN');
@@ -96,7 +106,7 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
     return { c, actor: id, hash: null };
   }
   async function eventDto(eventId: string, publicOnly: boolean) {
-    let query=client().from('events').select('id,title,description,starts_at,ends_at,registration_closes_at,timezone,capacity,price_amount,currency,status,venue_snapshot,venue_booking_status,estimated_total_cost,contributions_locked_at,contribution_mode,payment_timing,version').eq('id',eventId);
+    let query=client().from('events').select('id,title,description,starts_at,ends_at,registration_closes_at,timezone,capacity,price_amount,currency,status,visibility,venue_snapshot,venue_booking_status,estimated_total_cost,contributions_locked_at,contribution_mode,payment_timing,version').eq('id',eventId);
     if(publicOnly)query=query.in('status',['published','recruiting','confirmed','completed']);
     const {data:e,error}=await query.single();
     if(error)throw new FinanceError('FORBIDDEN');
@@ -120,7 +130,7 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
       if(me||re)throw new FinanceError('STORAGE_UNAVAILABLE');
       const filters=[...(members?.length?[`workspace_id.in.(${members.map(m=>m.workspace_id).join(',')})`]:[]),...(roles?.length?[`id.in.(${roles.map(r=>r.event_id).join(',')})`]:[])];
       if(!filters.length)return {data:[]};
-      const {data,error}=await client().from('events').select('id,title,status,starts_at,ends_at,timezone,venue_booking_status,estimated_total_cost,contributions_locked_at').or(filters.join(',')).order('starts_at',{ascending:false}).limit(100);
+      const {data,error}=await client().from('events').select('id,title,status,visibility,starts_at,ends_at,timezone,venue_booking_status,estimated_total_cost,contributions_locked_at').or(filters.join(',')).order('starts_at',{ascending:false}).limit(100);
       if(error)throw new FinanceError('STORAGE_UNAVAILABLE');return {data};
     })
     .get('/organizer/workspaces',async ({request})=>{
@@ -138,7 +148,8 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
       await ownEvent(params.id,request);
       return {data:await eventDto(params.id,false)};
     },{params:t.Object({id:uuid})})
-    .get('/events/:id',async ({params}) => {
+    .get('/events/:id',async ({params,request}) => {
+      await publicEventAccess(params.id,request);
       return {data:await eventDto(params.id,true)};
     },{params:t.Object({id:uuid})})
     .post('/events',async ({request,body}) => {
@@ -149,7 +160,7 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
       const {data,error}=await client().from('events').insert({...body,...(venue?{venue_snapshot:venue}:{}),organizer_profile_id:id,contribution_mode:'dynamic',payment_mode:'free',price_amount:0,status:'recruiting'}).select('id').single();
       if(error) throw new FinanceError('CONFLICT');
       return {data};
-    },{body:t.Object({workspace_id:uuid,activity_type_id:uuid,title:t.String({minLength:1,maxLength:200}),description:t.Optional(t.String({maxLength:10000})),starts_at:t.String({format:'date-time'}),ends_at:t.String({format:'date-time'}),registration_closes_at:t.String({format:'date-time'}),timezone:t.String({minLength:1,maxLength:100}),capacity:t.Integer({minimum:1,maximum:100000}),estimated_total_cost:amount,payment_timing:t.Union([t.Literal('before_event'),t.Literal('after_event')]),venue_snapshot:t.Optional(venueSnapshot)},{additionalProperties:false})})
+    },{body:t.Object({workspace_id:uuid,activity_type_id:uuid,title:t.String({minLength:1,maxLength:200}),description:t.Optional(t.String({maxLength:10000})),starts_at:t.String({format:'date-time'}),ends_at:t.String({format:'date-time'}),registration_closes_at:t.String({format:'date-time'}),timezone:t.String({minLength:1,maxLength:100}),capacity:t.Integer({minimum:1,maximum:100000}),estimated_total_cost:amount,payment_timing:t.Union([t.Literal('before_event'),t.Literal('after_event')]),visibility:t.Union([t.Literal('public'),t.Literal('unlisted')]),venue_snapshot:t.Optional(venueSnapshot)},{additionalProperties:false})})
     .patch('/events/:id/planning',async ({request,params,body}) => {
       const actorId=await actor(request);
       const {expected_version,...patch}=body;
@@ -160,10 +171,32 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
     },{params:t.Object({id:uuid}),body:t.Object({expected_version:t.Integer({minimum:1}),title:t.Optional(t.String({minLength:1,maxLength:200})),description:t.Optional(t.String({maxLength:10000})),starts_at:t.Optional(t.String({format:'date-time'})),ends_at:t.Optional(t.String({format:'date-time'})),registration_closes_at:t.Optional(t.String({format:'date-time'})),timezone:t.Optional(t.String({minLength:1,maxLength:100})),capacity:t.Optional(t.Integer({minimum:1,maximum:100000})),estimated_total_cost:t.Optional(amount),payment_timing:t.Optional(t.Union([t.Literal('before_event'),t.Literal('after_event')])),venue_booking_status:t.Optional(t.Union([t.Literal('not_booked'),t.Literal('pending'),t.Literal('booked'),t.Literal('cancelled')])),status:t.Optional(t.Union([t.Literal('confirmed'),t.Literal('completed')])),venue_snapshot:t.Optional(venueSnapshot)},{additionalProperties:false,minProperties:2})})
     .post('/events/:id/join',async ({request,params}) => {
       const id=await actor(request);
+      try { await publicEventAccess(params.id,request); }
+      catch(error) { if(error instanceof FinanceError&&error.message==='FORBIDDEN')await rpc('manual_event_access',{p_event:params.id,p_actor:id});else throw error; }
       const {data:p}=await client().from('profiles').select('user_id').eq('id',id).single();
       if(!p) throw new FinanceError('FORBIDDEN');
       return {data:await rpc('join_event',{p_event_id:params.id,p_user_id:p.user_id,p_actor_profile_id:id})};
     },{params:t.Object({id:uuid})})
+    .get('/events/:id/invites',async ({request,params})=>{
+      await ownEvent(params.id,request);
+      const {data,error}=await client().from('event_invites').select('id,expires_at,revoked_at,created_at').eq('event_id',params.id).order('created_at',{ascending:false});
+      if(error)throw new FinanceError('STORAGE_UNAVAILABLE');
+      return {data:data??[]};
+    },{params:t.Object({id:uuid})})
+    .post('/events/:id/invites',async ({request,params,body,set})=>{
+      const actorId=await ownEvent(params.id,request);
+      const bytes=crypto.getRandomValues(new Uint8Array(32));
+      const token=btoa(String.fromCharCode(...bytes)).replaceAll('+','-').replaceAll('/','_').replaceAll('=','');
+      const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(token));
+      const tokenHash=Array.from(new Uint8Array(digest),byte=>byte.toString(16).padStart(2,'0')).join('');
+      const invite=await rpc('create_event_invite',{p_event:params.id,p_actor:actorId,p_token_hash:tokenHash,p_expires_at:body.expires_at??null});
+      set.headers['cache-control']='no-store';
+      return {data:{id:invite.id,expires_at:invite.expires_at,revoked_at:invite.revoked_at,created_at:invite.created_at,token}};
+    },{params:t.Object({id:uuid}),body:t.Object({expires_at:t.Optional(t.String({format:'date-time'}))},{additionalProperties:false})})
+    .post('/invites/:id/revoke',async ({request,params})=>{
+      const invite=await rpc('revoke_event_invite',{p_invite:params.id,p_actor:await actor(request)});
+      return {data:{id:invite.id,expires_at:invite.expires_at,revoked_at:invite.revoked_at,created_at:invite.created_at}};
+    },{params:t.Object({id:uuid}),parse:'none'})
     .get('/payment-settings', async ({ request }) => {
       const id = await actor(request);
       const { data,error } = await client().from('organizer_payment_methods').select('*').eq('organizer_id',id).order('created_at');
