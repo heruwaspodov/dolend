@@ -33,6 +33,9 @@ Prefix `/dolend-api/v1`. Organizer wajib JWT Google terverifikasi. Guest memakai
 | POST /attempts/:id/proof | Upload PNG/JPEG 2 MiB scoped; membuat evidence dan status pending_review secara langsung |
 | GET /events/:id/invoice-reviews | Queue evidence invoice khusus organizer event dengan signed URL pendek |
 | POST /attempts/:id/review | Approve/reject evidence invoice dengan alasan; receipt idempotent |
+| POST /attempts/:id/refunds | Organizer meminta refund manual dengan nominal bounded dan idempotency key |
+| POST /refunds/:id/complete | Catat refund selesai hanya bersama reference dan evidence path |
+| GET /events/:id/payment-exceptions | Daftar late-payment exception dan seluruh status refund event |
 | POST /charges/:id/proof | File PNG/JPG mentah, opsional; akses scoped |
 | POST /charges/:id/payments | method_id, amount, idempotency_key, proof_storage_path opsional; pending_verification |
 | GET /events/:id/payment-reviews | Queue privat organizer, bukti signed URL |

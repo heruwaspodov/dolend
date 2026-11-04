@@ -431,6 +431,8 @@ Setiap task adalah pekerjaan yang dapat ditinjau. Dependencies menyebut ID task 
 
 ### T17 — Pembatalan, refund, dan exception pembayaran
 
+**Status: Jalur manual selesai lokal; jalur gateway menunggu T16, 4 November 2026.** API cancellation lama tetap menjaga ledger dan membuat refund-review outbox untuk invoice ber-receipt. Organizer dapat meminta refund idempotent dengan batas total receipt, mencatat keberhasilan hanya bersama reference + evidence path, dan melihat refund gagal/pending/succeeded serta late-payment exception per event. Guard database mencegah refund berlebih, duplicate ledger, paid-after-expiry menambah kursi saat penuh, dan penghapusan histori. Test database yang sama mencakup retry, batas refund, evidence manual, serta late payment no seat. UI operasional refund dan adapter gateway tetap belum dikerjakan karena T16/provider ditunda.
+
 - **Description:** tangani event/participant cancellation, unpaid void, paid refund review, overpayment, dan refund manual/gateway.
 - **Deliverables:** cancellation/refund UI/API, exception queue, refund evidence/reference, runbook rekonsiliasi.
 - **Dependencies:** T15, T16.

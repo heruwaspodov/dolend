@@ -443,6 +443,15 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
       return {data:reviews};
     },{params:t.Object({id:uuid})})
     .post('/attempts/:id/review',async ({request,params,body})=>({data:await rpc('approve_manual_payment',{p_attempt_id:params.id,p_actor_profile_id:await actor(request),p_decision:body.decision,p_reason:body.reason})}),{params:t.Object({id:uuid}),body:t.Object({decision:t.Union([t.Literal('approve'),t.Literal('reject')]),reason},{additionalProperties:false})})
+    .post('/attempts/:id/refunds',async ({request,params,body})=>({data:await rpc('request_refund',{p_attempt_id:params.id,p_actor_profile_id:await actor(request),p_amount:body.amount,p_reason:body.reason,p_key:body.idempotency_key})}),{params:t.Object({id:uuid}),body:t.Object({amount:t.Integer({minimum:1,maximum:1e12}),reason,idempotency_key:key},{additionalProperties:false})})
+    .post('/refunds/:id/complete',async ({request,params,body})=>({data:await rpc('record_refund',{p_refund_id:params.id,p_actor_profile_id:await actor(request),p_reference:body.reference,p_evidence_path:body.evidence_path})}),{params:t.Object({id:uuid}),body:t.Object({reference:t.String({minLength:1,maxLength:500}),evidence_path:t.String({minLength:1,maxLength:512})},{additionalProperties:false})})
+    .get('/events/:id/payment-exceptions',async ({request,params,set})=>{
+      set.headers['cache-control']='no-store';await ownEvent(params.id,request);
+      const {data:attempts,error:attemptError}=await client().from('payment_attempts').select('id,status,exception_reason,amount,currency,created_at,invoices!inner(event_participants!inner(event_id))').eq('invoices.event_participants.event_id',params.id).not('exception_reason','is',null);
+      const {data:refunds,error:refundError}=await client().from('refunds').select('id,attempt_id,amount,status,reason,provider_reference,evidence_path,created_at,invoices!inner(event_participants!inner(event_id))').eq('invoices.event_participants.event_id',params.id).order('created_at',{ascending:false});
+      if(attemptError||refundError)throw new FinanceError('STORAGE_UNAVAILABLE');
+      return {data:{attempts:attempts??[],refunds:refunds??[]}};
+    },{params:t.Object({id:uuid})})
     .post('/charges/:id/proof',async ({request,params}) => {
       const access=await chargeAccess(params.id,request);
       const {bytes,mime,extension}=await imageBytes(request);
