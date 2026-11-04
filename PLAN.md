@@ -151,7 +151,7 @@ Konsekuensi: metadata/preview WhatsApp MVP bersifat umum Dolend, teks pesan beri
 - Webhook dapat diisolasi menjadi function `dolend-payments-webhook` dengan gateway JWT enforcement disesuaikan untuk provider eksternal; signature provider tetap wajib. Endpoint lain memvalidasi JWT Supabase dan role di server. Jangan menonaktifkan auth global untuk mempermudah webhook.
 - Public read, verified guest session, member, organizer, dan internal job adalah scope berbeda. Authorization bukan hanya pemeriksaan user login.
 - Browser hanya memegang public Supabase key. Service-role key, gateway secret, serta job secret disimpan server-side. RLS tetap aktif; service-role melewati RLS sehingga pemeriksaan domain eksplisit wajib. RPC privileged dibatasi execute grant, fixed search_path, dan audit.
-- Storage upload menggunakan izin/token terbatas, limit ukuran dan MIME serta verifikasi isi; nama objek acak, tanpa nomor telepon. Signed URL berumur pendek; private bucket untuk bukti bayar. MVP rekomendasi batas bukti 5 MB JPEG/PNG/PDF, diputuskan final dalam T13.
+- Storage upload menggunakan izin/token terbatas, limit ukuran dan MIME serta verifikasi isi; nama objek acak, tanpa nomor telepon. Signed URL berumur pendek; private bucket untuk bukti bayar. Keputusan final T13: PNG/JPEG maksimum 2 MiB, dimensi gambar maksimum 8192 × 8192, signed download 120 detik, dan staging upload tanpa attachment kedaluwarsa setelah 24 jam.
 - Cron mengerjakan batch kecil dan idempotent: expiry hold, invoice overdue, payment reconciliation, retry notification outbox, token/file cleanup. Tidak memakai timer dalam worker Elysia. Secret disimpan aman, bukan hardcoded pada SQL job.
 - Request ID, structured logs tanpa OAuth code/token/nomor penuh; rate limit join/booking/payment berdasarkan actor/IP dengan counter atomik PostgreSQL dan TTL. Monitoring kuota function, DB, Storage, Auth, dan gateway.
 - Timeout/retry/backoff eksplisit, circuit breaker operasional untuk provider, serta outbox untuk side effect setelah transaksi committed.
@@ -397,6 +397,8 @@ Setiap task adalah pekerjaan yang dapat ditinjau. Dependencies menyebut ID task 
 
 ### T13 — Private Storage dan bukti pembayaran
 
+**Status: Implementasi lokal selesai, belum diterapkan hosted, 4 November 2026.** Upload QRIS/bukti kini diregistrasikan sebelum object ditulis, lalu hanya dapat dipasang satu kali melalui transaksi database yang memverifikasi owner atau charge. Registry menyimpan provider-opaque reference, MIME, ukuran, grace 24 jam, attachment, serta claim cleanup dengan lock/lease; worker API menghapus lewat adapter Supabase atau S3 dan hanya menerima service credential. Bucket tetap private, signed download 120 detik, dan nama object hanya memakai UUID profil/tagihan + UUID acak. Replay 20 migration, 71 assertion database, type-check API, serta 22 unit/API test lulus. Hosted migration, function deploy, expired-URL test, dan cleanup E2E belum dijalankan.
+
 - **Description:** bangun upload/akses bukti yang scoped ke attempt dan verifikasi isi file.
 - **Deliverables:** private bucket policies, signed upload/download, file constraints, orphan cleanup dan retention config.
 - **Dependencies:** T04, T06, T12.
@@ -599,4 +601,4 @@ Dokumentasi resmi diperiksa 27 Oktober 2026. Referensi mendukung keputusan arsit
 
 Paket hasil mencakup rencana, aplikasi statis, POC runtime, database Supabase, landing/playground, CI/CD dan bukti verifikasi dalam `docs/`. Integrasi Auth, event API, undangan dan pembayaran produksi masih mengikuti backlog.
 
-Langkah berikutnya: tunggu workflow frontend T12 lalu lanjutkan T13 hardening private Storage; R06 S3 hosted tetap opsional untuk pilot manual. T11/T12 backend, redirect Google pada domain Firebase, concurrency dynamic lintas koneksi, E2E Storage guest nyata, venue, dan optimistic event update sudah aktif hosted. Jangan mengaktifkan payment gateway sementara. DP 50% pada playground tetap simulasi front-end.
+Langkah berikutnya: tinjau dry-run lalu rilis migration/API T13 dan jalankan E2E Supabase Storage termasuk grace cleanup/URL expiry; R06 S3 hosted tetap opsional untuk pilot manual. Penjadwalan cleanup berkala tetap T19, bukan cron in-process. T11/T12 backend, redirect Google pada domain Firebase, concurrency dynamic lintas koneksi, E2E Storage guest nyata, venue, dan optimistic event update sudah aktif hosted. Jangan mengaktifkan payment gateway sementara. DP 50% pada playground tetap simulasi front-end.

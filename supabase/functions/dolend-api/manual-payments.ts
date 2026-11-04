@@ -5,6 +5,7 @@ import type { GuestBookingService } from './guest-booking.ts';
 import type { AccountService } from './account.ts';
 import type { ObjectStorageRouter } from './object-storage.ts';
 import type { EventInviteService } from './event-invite.ts';
+import type { PrivateUploadService } from './private-uploads.ts';
 
 export class FinanceError extends Error {}
 
@@ -55,7 +56,14 @@ export async function imageBytes(request: Request):Promise<{bytes:Uint8Array;mim
   return { bytes, mime: png ? 'image/png' : 'image/jpeg', extension: png ? 'png' : 'jpg' };
 }
 
-export function manualPaymentRoutes(accounts: AccountService | null | undefined, url?: string, serviceKey?: string, rateLimitPepper?: string, guestBookingService?: GuestBookingService | null, objectStorage?: ObjectStorageRouter | null, eventInviteService?: EventInviteService | null) {
+export function serviceBearerMatches(request:Request,serviceKey?:string) {
+  const supplied=request.headers.get('authorization')?.match(/^Bearer (.+)$/i)?.[1]??'';
+  if(!serviceKey||supplied.length!==serviceKey.length)return false;
+  let mismatch=0;
+  for(let index=0;index<serviceKey.length;index++)mismatch|=supplied.charCodeAt(index)^serviceKey.charCodeAt(index);
+  return mismatch===0;
+}
+export function manualPaymentRoutes(accounts: AccountService | null | undefined, url?: string, serviceKey?: string, rateLimitPepper?: string, guestBookingService?: GuestBookingService | null, objectStorage?: ObjectStorageRouter | null, eventInviteService?: EventInviteService | null, privateUploadService?:PrivateUploadService|null, storageCleanupKey?:string) {
   const db = url && serviceKey ? createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } }) : null;
   const guestBookings=guestBookingService ?? (url&&serviceKey&&rateLimitPepper&&rateLimitPepper.length>=32?createSupabaseGuestBookingService(url,serviceKey,rateLimitPepper):null);
   async function actor(request: Request) {
@@ -66,12 +74,13 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
   }
   function client() { if (!db) throw new FinanceError('STORAGE_UNAVAILABLE'); return db; }
   function files() {if(!objectStorage)throw new FinanceError('STORAGE_UNAVAILABLE');return objectStorage;}
+  function uploads() {if(!privateUploadService)throw new FinanceError('STORAGE_UNAVAILABLE');return privateUploadService;}
   function logicalKey(reference:string) {const storage=files();try{return storage.logicalKey(reference);}catch{throw new FinanceError('FORBIDDEN');}}
   async function objectExists(reference:string) {try{return await files().exists(reference);}catch{throw new FinanceError('STORAGE_UNAVAILABLE');}}
   async function rpc(name: string, params: Record<string, unknown>) {
     const { data, error } = await client().rpc(name, params);
     if (error) {
-      const domain=['EVENT_FULL','REGISTRATION_CLOSED','INVALID_EVENT_STATE','ATTENDANCE_RECORDED','REASON_REQUIRED'];
+      const domain=['EVENT_FULL','REGISTRATION_CLOSED','INVALID_EVENT_STATE','ATTENDANCE_RECORDED','REASON_REQUIRED','INVALID_UPLOAD'];
       const known=domain.find(code=>error.message.includes(code));
       throw new FinanceError(error.code === '42501' ? 'FORBIDDEN' : error.message.includes('EVENT_VERSION_CONFLICT') ? 'VERSION_CONFLICT' : known??'CONFLICT');
     }
@@ -132,7 +141,7 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
     .onBeforeHandle(({set}) => {set.headers['cache-control']='no-store';})
     .onError(({ error, set }) => {
       const code = error instanceof Error ? error.message : '';
-      if (!['UNAUTHORIZED','FORBIDDEN','CONFLICT','VERSION_CONFLICT','EVENT_FULL','REGISTRATION_CLOSED','INVALID_EVENT_STATE','ATTENDANCE_RECORDED','REASON_REQUIRED','STORAGE_UNAVAILABLE','INVALID_IMAGE','IMAGE_TOO_LARGE','INVALID_REQUEST'].includes(code)) return;
+      if (!['UNAUTHORIZED','FORBIDDEN','CONFLICT','VERSION_CONFLICT','EVENT_FULL','REGISTRATION_CLOSED','INVALID_EVENT_STATE','ATTENDANCE_RECORDED','REASON_REQUIRED','STORAGE_UNAVAILABLE','INVALID_IMAGE','IMAGE_TOO_LARGE','INVALID_REQUEST','INVALID_UPLOAD'].includes(code)) return;
       set.status = code === 'UNAUTHORIZED' ? 401 : code === 'FORBIDDEN' ? 403 : ['CONFLICT','VERSION_CONFLICT','EVENT_FULL','REGISTRATION_CLOSED','INVALID_EVENT_STATE','ATTENDANCE_RECORDED'].includes(code) ? 409 : code === 'STORAGE_UNAVAILABLE' ? 503 : 422;
       return { error: { code, message: 'Permintaan belum dapat diproses.' } };
     })
@@ -243,9 +252,10 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
         if (!body.storage_path || !new RegExp(`^qris/${id}/[0-9a-f-]{36}\\.(png|jpg)$`).test(logicalKey(body.storage_path))) throw new FinanceError('FORBIDDEN');
         if (!await objectExists(body.storage_path)) throw new FinanceError('INVALID_IMAGE');
       }
-      const { data,error } = await client().from('organizer_payment_methods').insert({ ...body,organizer_id:id }).select().single();
-      if (error) throw new FinanceError('CONFLICT');
-      return { data };
+      return {data:await rpc('create_organizer_payment_method',{
+        p_actor:id,p_type:body.type,p_recipient_name:body.recipient_name,
+        p_storage_reference:body.storage_path??null,p_bank_details:body.bank_details??null,
+      })};
     }, { body:t.Object({type:t.Union([t.Literal('static_qris'),t.Literal('bank_transfer'),t.Literal('cash')]),recipient_name:t.String({minLength:1,maxLength:120}),storage_path:t.Optional(t.String({maxLength:512})),bank_details:t.Optional(t.Object({bank:t.String({minLength:1,maxLength:120}),account:t.String({minLength:1,maxLength:100})}))},{additionalProperties:false}) })
     .patch('/payment-settings/:id', async ({ request,params,body }) => {
       const id = await actor(request);
@@ -257,7 +267,7 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
       const id = await actor(request);
       const { bytes,mime,extension } = await imageBytes(request);
       const path = `qris/${id}/${crypto.randomUUID()}.${extension}`;
-      try{return {data:{storage_path:await files().put(path,{bytes,contentType:mime})}};}
+      try{return {data:{storage_path:await uploads().upload({key:path,purpose:'qris',ownerProfileId:id,object:{bytes,contentType:mime}})}};}
       catch{throw new FinanceError('STORAGE_UNAVAILABLE');}
     }, {parse: 'none'})
     .get('/events/:id/roster',async ({request,params,set})=>{
@@ -322,10 +332,10 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
       return {data:{id:c.id,amount:c.amount,balance:net,records:records??[],methods:visibleMethods}};
     },{params:t.Object({id:uuid})})
     .post('/charges/:id/proof',async ({request,params}) => {
-      await chargeAccess(params.id,request);
+      const access=await chargeAccess(params.id,request);
       const {bytes,mime,extension}=await imageBytes(request);
       const path=`proof/${params.id}/${crypto.randomUUID()}.${extension}`;
-      try{return {data:{storage_path:await files().put(path,{bytes,contentType:mime})}};}
+      try{return {data:{storage_path:await uploads().upload({key:path,purpose:'payment_proof',ownerProfileId:access.actor,chargeId:params.id,object:{bytes,contentType:mime}})}};}
       catch{throw new FinanceError('STORAGE_UNAVAILABLE');}
     },{params:t.Object({id:uuid}),parse:'none'})
     .post('/charges/:id/payments',async ({request,params,body}) => {
@@ -344,5 +354,9 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
       return {data:await Promise.all((data??[]).map(async r=>{let proof_url:string|null=null;if(r.proof_storage_path)try{proof_url=await files().signedDownloadUrl(r.proof_storage_path,120);}catch{throw new FinanceError('STORAGE_UNAVAILABLE');}return {...r,proof_url};}))};
     },{params:t.Object({id:uuid})})
     .post('/payments/:id/review',async ({request,params,body}) => ({data:await rpc('review_manual_payment',{p_payment:params.id,p_actor:await actor(request),p_decision:body.decision,p_reason:body.reason})}),{params:t.Object({id:uuid}),body:t.Object({decision:t.Union([t.Literal('verified'),t.Literal('rejected')]),reason},{additionalProperties:false})})
-    .post('/charges/:id/adjustments',async ({request,params,body}) => ({data:await rpc('adjust_contribution',{p_charge:params.id,p_actor:await actor(request),p_type:body.type,p_amount:body.amount,p_reason:body.reason,p_key:body.idempotency_key})}),{params:t.Object({id:uuid}),body:t.Object({type:t.Union([t.Literal('refund'),t.Literal('adjustment')]),amount:t.Integer({minimum:-1e12,maximum:1e12}),reason,idempotency_key:key},{additionalProperties:false})});
+    .post('/charges/:id/adjustments',async ({request,params,body}) => ({data:await rpc('adjust_contribution',{p_charge:params.id,p_actor:await actor(request),p_type:body.type,p_amount:body.amount,p_reason:body.reason,p_key:body.idempotency_key})}),{params:t.Object({id:uuid}),body:t.Object({type:t.Union([t.Literal('refund'),t.Literal('adjustment')]),amount:t.Integer({minimum:-1e12,maximum:1e12}),reason,idempotency_key:key},{additionalProperties:false})})
+    .post('/internal/storage/orphans/cleanup',async ({request})=>{
+      if(!serviceBearerMatches(request,storageCleanupKey))throw new FinanceError('FORBIDDEN');
+      try{return {data:await uploads().cleanup(100)};}catch{throw new FinanceError('STORAGE_UNAVAILABLE');}
+    },{parse:'none'});
 }

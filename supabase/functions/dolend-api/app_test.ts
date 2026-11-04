@@ -2,6 +2,7 @@ import { createApp } from './app.ts';
 import { AccountServiceError, type AccountIdentity, type AccountService, type Profile, type ProfilePatch } from './account.ts';
 import { GuestBookingError, type GuestBookingService } from './guest-booking.ts';
 import type { EventInviteService } from './event-invite.ts';
+import type { PrivateUploadService } from './private-uploads.ts';
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
@@ -32,6 +33,20 @@ Deno.test('preflight allowed and untrusted origin rejected', async () => {
   assert(allowed.headers.get('access-control-allow-origin') === 'http://localhost:3000', 'preflight CORS missing');
   const denied = await app.handle(new Request(`${base}/health`, { headers: { origin: 'https://untrusted.example' } }));
   assert(denied.status === 403, 'origin accepted');
+});
+Deno.test('orphan cleanup requires the server credential',async()=>{
+  let calls=0;
+  const privateUploadService:PrivateUploadService={
+    upload:async()=>{throw new Error('not used');},
+    cleanup:async()=>{calls++;return {claimed:1,deleted:1,failed:0};},
+  };
+  const cleanupApp=createApp({allowedOrigins:[],privateUploadService,storageCleanupKey:'server-cleanup-key'});
+  const endpoint=`${base}/internal/storage/orphans/cleanup`;
+  assert((await cleanupApp.handle(new Request(endpoint,{method:'POST'}))).status===403,'missing cleanup credential accepted');
+  assert((await cleanupApp.handle(new Request(endpoint,{method:'POST',headers:{authorization:'Bearer wrong-key'}}))).status===403,'wrong cleanup credential accepted');
+  const response=await cleanupApp.handle(new Request(endpoint,{method:'POST',headers:{authorization:'Bearer server-cleanup-key'}}));
+  assert(response.status===200,`cleanup failed: ${response.status}`);
+  assert((await response.json()).data.deleted===1&&calls===1,'cleanup service not called exactly once');
 });
 Deno.test('missing member session rejected before SDK', async () => {
   const response = await app.handle(new Request(`${base}/me`));

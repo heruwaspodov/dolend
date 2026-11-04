@@ -52,3 +52,42 @@ begin
  values(owner,(select id from public.workspaces where created_by_profile_id=owner limit 1),(select id from public.activity_types limit 1),'Completed dynamic fixture',now()-interval '2 days',now()-interval '1 day',now()-interval '3 days',2,'dynamic','completed',10000) returning id into completed_event;
  begin perform public.cancel_dynamic_event(completed_event,owner,'retain','Too late','event-cancel-completed'); raise exception 'EXPECTED_COMPLETED_REJECTION'; exception when others then if sqlerrm<>'EVENT_ALREADY_COMPLETED' then raise; end if; end;
 end; $$;
+
+do $$
+declare owner uuid='10000000-0000-4000-8000-000000000001'; other uuid='10000000-0000-4000-8000-000000000002';
+ e uuid; p uuid; c uuid; m public.organizer_payment_methods; payment public.manual_payment_records;
+ qris text='qris/10000000-0000-4000-8000-000000000001/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa.png';
+ proof text; orphan text='qris/10000000-0000-4000-8000-000000000001/cccccccc-cccc-4ccc-8ccc-cccccccccccc.jpg';
+begin
+ insert into public.private_uploads(storage_reference,purpose,owner_profile_id,content_type,size_bytes)
+ values(qris,'qris',owner,'image/png',512);
+ begin
+  perform public.create_organizer_payment_method(other,'static_qris','Bukan pemilik',qris,null);
+  raise exception 'EXPECTED_UPLOAD_OWNER_REJECTION';
+ exception when others then if sqlerrm<>'INVALID_UPLOAD' then raise; end if; end;
+ m=public.create_organizer_payment_method(owner,'static_qris','QRIS fixture',qris,null);
+ if not exists(select 1 from public.private_uploads where storage_reference=qris and attachment_id=m.id and attached_at is not null) then raise exception 'QRIS_UPLOAD_NOT_ATTACHED'; end if;
+
+ insert into public.events(organizer_profile_id,workspace_id,activity_type_id,title,starts_at,ends_at,registration_closes_at,capacity,contribution_mode,status,estimated_total_cost)
+ values(owner,(select id from public.workspaces where created_by_profile_id=owner limit 1),(select id from public.activity_types limit 1),'Private upload fixture',now()+interval '1 day',now()+interval '2 days',now()+interval '23 hours',2,'dynamic','recruiting',2000) returning id into e;
+ select id into p from public.join_event(e,'20000000-0000-4000-8000-000000000001',owner);
+ perform public.lock_contributions(e,owner);
+ select id into c from public.participant_charges where participant_id=p;
+ insert into public.manual_event_methods(event_id,method_id) values(e,m.id);
+ proof='proof/'||c::text||'/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb.jpg';
+ insert into public.private_uploads(storage_reference,purpose,owner_profile_id,charge_id,content_type,size_bytes)
+ values(proof,'payment_proof',owner,c,'image/jpeg',1024);
+ payment=public.report_manual_payment(c,m.id,2000,'proof-fixture',owner,null,proof);
+ if not exists(select 1 from public.private_uploads where storage_reference=proof and attachment_id=payment.id and attached_at is not null) then raise exception 'PROOF_UPLOAD_NOT_ATTACHED'; end if;
+ perform public.report_manual_payment(c,m.id,2000,'proof-fixture',owner,null,proof);
+ begin
+  perform public.report_manual_payment(c,m.id,2000,'proof-reuse',owner,null,proof);
+  raise exception 'EXPECTED_UPLOAD_REUSE_REJECTION';
+ exception when others then if sqlerrm<>'INVALID_UPLOAD' then raise; end if; end;
+
+ insert into public.private_uploads(storage_reference,purpose,owner_profile_id,content_type,size_bytes,expires_at)
+ values(orphan,'qris',owner,'image/jpeg',256,now()-interval '1 minute');
+ perform public.claim_expired_private_uploads(10);
+ if not exists(select 1 from public.private_uploads where storage_reference=orphan and cleanup_started_at is not null and cleanup_attempts=1) then raise exception 'ORPHAN_NOT_CLAIMED'; end if;
+ if exists(select 1 from public.private_uploads where storage_reference=qris and cleanup_started_at is not null) then raise exception 'ATTACHED_UPLOAD_CLAIMED'; end if;
+end; $$;

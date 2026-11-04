@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { DeleteObjectCommand, GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 export type StorageProvider = 'supabase' | 's3';
@@ -7,6 +7,7 @@ export type StoredObjectInput = { bytes: Uint8Array; contentType: 'image/png' | 
 
 export interface ObjectStorageBackend {
   put(key: string, input: StoredObjectInput): Promise<void>;
+  remove(key: string): Promise<void>;
   exists(key: string): Promise<boolean>;
   signedDownloadUrl(key: string, expiresIn: number): Promise<string>;
 }
@@ -29,15 +30,25 @@ export class ObjectStorageRouter {
     return this.resolve(reference).key;
   }
 
+  referenceForKey(key:string) {
+    const safe=safeKey(key);
+    return this.active === 'supabase' ? safe : `${this.active}:${safe}`;
+  }
+
   async put(key: string, input: StoredObjectInput) {
     const safe = safeKey(key);
     await this.backends[this.active]!.put(safe,input);
-    return this.active === 'supabase' ? safe : `${this.active}:${safe}`;
+    return this.referenceForKey(safe);
   }
 
   async exists(reference: string) {
     const resolved=this.resolve(reference);
     return this.backends[resolved.provider]!.exists(resolved.key);
+  }
+
+  async remove(reference: string) {
+    const resolved=this.resolve(reference);
+    await this.backends[resolved.provider]!.remove(resolved.key);
   }
 
   async signedDownloadUrl(reference: string, expiresIn = 120) {
@@ -60,6 +71,10 @@ class SupabaseStorageBackend implements ObjectStorageBackend {
     const {error}=await this.client.storage.from(this.bucket).upload(key,input.bytes,{contentType:input.contentType,upsert:false});
     if(error)throw error;
   }
+  async remove(key: string) {
+    const {error}=await this.client.storage.from(this.bucket).remove([key]);
+    if(error)throw error;
+  }
   async exists(key: string) {
     const {data,error}=await this.client.storage.from(this.bucket).download(key);
     return !error&&!!data;
@@ -78,6 +93,9 @@ class S3StorageBackend implements ObjectStorageBackend {
   }
   async put(key: string,input: StoredObjectInput) {
     await this.client.send(new PutObjectCommand({Bucket:this.bucket,Key:key,Body:input.bytes,ContentType:input.contentType}));
+  }
+  async remove(key: string) {
+    await this.client.send(new DeleteObjectCommand({Bucket:this.bucket,Key:key}));
   }
   async exists(key: string) {
     try {await this.client.send(new HeadObjectCommand({Bucket:this.bucket,Key:key}));return true;}

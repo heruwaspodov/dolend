@@ -52,6 +52,8 @@ Supabase menyediakan reserved secrets seperti `SUPABASE_URL`, anon/publishable c
 
 Referensi file lama tanpa prefix selalu dibaca dari Supabase. Objek baru pada provider S3 disimpan sebagai referensi `s3:<key>`, sehingga kedua backend dapat aktif bersamaan selama migrasi. Mengganti provider tidak memindahkan objek otomatis; salin objek secara terverifikasi sebelum mencabut kredensial Supabase lama.
 
+Lifecycle upload tidak bergantung pada provider. Row staging dibuat sebelum object, berlaku 24 jam, dan dipasang atomik ke metode QRIS atau laporan pembayaran. `POST /internal/storage/orphans/cleanup` memakai `SUPABASE_SERVICE_ROLE_KEY` sebagai Bearer credential; jangan panggil dari browser atau menaruh key di URL/log. T19 akan menjadwalkan endpoint ini dari secret manager. Sampai itu aktif, jalankan cleanup hanya sebagai prosedur backend terkontrol setelah migration dan Function versinya cocok.
+
 ## Firebase dan CI
 
 Firebase Hosting memakai `.firebaserc` dan `firebase.json`, bukan Firebase client SDK sehingga tidak memerlukan Firebase web env. GitHub Actions memakai OIDC untuk deploy. Konfigurasi Supabase yang public disimpan sebagai repository Actions variables dan dimasukkan saat static build; tidak ada database password atau service-role key di GitHub Actions.

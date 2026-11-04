@@ -25,7 +25,7 @@ Prefix `/dolend-api/v1`. Organizer wajib JWT Google terverifikasi. Guest memakai
 | POST /events/:id/cancel | Organizer membatalkan semua peserta aktif dengan policy retain/waive; event, ledger, dan riwayat tetap tersimpan |
 | GET/POST /payment-settings | List/tambah type static_qris/bank_transfer/cash, recipient_name, storage_path atau bank_details |
 | PATCH /payment-settings/:id | is_active; hanya pemilik metode |
-| POST /payment-settings/qris-image | Body file PNG/JPG mentah, maksimal 2 MB; menghasilkan storage_path |
+| POST /payment-settings/qris-image | Body file PNG/JPG mentah, maksimal 2 MiB; menghasilkan storage_path |
 | POST /events/:id/payment-methods | method_id dan enabled; metode milik organizer |
 | GET /charges/:id | Tagihan scoped, balance, laporan dan metode aktif beserta signed download URL |
 | POST /charges/:id/proof | File PNG/JPG mentah, opsional; akses scoped |
@@ -33,9 +33,12 @@ Prefix `/dolend-api/v1`. Organizer wajib JWT Google terverifikasi. Guest memakai
 | GET /events/:id/payment-reviews | Queue privat organizer, bukti signed URL |
 | POST /payments/:id/review | decision verified/rejected dan reason; receipt idempotent |
 | POST /charges/:id/adjustments | type refund/adjustment, amount, reason, idempotency_key; refund dibatasi receipt |
+| POST /internal/storage/orphans/cleanup | Worker service-only; klaim dan hapus maksimal 100 staging upload expired melalui provider asal |
 
 Halaman akun menyediakan pengaturan metode per event, review lewat pilihan event, dan pencatatan tunai. Halaman `/payment/?charge=<uuid>#booking=<token>` untuk guest; member memakai sesi Google. Guest menemukan tagihan sesudah lock dengan membuka ulang tautan booking. Halaman event menawarkan guest booking bila tidak login, atau join member bila ada sesi Google. Organizer dapat ikut memakai akun yang sama dan baru dihitung ketika menekan ikut. Implementasi lokal `/dashboard/`, `/event/create/`, dan `/event/manage/` mencakup create recruiting, planning, roster tambah/cancel, rotasi tautan guest, lock, late-join charge eksplisit, confirmed/completed, pembatalan event tanpa menghapus ledger, serta ringkasan charged/received/refunded/outstanding.
 
-Cash dicatat organizer lewat form penerimaan tunai, memakai endpoint laporan lalu review. Refund endpoint adalah pencatatan refund manual yang telah dilakukan, bukan instruksi transfer otomatis. Pembersihan orphan upload, rate limit upload/report, pengujian concurrency hosted, dan drill restore produksi masih gate hardening sebelum release MVP penuh.
+Cash dicatat organizer lewat form penerimaan tunai, memakai endpoint laporan lalu review. Refund endpoint adalah pencatatan refund manual yang telah dilakukan, bukan instruksi transfer otomatis. Rate limit upload/report, scheduler cleanup T19, dan drill restore produksi masih gate hardening sebelum release MVP penuh.
 
 File privat memakai adapter `supabase` atau `s3`. Supabase adalah default untuk E2E hosted saat ini. Path lama tanpa prefix tetap menunjuk Supabase; referensi `s3:` menunjuk Amazon S3 atau layanan S3-compatible. API tetap memvalidasi owner/guest sebelum upload maupun signed download URL, sehingga browser tidak pernah menerima kredensial provider.
+
+Kontrak file final: PNG/JPEG maksimum 2 MiB, dimensi maksimum 8192 × 8192, dan signed download URL 120 detik. Path hanya berisi UUID profil/tagihan serta UUID object acak—tidak pernah nomor telepon. Upload staging kedaluwarsa setelah 24 jam; attachment QRIS/bukti bersifat sekali pakai dan atomik dengan record bisnis. Registry cleanup memberi lease 15 menit agar worker paralel atau retry tidak berebut object yang sama.

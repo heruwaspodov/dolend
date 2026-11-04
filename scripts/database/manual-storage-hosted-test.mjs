@@ -46,7 +46,10 @@ try{
  const ownerWorkspace=workspaceRows.find(row=>row.created_by_profile_id===users[0]);assert(ownerWorkspace,'owner workspace was not bootstrapped');
  const image=Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=','base64'));
  let r=await request('/payment-settings/qris-image',{token:owner,method:'POST',body:image});const qris=await payload(r);const path=qris.storage_path;objects.push(path);
+ const stagedQris=ok(await admin.from('private_uploads').select('purpose,content_type,size_bytes,attached_at').eq('storage_reference',path).single());
+ assert.equal(stagedQris.purpose,'qris');assert.equal(stagedQris.content_type,'image/png');assert.equal(Number(stagedQris.size_bytes),image.byteLength);assert.equal(stagedQris.attached_at,null);
  r=await request('/payment-settings',{token:owner,method:'POST',body:{type:'static_qris',recipient_name:'Synthetic fixture',storage_path:path}});const method=(await payload(r)).id;
+ assert(ok(await admin.from('private_uploads').select('attachment_type,attachment_id,attached_at').eq('storage_reference',path).single()).attached_at,'QRIS upload was not attached');
  r=await request(`/payment-settings/${method}`,{token:other,method:'PATCH',body:{is_active:false}});assert.equal(r.status,403);
  const publicFile=await fetch(`${url}/storage/v1/object/public/dolend-payments/${path}`);assert.notEqual(publicFile.status,200);
  const activity=(await payload(await request('/activity-types')))[0];
@@ -71,25 +74,36 @@ try{
  assert(bookingStatus.charge_id,'locked guest booking must expose a charge');
  const charge=bookingStatus.charge_id;
  r=await request(`/charges/${charge}/proof`,{bookingToken:booking.booking_token,method:'POST',body:image});const proof=(await payload(r)).storage_path;objects.push(proof);
+ const stagedProof=ok(await admin.from('private_uploads').select('purpose,charge_id,attached_at').eq('storage_reference',proof).single());assert.equal(stagedProof.purpose,'payment_proof');assert.equal(stagedProof.charge_id,charge);assert.equal(stagedProof.attached_at,null);
  const invalidToken=randomBytes(32).toString('base64url');
  r=await request(`/charges/${charge}/proof`,{bookingToken:invalidToken,method:'POST',body:image});assert.equal(r.status,403,'another guest token uploaded proof');
  const idempotencyKey=`hosted-proof-${randomUUID()}`;
  const payments=await Promise.all(Array.from({length:10},()=>request(`/charges/${charge}/payments`,{bookingToken:booking.booking_token,method:'POST',body:{method_id:method,amount:120000,idempotency_key:idempotencyKey,proof_storage_path:proof}}).then(payload)));
  const payment=payments[0];assert(payments.every(row=>row.id===payment.id&&row.status==='pending_verification'),'concurrent payment retries diverged');
+ const attachedProof=ok(await admin.from('private_uploads').select('attachment_type,attachment_id,attached_at').eq('storage_reference',proof).single());assert.equal(attachedProof.attachment_id,payment.id);assert(attachedProof.attached_at,'proof upload was not attached');
  r=await request(`/events/${event.id}/payment-reviews`,{token:other});assert.equal(r.status,403,'another organizer read payment proof');
  const reviews=await payload(await request(`/events/${event.id}/payment-reviews`,{token:owner}));
  const review=reviews.find(row=>row.id===payment.id);assert(review?.proof_url,'owner review must contain a signed proof URL');
  const signedProof=await fetch(review.proof_url);assert.equal(signedProof.status,200,'signed proof URL must be readable');
+ const shortUrl=ok(await admin.storage.from('dolend-payments').createSignedUrl(proof,1)).signedUrl;
+ await new Promise(resolve=>setTimeout(resolve,2100));
+ assert.notEqual((await fetch(shortUrl)).status,200,'expired signed proof URL remained readable');
  const publicProof=await fetch(`${url}/storage/v1/object/public/dolend-payments/${proof}`);assert.notEqual(publicProof.status,200,'proof object became public');
  const verified=await Promise.all(Array.from({length:10},()=>request(`/payments/${payment.id}/review`,{token:owner,method:'POST',body:{decision:'verified',reason:'Hosted concurrent verification'}}).then(payload)));
  assert(verified.every(row=>row.id===payment.id&&row.status==='verified'),'concurrent reviews diverged');
  const receipts=ok(await admin.from('contribution_ledger').select('id').eq('payment_id',payment.id).eq('entry_type','receipt'));
  assert.equal(receipts.length,1,'concurrent reviews created duplicate receipts');
  r=await request(`/payment-settings/${method}`,{token:owner,method:'PATCH',body:{is_active:false}});assert.equal(r.status,200);
- console.log('PASS hosted QRIS settings, real guest-token proof flow, and concurrent dynamic payment lock/report/review with one receipt');
- await writeFile('docs/manual-storage-hosted-results.json',JSON.stringify({date:jakartaDate(),project,passed:true,scope:'Supabase Storage, venue, and versioned event-edit API with synthetic Google-metadata organizer sessions and real guest booking token; optimistic conflict/audit/cross-owner denial, coordinate snapshot/Maps URL generation/foreign-host denial, QRIS upload/save/disable, guest proof upload/report/review signed URL, 10 concurrent lock/report/review requests with one payment and receipt, cross-token denial, private objects; not real Google OAuth'},null,2)+'\n');
+ r=await request('/payment-settings/qris-image',{token:owner,method:'POST',body:image});const orphan=(await payload(r)).storage_path;objects.push(orphan);
+ ok(await admin.from('private_uploads').update({expires_at:new Date(Date.now()-60000).toISOString()}).eq('storage_reference',orphan));
+ const cleanupResponse=await fetch(`${url}/functions/v1/dolend-api/v1/internal/storage/orphans/cleanup`,{method:'POST',headers:{apikey:service,authorization:`Bearer ${service}`},signal:AbortSignal.timeout(30000)});
+ const cleanup=await payload(cleanupResponse);assert(cleanup.deleted>=1,'expired orphan was not deleted');
+ assert.equal(ok(await admin.from('private_uploads').select('storage_reference').eq('storage_reference',orphan)).length,0,'orphan registry row survived cleanup');
+ assert.equal((await admin.storage.from('dolend-payments').download(orphan)).data,null,'orphan object survived cleanup');
+ console.log('PASS hosted private lifecycle, expired URL/orphan cleanup, real guest-token proof flow, and concurrent lock/report/review with one receipt');
+ await writeFile('docs/manual-storage-hosted-results.json',JSON.stringify({date:jakartaDate(),project,passed:true,scope:'Supabase Storage lifecycle, venue, and versioned event-edit API with synthetic Google-metadata organizer sessions and real guest booking token; staging/atomic attachment, expired signed URL denial, 24-hour orphan claim/delete, optimistic conflict/audit/cross-owner denial, coordinate snapshot/Maps URL generation/foreign-host denial, QRIS upload/save/disable, guest proof upload/report/review, 10 concurrent lock/report/review requests with one payment and receipt, cross-token denial, private objects; not real Google OAuth'},null,2)+'\n');
 }catch(error){console.error('Hosted storage test:',error.message);throw error;}finally{
- if(objects.length)ok(await admin.storage.from('dolend-payments').remove(objects));
+ if(objects.length){ok(await admin.storage.from('dolend-payments').remove(objects));ok(await admin.from('private_uploads').delete().in('storage_reference',objects));}
  if(users.length){
   const ids=users.map(id=>`'${id}'::uuid`).join(',');
   const eventIds=events.length?events.map(id=>`'${id}'::uuid`).join(','):'null::uuid';

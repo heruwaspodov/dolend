@@ -4,9 +4,10 @@ import { AccountServiceError, createSupabaseAccountService, type AccountIdentity
 import { clientAddressFrom, createSupabaseGuestBookingService, GuestBookingError, type GuestBookingService } from './guest-booking.ts';
 import { createObjectStorageFromEnv, type ObjectStorageRouter } from './object-storage.ts';
 import { createSupabaseEventInviteService, type EventInviteService } from './event-invite.ts';
+import { createSupabasePrivateUploadService, type PrivateUploadService } from './private-uploads.ts';
 
-type Options = { allowedOrigins: string[]; pocMode?: boolean; accountService?: AccountService | null; guestBookingService?: GuestBookingService | null; objectStorage?: ObjectStorageRouter | null; eventInviteService?: EventInviteService | null };
-export function createApp({ allowedOrigins, pocMode = false, accountService, guestBookingService, objectStorage, eventInviteService }: Options) {
+type Options = { allowedOrigins: string[]; pocMode?: boolean; accountService?: AccountService | null; guestBookingService?: GuestBookingService | null; objectStorage?: ObjectStorageRouter | null; eventInviteService?: EventInviteService | null; privateUploadService?:PrivateUploadService|null; storageCleanupKey?:string };
+export function createApp({ allowedOrigins, pocMode = false, accountService, guestBookingService, objectStorage, eventInviteService, privateUploadService, storageCleanupKey }: Options) {
   const url = Deno.env.get('SUPABASE_URL');
   const key = Deno.env.get('SUPABASE_PUBLISHABLE_KEY') ?? Deno.env.get('SUPABASE_ANON_KEY');
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -17,6 +18,7 @@ export function createApp({ allowedOrigins, pocMode = false, accountService, gue
     : guestBookingService;
   const files=objectStorage===undefined?createObjectStorageFromEnv(name=>Deno.env.get(name),url&&serviceRoleKey?{url,serviceKey:serviceRoleKey}:null):objectStorage;
   const eventInvites=eventInviteService===undefined&&url&&serviceRoleKey?createSupabaseEventInviteService(url,serviceRoleKey):eventInviteService;
+  const privateUploads=privateUploadService===undefined&&url&&serviceRoleKey&&files?createSupabasePrivateUploadService(url,serviceRoleKey,files):privateUploadService;
   const tokenFrom = (request: Request) => request.headers.get('authorization')?.match(/^Bearer (.+)$/i)?.[1];
   const authenticate = async (request: Request): Promise<{ token: string; identity: AccountIdentity } | null> => {
     const token = tokenFrom(request);
@@ -83,7 +85,7 @@ export function createApp({ allowedOrigins, pocMode = false, accountService, gue
       set.status = 500;
       return { error: { code: 'INTERNAL_ERROR', message: 'Terjadi kesalahan.' }, request_id };
     })
-    .use(manualPaymentRoutes(accounts, url, serviceRoleKey, rateLimitPepper, guestBookings, files, eventInvites))
+    .use(manualPaymentRoutes(accounts, url, serviceRoleKey, rateLimitPepper, guestBookings, files, eventInvites, privateUploads, storageCleanupKey??serviceRoleKey))
     .get('/health', ({ requestId }) => ({ data: { status: 'ok', service: 'dolend-api' }, request_id: requestId }))
     .get('/me', async ({ request, set, requestId }) => {
       if (!tokenFrom(request)) {
