@@ -63,7 +63,7 @@ export function serviceBearerMatches(request:Request,serviceKey?:string) {
   for(let index=0;index<serviceKey.length;index++)mismatch|=supplied.charCodeAt(index)^serviceKey.charCodeAt(index);
   return mismatch===0;
 }
-export function manualPaymentRoutes(accounts: AccountService | null | undefined, url?: string, serviceKey?: string, rateLimitPepper?: string, guestBookingService?: GuestBookingService | null, objectStorage?: ObjectStorageRouter | null, eventInviteService?: EventInviteService | null, privateUploadService?:PrivateUploadService|null, storageCleanupKey?:string) {
+export function manualPaymentRoutes(accounts: AccountService | null | undefined, url?: string, serviceKey?: string, rateLimitPepper?: string, guestBookingService?: GuestBookingService | null, objectStorage?: ObjectStorageRouter | null, eventInviteService?: EventInviteService | null, privateUploadService?:PrivateUploadService|null, storageCleanupKey?:string, maintenanceKey?:string) {
   const db = url && serviceKey ? createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } }) : null;
   const guestBookings=guestBookingService ?? (url&&serviceKey&&rateLimitPepper&&rateLimitPepper.length>=32?createSupabaseGuestBookingService(url,serviceKey,rateLimitPepper):null);
   async function actor(request: Request) {
@@ -480,5 +480,9 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
     .post('/internal/storage/orphans/cleanup',async ({request})=>{
       if(!serviceBearerMatches(request,storageCleanupKey))throw new FinanceError('FORBIDDEN');
       try{return {data:await uploads().cleanup(100)};}catch{throw new FinanceError('STORAGE_UNAVAILABLE');}
-    },{parse:'none'});
+    },{parse:'none'})
+    .post('/internal/jobs/payment-maintenance',async ({request,body})=>{
+      if(!serviceBearerMatches(request,maintenanceKey))throw new FinanceError('FORBIDDEN');
+      return {data:await rpc('run_payment_maintenance',{p_limit:body.limit??100})};
+    },{body:t.Object({limit:t.Optional(t.Integer({minimum:1,maximum:500}))},{additionalProperties:false})});
 }

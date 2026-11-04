@@ -449,6 +449,8 @@ Setiap task adalah pekerjaan yang dapat ditinjau. Dependencies menyebut ID task 
 
 ### T19 — Supabase Cron, outbox, dan operasional
 
+**Status: Worker expiry bounded selesai lokal, 4 November 2026.** RPC maintenance memproses maksimal 1–500 event yang memiliki hold/attempt jatuh tempo dan aman dipanggil ulang. Endpoint internal memakai `INTERNAL_JOB_KEY`, bukan kredensial browser atau secret di SQL. Scheduler hosted, retry/dead-letter outbox, monitoring, dan provider reconciliation tetap belum dikerjakan.
+
 - **Description:** deploy job expiry hold/review, overdue, provider reconciliation, cleanup, dan retry outbox yang bounded.
 - **Deliverables:** Cron migrations/config, job endpoint auth, locks/dedupe, monitoring, retry/dead-letter runbook.
 - **Dependencies:** T14, T15, T16, T17.

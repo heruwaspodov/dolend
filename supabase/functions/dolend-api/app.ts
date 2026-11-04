@@ -6,8 +6,8 @@ import { createObjectStorageFromEnv, type ObjectStorageRouter } from './object-s
 import { createSupabaseEventInviteService, type EventInviteService } from './event-invite.ts';
 import { createSupabasePrivateUploadService, type PrivateUploadService } from './private-uploads.ts';
 
-type Options = { allowedOrigins: string[]; pocMode?: boolean; accountService?: AccountService | null; guestBookingService?: GuestBookingService | null; objectStorage?: ObjectStorageRouter | null; eventInviteService?: EventInviteService | null; privateUploadService?:PrivateUploadService|null; storageCleanupKey?:string };
-export function createApp({ allowedOrigins, pocMode = false, accountService, guestBookingService, objectStorage, eventInviteService, privateUploadService, storageCleanupKey }: Options) {
+type Options = { allowedOrigins: string[]; pocMode?: boolean; accountService?: AccountService | null; guestBookingService?: GuestBookingService | null; objectStorage?: ObjectStorageRouter | null; eventInviteService?: EventInviteService | null; privateUploadService?:PrivateUploadService|null; storageCleanupKey?:string; maintenanceKey?:string };
+export function createApp({ allowedOrigins, pocMode = false, accountService, guestBookingService, objectStorage, eventInviteService, privateUploadService, storageCleanupKey, maintenanceKey }: Options) {
   const url = Deno.env.get('SUPABASE_URL');
   const key = Deno.env.get('SUPABASE_PUBLISHABLE_KEY') ?? Deno.env.get('SUPABASE_ANON_KEY');
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -85,7 +85,7 @@ export function createApp({ allowedOrigins, pocMode = false, accountService, gue
       set.status = 500;
       return { error: { code: 'INTERNAL_ERROR', message: 'Terjadi kesalahan.' }, request_id };
     })
-    .use(manualPaymentRoutes(accounts, url, serviceRoleKey, rateLimitPepper, guestBookings, files, eventInvites, privateUploads, storageCleanupKey??serviceRoleKey))
+    .use(manualPaymentRoutes(accounts, url, serviceRoleKey, rateLimitPepper, guestBookings, files, eventInvites, privateUploads, storageCleanupKey??serviceRoleKey, maintenanceKey??Deno.env.get('INTERNAL_JOB_KEY')))
     .get('/health', ({ requestId }) => ({ data: { status: 'ok', service: 'dolend-api' }, request_id: requestId }))
     .get('/me', async ({ request, set, requestId }) => {
       if (!tokenFrom(request)) {

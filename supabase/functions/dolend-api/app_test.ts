@@ -48,6 +48,13 @@ Deno.test('orphan cleanup requires the server credential',async()=>{
   assert(response.status===200,`cleanup failed: ${response.status}`);
   assert((await response.json()).data.deleted===1&&calls===1,'cleanup service not called exactly once');
 });
+Deno.test('payment maintenance rejects missing or wrong job credential',async()=>{
+  const workerApp=createApp({allowedOrigins:[],maintenanceKey:'maintenance-key'});
+  const endpoint=`${base}/internal/jobs/payment-maintenance`;
+  const request=(authorization?:string)=>new Request(endpoint,{method:'POST',headers:{'content-type':'application/json',...(authorization?{authorization}:{})},body:'{}'});
+  assert((await workerApp.handle(request())).status===403,'missing job credential accepted');
+  assert((await workerApp.handle(request('Bearer wrong-key'))).status===403,'wrong job credential accepted');
+});
 Deno.test('missing member session rejected before SDK', async () => {
   const response = await app.handle(new Request(`${base}/me`));
   assert(response.status === 401, 'missing JWT accepted');

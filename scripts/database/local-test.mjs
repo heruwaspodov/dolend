@@ -96,6 +96,13 @@ try {
   await db.query('select * from public.record_refund($1,$2,$3,$4)',[refund.id,organizer,'manual-refund','fixture/refund.png']);
   await db.query('select * from public.record_refund($1,$2,$3,$4)',[refund.id,organizer,'manual-refund','fixture/refund.png']);
   assert.equal((await query("select count(*)::int n from public.payment_ledger where invoice_id=$1 and entry_type='refund'",[invoice.id]))[0].n,1); checks++;
+  const maintenanceEvent=await event('before_event',1);const maintenanceParticipant=await join(maintenanceEvent);
+  await db.exec('alter table public.event_participants disable trigger guard_participant');
+  try{await db.query("update public.event_participants set hold_expires_at=now()-interval '1 second' where id=$1",[maintenanceParticipant.id]);}finally{await db.exec('alter table public.event_participants enable trigger guard_participant');}
+  const [maintenance]=await query('select * from public.run_payment_maintenance($1)',[10]);
+  assert.equal(maintenance.events_processed,1);assert.equal(maintenance.participants_expired,1);
+  const [maintenanceReplay]=await query('select * from public.run_payment_maintenance($1)',[10]);
+  assert.equal(maintenanceReplay.events_processed,0);assert.equal(maintenanceReplay.participants_expired,0);checks++;
   const post=await event('after_event');const postP=await join(post);
   assert.equal(postP.status,'confirmed');assert.equal((await query('select status from public.invoices where participant_id=$1',[postP.id]))[0].status,'open'); checks++;
   const postInvoice=(await query('select id from public.invoices where participant_id=$1',[postP.id]))[0];

@@ -43,6 +43,7 @@ Prefix `/dolend-api/v1`. Organizer wajib JWT Google terverifikasi. Guest memakai
 | POST /payments/:id/review | decision verified/rejected dan reason; receipt idempotent |
 | POST /charges/:id/adjustments | type refund/adjustment, amount, reason, idempotency_key; refund dibatasi receipt |
 | POST /internal/storage/orphans/cleanup | Worker service-only; klaim dan hapus maksimal 100 staging upload expired melalui provider asal |
+| POST /internal/jobs/payment-maintenance | Worker ber-secret terpisah; expiry hold/review lintas event dengan batch maksimal 500 |
 
 Halaman akun menyediakan pengaturan metode per event, review lewat pilihan event, dan pencatatan tunai. Halaman `/payment/?charge=<uuid>#booking=<token>` untuk guest; member memakai sesi Google. Guest menemukan tagihan sesudah lock dengan membuka ulang tautan booking. Halaman event menawarkan guest booking bila tidak login, atau join member bila ada sesi Google. Organizer dapat ikut memakai akun yang sama dan baru dihitung ketika menekan ikut. Implementasi lokal `/dashboard/`, `/event/create/`, dan `/event/manage/` mencakup create recruiting, planning, roster tambah/cancel, rotasi tautan guest, lock, late-join charge eksplisit, confirmed/completed, pembatalan event tanpa menghapus ledger, serta ringkasan charged/received/refunded/outstanding.
 

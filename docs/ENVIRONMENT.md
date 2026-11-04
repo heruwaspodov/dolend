@@ -52,7 +52,7 @@ Supabase menyediakan reserved secrets seperti `SUPABASE_URL`, anon/publishable c
 
 Referensi file lama tanpa prefix selalu dibaca dari Supabase. Objek baru pada provider S3 disimpan sebagai referensi `s3:<key>`, sehingga kedua backend dapat aktif bersamaan selama migrasi. Mengganti provider tidak memindahkan objek otomatis; salin objek secara terverifikasi sebelum mencabut kredensial Supabase lama.
 
-Lifecycle upload tidak bergantung pada provider. Row staging dibuat sebelum object, berlaku 24 jam, dan dipasang atomik ke metode QRIS atau laporan pembayaran. `POST /internal/storage/orphans/cleanup` memakai `SUPABASE_SERVICE_ROLE_KEY` sebagai Bearer credential; jangan panggil dari browser atau menaruh key di URL/log. T19 akan menjadwalkan endpoint ini dari secret manager. Sampai itu aktif, jalankan cleanup hanya sebagai prosedur backend terkontrol setelah migration dan Function versinya cocok.
+Lifecycle upload tidak bergantung pada provider. Row staging dibuat sebelum object, berlaku 24 jam, dan dipasang atomik ke metode QRIS atau laporan pembayaran. `POST /internal/storage/orphans/cleanup` memakai `SUPABASE_SERVICE_ROLE_KEY` sebagai Bearer credential. Sweep pembayaran memakai `POST /internal/jobs/payment-maintenance` dan `INTERNAL_JOB_KEY` terpisah. Jangan panggil endpoint internal dari browser atau menaruh key di URL/log. Scheduler hosted belum diaktifkan; sampai itu aktif, jalankan worker hanya sebagai prosedur backend terkontrol setelah migration dan Function versinya cocok.
 
 ## Firebase dan CI
 
