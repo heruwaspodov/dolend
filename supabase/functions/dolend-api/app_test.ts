@@ -220,6 +220,7 @@ Deno.test('venue links only accept HTTPS Google Maps destinations', async () => 
   assert(isSafeMapsUrl(''),'empty optional URL rejected');
   assert(isSafeMapsUrl('https://www.google.com/maps/place/Jakarta'),'Google Maps URL rejected');
   assert(isSafeMapsUrl('https://maps.google.com/?q=Jakarta'),'maps.google.com URL rejected');
+  assert(isSafeMapsUrl('https://maps.app.goo.gl/o2iqwBVxs92kWVyZ6'),'official Google Maps short URL rejected');
   assert(!isSafeMapsUrl('http://www.google.com/maps/place/Jakarta'),'HTTP Maps URL accepted');
   assert(!isSafeMapsUrl('https://evil.example/maps'),'foreign venue URL accepted');
   assert(!isSafeMapsUrl('https://user@www.google.com/maps/place/Jakarta'),'credentialed Maps URL accepted');

@@ -23,7 +23,7 @@ export function isSafeMapsUrl(value: string) {
   if (!value) return true;
   try {
     const url = new URL(value);
-    return url.protocol === 'https:' && !url.username && !url.password && !url.port && (url.hostname === 'maps.google.com' || (url.hostname === 'www.google.com' && url.pathname.startsWith('/maps')));
+    return url.protocol === 'https:' && !url.username && !url.password && !url.port && (url.hostname === 'maps.app.goo.gl' || url.hostname === 'maps.google.com' || (url.hostname === 'www.google.com' && url.pathname.startsWith('/maps')));
   } catch {
     return false;
   }
