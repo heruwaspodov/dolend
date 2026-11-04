@@ -48,7 +48,7 @@ Migration SQL pada `supabase/migrations/` adalah source of truth schema. Ini men
 
 ## Hosted Edge Function
 
-Supabase menyediakan reserved secrets seperti `SUPABASE_URL`, anon/publishable compatibility key, dan service-role key kepada Edge Function hosted. `RATE_LIMIT_PEPPER` harus dibuat acak per environment dan dikelola melalui `supabase secrets set`, bukan file yang di-commit. `STORAGE_PROVIDER=supabase` memakai bucket private bawaan dan tidak memerlukan secret tambahan. Provider `s3` memakai secret server-only yang juga harus dikelola melalui secret manager, bukan Git. SMS dan payment secrets tetap belum dibuat karena provider ditunda.
+Supabase menyediakan reserved secrets seperti `SUPABASE_URL`, anon/publishable compatibility key, dan service-role key kepada Edge Function hosted. `RATE_LIMIT_PEPPER` dan `INTERNAL_JOB_KEY` harus acak, minimal 32 karakter per environment, dan dikelola melalui `supabase secrets set`, bukan file yang di-commit. `STORAGE_PROVIDER=supabase` memakai bucket private bawaan dan tidak memerlukan secret tambahan. Provider `s3` memakai secret server-only yang juga harus dikelola melalui secret manager, bukan Git. SMS dan payment secrets tetap belum dibuat karena provider ditunda.
 
 Referensi file lama tanpa prefix selalu dibaca dari Supabase. Objek baru pada provider S3 disimpan sebagai referensi `s3:<key>`, sehingga kedua backend dapat aktif bersamaan selama migrasi. Mengganti provider tidak memindahkan objek otomatis; salin objek secara terverifikasi sebelum mencabut kredensial Supabase lama.
 

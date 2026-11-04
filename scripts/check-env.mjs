@@ -24,6 +24,9 @@ assert.ok(['supabase', 's3'].includes(storageProvider), 'STORAGE_PROVIDER harus 
 if (storageProvider === 's3') {
   for (const name of ['S3_BUCKET','S3_REGION','S3_ACCESS_KEY_ID','S3_SECRET_ACCESS_KEY']) assert.ok(process.env[name]?.trim(), `${name} wajib saat STORAGE_PROVIDER=s3`);
 }
+for (const name of ['RATE_LIMIT_PEPPER','INTERNAL_JOB_KEY']) {
+  if (process.env[name]) assert.ok(process.env[name].length>=32, `${name} minimal 32 karakter`);
+}
 
 for (const [name, value] of Object.entries(process.env)) {
   if (name.startsWith('NEXT_PUBLIC_')) assert.ok(!/service_role|sb_secret_/i.test(value ?? ''), `${name} mengandung secret server`);

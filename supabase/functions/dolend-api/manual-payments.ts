@@ -58,7 +58,7 @@ export async function imageBytes(request: Request):Promise<{bytes:Uint8Array;mim
 
 export function serviceBearerMatches(request:Request,serviceKey?:string) {
   const supplied=request.headers.get('authorization')?.match(/^Bearer (.+)$/i)?.[1]??'';
-  if(!serviceKey||supplied.length!==serviceKey.length)return false;
+  if(!serviceKey||serviceKey.length<32||supplied.length!==serviceKey.length)return false;
   let mismatch=0;
   for(let index=0;index<serviceKey.length;index++)mismatch|=supplied.charCodeAt(index)^serviceKey.charCodeAt(index);
   return mismatch===0;

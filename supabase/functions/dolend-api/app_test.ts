@@ -26,6 +26,9 @@ Deno.test('health, CORS and prefix', async () => {
   assert(response.status === 200, `health: ${response.status}`);
   assert(response.headers.get('access-control-allow-origin') === 'http://localhost:3000', 'CORS missing');
   assert((await response.json()).data.service === 'dolend-api', 'wrong service');
+  assert(response.headers.get('cache-control')==='no-store','API response is cacheable');
+  assert(response.headers.get('x-content-type-options')==='nosniff','nosn header missing');
+  assert(response.headers.get('referrer-policy')==='no-referrer','referrer policy missing');
 });
 Deno.test('preflight allowed and untrusted origin rejected', async () => {
   const allowed = await app.handle(new Request(`${base}/me`, { method: 'OPTIONS', headers: { origin: 'http://localhost:3000' } }));
@@ -40,16 +43,19 @@ Deno.test('orphan cleanup requires the server credential',async()=>{
     upload:async()=>{throw new Error('not used');},
     cleanup:async()=>{calls++;return {claimed:1,deleted:1,failed:0};},
   };
-  const cleanupApp=createApp({allowedOrigins:[],privateUploadService,storageCleanupKey:'server-cleanup-key'});
+  const cleanupKey='server-cleanup-key'.padEnd(32,'x');
+  const cleanupApp=createApp({allowedOrigins:[],privateUploadService,storageCleanupKey:cleanupKey});
   const endpoint=`${base}/internal/storage/orphans/cleanup`;
+  const shortKeyApp=createApp({allowedOrigins:[],privateUploadService,storageCleanupKey:'too-short'});
+  assert((await shortKeyApp.handle(new Request(endpoint,{method:'POST',headers:{authorization:'Bearer too-short'}}))).status===403,'short cleanup credential accepted');
   assert((await cleanupApp.handle(new Request(endpoint,{method:'POST'}))).status===403,'missing cleanup credential accepted');
   assert((await cleanupApp.handle(new Request(endpoint,{method:'POST',headers:{authorization:'Bearer wrong-key'}}))).status===403,'wrong cleanup credential accepted');
-  const response=await cleanupApp.handle(new Request(endpoint,{method:'POST',headers:{authorization:'Bearer server-cleanup-key'}}));
+  const response=await cleanupApp.handle(new Request(endpoint,{method:'POST',headers:{authorization:`Bearer ${cleanupKey}`}}));
   assert(response.status===200,`cleanup failed: ${response.status}`);
   assert((await response.json()).data.deleted===1&&calls===1,'cleanup service not called exactly once');
 });
 Deno.test('payment maintenance rejects missing or wrong job credential',async()=>{
-  const workerApp=createApp({allowedOrigins:[],maintenanceKey:'maintenance-key'});
+  const workerApp=createApp({allowedOrigins:[],maintenanceKey:'maintenance-key'.padEnd(32,'x')});
   const endpoint=`${base}/internal/jobs/payment-maintenance`;
   const request=(authorization?:string)=>new Request(endpoint,{method:'POST',headers:{'content-type':'application/json',...(authorization?{authorization}:{})},body:'{}'});
   assert((await workerApp.handle(request())).status===403,'missing job credential accepted');

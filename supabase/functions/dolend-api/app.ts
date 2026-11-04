@@ -41,6 +41,9 @@ export function createApp({ allowedOrigins, pocMode = false, accountService, gue
   const app = new Elysia({ prefix: '/dolend-api/v1', aot: false })
     .derive(() => ({ requestId: crypto.randomUUID() }))
     .onRequest(({ request, set }) => {
+      set.headers['cache-control'] = 'no-store';
+      set.headers['x-content-type-options'] = 'nosniff';
+      set.headers['referrer-policy'] = 'no-referrer';
       const origin = request.headers.get('origin');
       if (origin && !allowedOrigins.includes(origin)) {
         set.status = 403;

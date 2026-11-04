@@ -458,6 +458,8 @@ Setiap task adalah pekerjaan yang dapat ditinjau. Dependencies menyebut ID task 
 
 ### T20 — Security, privacy, dan pengujian terpadu
 
+**Status: Hardening API dimulai lokal, 4 November 2026.** Semua respons API memakai `no-store`, `nosniff`, dan `no-referrer`; credential endpoint internal ditolak bila kurang dari 32 karakter dan env checker memvalidasi secret opsional tersebut. Negative tests mencakup header, secret kosong/salah, ownership, token, payload injection, RLS, dan ledger immutable. Audit terpadu hosted, dependency review final, retensi/deletion, serta restore drill tetap belum selesai.
+
 - **Description:** verifikasi trust boundaries, abuse controls, akses file, concurrency, dan seluruh alur MVP di staging.
 - **Deliverables:** RLS/API negative tests, payment fixtures, E2E mobile/desktop, risk register terkini, data retention/deletion procedure.
 - **Dependencies:** T06–T19.
