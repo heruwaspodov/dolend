@@ -80,7 +80,7 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
   async function rpc(name: string, params: Record<string, unknown>) {
     const { data, error } = await client().rpc(name, params);
     if (error) {
-      const domain=['EVENT_FULL','REGISTRATION_CLOSED','INVALID_EVENT_STATE','ATTENDANCE_RECORDED','REASON_REQUIRED','INVALID_UPLOAD','INVALID_PAYMENT_MODE','INVALID_BILLING_CONFIGURATION','INVALID_PAYMENT_DUE_AT','INVALID_PAYMENT_METHOD','INVOICE_NOT_PAYABLE','HOLD_EXPIRED','IDEMPOTENCY_MISMATCH'];
+      const domain=['EVENT_FULL','REGISTRATION_CLOSED','INVALID_EVENT_STATE','ATTENDANCE_RECORDED','REASON_REQUIRED','INVALID_UPLOAD','INVALID_PAYMENT_MODE','INVALID_BILLING_CONFIGURATION','INVALID_PAYMENT_DUE_AT','INVALID_PAYMENT_METHOD','INVOICE_NOT_PAYABLE','HOLD_EXPIRED','IDEMPOTENCY_MISMATCH','INVALID_EVIDENCE_STATE','EVIDENCE_REQUIRED','REVIEW_REASON_REQUIRED'];
       const known=domain.find(code=>error.message.includes(code));
       throw new FinanceError(error.code === '42501' ? 'FORBIDDEN' : error.message.includes('EVENT_VERSION_CONFLICT') ? 'VERSION_CONFLICT' : known??'CONFLICT');
     }
@@ -162,7 +162,7 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
     .onBeforeHandle(({set}) => {set.headers['cache-control']='no-store';})
     .onError(({ error, set }) => {
       const code = error instanceof Error ? error.message : '';
-      if (!['UNAUTHORIZED','FORBIDDEN','CONFLICT','VERSION_CONFLICT','EVENT_FULL','REGISTRATION_CLOSED','INVALID_EVENT_STATE','ATTENDANCE_RECORDED','REASON_REQUIRED','STORAGE_UNAVAILABLE','INVALID_IMAGE','IMAGE_TOO_LARGE','INVALID_REQUEST','INVALID_UPLOAD','INVALID_PAYMENT_MODE','INVALID_BILLING_CONFIGURATION','INVALID_PAYMENT_DUE_AT','INVALID_PAYMENT_METHOD','INVOICE_NOT_PAYABLE','HOLD_EXPIRED','IDEMPOTENCY_MISMATCH'].includes(code)) return;
+      if (!['UNAUTHORIZED','FORBIDDEN','CONFLICT','VERSION_CONFLICT','EVENT_FULL','REGISTRATION_CLOSED','INVALID_EVENT_STATE','ATTENDANCE_RECORDED','REASON_REQUIRED','STORAGE_UNAVAILABLE','INVALID_IMAGE','IMAGE_TOO_LARGE','INVALID_REQUEST','INVALID_UPLOAD','INVALID_PAYMENT_MODE','INVALID_BILLING_CONFIGURATION','INVALID_PAYMENT_DUE_AT','INVALID_PAYMENT_METHOD','INVOICE_NOT_PAYABLE','HOLD_EXPIRED','IDEMPOTENCY_MISMATCH','INVALID_EVIDENCE_STATE','EVIDENCE_REQUIRED','REVIEW_REASON_REQUIRED'].includes(code)) return;
       set.status = code === 'UNAUTHORIZED' ? 401 : code === 'FORBIDDEN' ? 403 : ['CONFLICT','VERSION_CONFLICT','EVENT_FULL','REGISTRATION_CLOSED','INVALID_EVENT_STATE','ATTENDANCE_RECORDED'].includes(code) ? 409 : code === 'STORAGE_UNAVAILABLE' ? 503 : 422;
       return { error: { code, message: 'Permintaan belum dapat diproses.' } };
     })
@@ -419,6 +419,30 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
       const access=await invoiceAccess(params.id,request);
       return {data:await rpc('create_payment_attempt',{p_invoice_id:params.id,p_method_id:body.method_id,p_key:body.idempotency_key,p_actor_profile_id:access.actor,p_guest_session_hash:access.hash})};
     },{params:t.Object({id:uuid}),body:t.Object({method_id:uuid,idempotency_key:key},{additionalProperties:false})})
+    .post('/attempts/:id/proof',async ({request,params})=>{
+      const {data:attempt,error}=await client().from('payment_attempts').select('id,invoice_id').eq('id',params.id).single();
+      if(error||!attempt)throw new FinanceError('FORBIDDEN');
+      const access=await invoiceAccess(attempt.invoice_id,request);
+      const {bytes,mime,extension}=await imageBytes(request);
+      const path=`proof/attempt/${params.id}/${crypto.randomUUID()}.${extension}`;
+      let reference:string;
+      try{reference=await files().put(path,{bytes,contentType:mime});}catch{throw new FinanceError('STORAGE_UNAVAILABLE');}
+      try{return {data:await rpc('submit_manual_evidence',{p_attempt_id:params.id,p_storage_path:reference,p_mime:mime,p_size:bytes.byteLength,p_actor_profile_id:access.actor,p_guest_session_hash:access.hash})};}
+      catch(error){try{await files().remove(reference);}catch{/* A later storage reconciliation can remove an object without evidence metadata. */}throw error;}
+    },{params:t.Object({id:uuid}),parse:'none'})
+    .get('/events/:id/invoice-reviews',async ({request,params,set})=>{
+      set.headers['cache-control']='no-store';await ownEvent(params.id,request);
+      const {data,error}=await client().from('payment_attempts').select('id,amount,currency,status,review_deadline,created_at,invoices!inner(invoice_number,event_participants!inner(event_id,users(display_name))),payment_evidence(storage_path,created_at)').eq('invoices.event_participants.event_id',params.id).in('status',['pending_review','expired','rejected']).order('created_at');
+      if(error)throw new FinanceError('STORAGE_UNAVAILABLE');
+      const reviews=await Promise.all((data??[]).map(async attempt=>({
+        ...attempt,
+        evidence:await Promise.all((attempt.payment_evidence??[]).map(async evidence=>({
+          ...evidence,url:await files().signedDownloadUrl(evidence.storage_path,120),
+        }))),
+      })));
+      return {data:reviews};
+    },{params:t.Object({id:uuid})})
+    .post('/attempts/:id/review',async ({request,params,body})=>({data:await rpc('approve_manual_payment',{p_attempt_id:params.id,p_actor_profile_id:await actor(request),p_decision:body.decision,p_reason:body.reason})}),{params:t.Object({id:uuid}),body:t.Object({decision:t.Union([t.Literal('approve'),t.Literal('reject')]),reason},{additionalProperties:false})})
     .post('/charges/:id/proof',async ({request,params}) => {
       const access=await chargeAccess(params.id,request);
       const {bytes,mime,extension}=await imageBytes(request);

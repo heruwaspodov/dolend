@@ -57,6 +57,7 @@ test('organizer reviews a report and records partial cash from the event roster'
  await page.route('**/dolend-api/v1/payment-settings',route=>route.fulfill(reply([])));
  await page.route('**/dolend-api/v1/organizer/events',route=>route.fulfill(reply([{id:event,title:'Badminton Jumat'}])));
  await page.route(`**/dolend-api/v1/events/${event}/payment-reviews`,route=>route.fulfill(reply([{id:'pending',amount:2000,status:'pending_verification',proof_url:null}])));
+ await page.route(`**/dolend-api/v1/events/${event}/invoice-reviews`,route=>route.fulfill(reply([])));
  await page.route(`**/dolend-api/v1/events/${event}/roster`,route=>route.fulfill(reply({participants:[{id:owner,users:{display_name:'Peserta fixture'},participant_charges:{id:charge}}]})));
  await page.route(`**/dolend-api/v1/charges/${charge}`,route=>route.fulfill(reply({methods:[{id:method,type:'cash',recipient_name:'Organizer fixture'}]})));
  let cashRecorded=false;let verified=false;

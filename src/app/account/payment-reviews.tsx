@@ -6,7 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { paymentRequest } from '@/lib/payment-client';
 
-type Review = { id: string; amount: number; status: string; proof_url: string | null };
+type Review = { id: string; amount: number; status: string; proof_url: string | null;kind?:'invoice' };
+type InvoiceReview={id:string;amount:number;status:string;evidence:{url:string}[]};
 type Participant = { id: string; users: { display_name: string }; participant_charges: { id: string } | null };
 type Method = { id: string; type: string; recipient_name: string };
 const money = (amount: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(amount);
@@ -32,12 +33,14 @@ export function PaymentReviews({ token }: { token: string }) {
   async function load(e: FormEvent) {
     e.preventDefault(); setBusy(true); setCharge(''); setMethods([]);
     try {
-      const [rows, roster] = await Promise.all([
+      const [rows,invoiceRows, roster] = await Promise.all([
         paymentRequest<Review[]>(`/events/${event}/payment-reviews`, token),
+        paymentRequest<InvoiceReview[]>(`/events/${event}/invoice-reviews`,token),
         paymentRequest<{ participants: Participant[] }>(`/events/${event}/roster`, token),
       ]);
-      setReviews(rows); setParticipants(roster.participants);
-      setMessage(rows.length ? '' : 'Belum ada laporan pembayaran.');
+      const combined=[...rows,...invoiceRows.map(row=>({...row,kind:'invoice' as const,proof_url:row.evidence[0]?.url??null}))];
+      setReviews(combined); setParticipants(roster.participants);
+      setMessage(combined.length ? '' : 'Belum ada laporan pembayaran.');
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Gagal memuat.'); }
     finally { setBusy(false); }
   }
@@ -45,8 +48,9 @@ export function PaymentReviews({ token }: { token: string }) {
   async function review(e: FormEvent<HTMLFormElement>, id: string) {
     e.preventDefault(); setBusy(true); const form = new FormData(e.currentTarget);
     try {
-      const result = await paymentRequest<Review>(`/payments/${id}/review`, token, {
-        method: 'POST', body: JSON.stringify({ decision: form.get('decision'), reason: form.get('reason') }),
+      const current=reviews.find(row=>row.id===id);const invoice=current?.kind==='invoice';
+      const result = await paymentRequest<Review>(invoice?`/attempts/${id}/review`:`/payments/${id}/review`, token, {
+        method: 'POST', body: JSON.stringify({ decision: invoice?(form.get('decision')==='verified'?'approve':'reject'):form.get('decision'), reason: form.get('reason') }),
       });
       setReviews(rows => rows.map(row => row.id === id ? { ...row, ...result } : row));
       setMessage('Review tersimpan.');
@@ -107,7 +111,7 @@ export function PaymentReviews({ token }: { token: string }) {
     <ul className="space-y-4">{reviews.map(row => <li key={row.id} className="space-y-3 border-t pt-4">
       <p>{money(row.amount)} · {row.status === 'verified' ? 'Terverifikasi' : row.status === 'rejected' ? 'Ditolak' : 'Menunggu verifikasi'}</p>
       {row.proof_url && <a className="underline" href={row.proof_url} target="_blank" rel="noreferrer">Lihat bukti pembayaran</a>}
-      {row.status === 'pending_verification' && <form onSubmit={e => review(e, row.id)} className="space-y-3">
+      {['pending_verification','pending_review','expired'].includes(row.status) && <form onSubmit={e => review(e, row.id)} className="space-y-3">
         <Label htmlFor={`reason-${row.id}`}>Catatan pemeriksaan</Label><Input id={`reason-${row.id}`} name="reason" required maxLength={1000} />
         <Label htmlFor={`decision-${row.id}`}>Keputusan</Label><select id={`decision-${row.id}`} name="decision" className="min-h-11 w-full rounded-md border bg-background px-3"><option value="verified">Verifikasi penerimaan</option><option value="rejected">Tolak laporan</option></select>
         <Button disabled={busy} className="min-h-11">Simpan review</Button>

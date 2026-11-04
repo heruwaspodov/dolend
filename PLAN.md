@@ -415,6 +415,8 @@ Setiap task adalah pekerjaan yang dapat ditinjau. Dependencies menyebut ID task 
 
 ### T15 — Transfer manual dan review organizer
 
+**Status: Implementasi lokal selesai, belum diterapkan hosted, 4 November 2026.** Peserta invoice membuat attempt idempotent lalu mengunggah PNG/JPEG tervalidasi maksimal 2 MiB; API langsung memasang object sebagai evidence dalam transaksi dan menghapusnya kembali bila transaksi gagal. Upload hanya mengubah attempt menjadi pending_review. Organizer event mendapat queue scoped dengan signed URL 120 detik dan dapat approve/reject dengan alasan; RPC lama mempertahankan satu receipt pada double approve, menolak organizer lain, serta mengizinkan attempt baru setelah reject. UI peserta dan halaman review organizer menangani invoice maupun alur iuran dynamic. Verifikasi ringan: replay 21 migration/72 assertion database, 22 API/unit test, lint, dan type-check lulus; hosted E2E belum dijalankan.
+
 - **Description:** tampilkan instruksi rekening, submit bukti, review approve/reject, waiver dengan alasan, dan review deadline.
 - **Deliverables:** manual payment flow, organizer review queue, audit dan ledger entries.
 - **Dependencies:** T13, T14.

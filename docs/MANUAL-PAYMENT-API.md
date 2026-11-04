@@ -30,6 +30,9 @@ Prefix `/dolend-api/v1`. Organizer wajib JWT Google terverifikasi. Guest memakai
 | GET /charges/:id | Tagihan scoped, balance, laporan dan metode aktif beserta signed download URL |
 | GET /invoices/:id | Invoice scoped booking token/JWT, due date, overdue projection, metode snapshot, dan riwayat attempt |
 | POST /invoices/:id/attempts | Membuat attempt idempotent untuk metode event; penyelesaian manual/gateway berada di T15/T16 |
+| POST /attempts/:id/proof | Upload PNG/JPEG 2 MiB scoped; membuat evidence dan status pending_review secara langsung |
+| GET /events/:id/invoice-reviews | Queue evidence invoice khusus organizer event dengan signed URL pendek |
+| POST /attempts/:id/review | Approve/reject evidence invoice dengan alasan; receipt idempotent |
 | POST /charges/:id/proof | File PNG/JPG mentah, opsional; akses scoped |
 | POST /charges/:id/payments | method_id, amount, idempotency_key, proof_storage_path opsional; pending_verification |
 | GET /events/:id/payment-reviews | Queue privat organizer, bukti signed URL |
