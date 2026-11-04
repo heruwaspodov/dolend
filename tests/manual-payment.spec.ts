@@ -20,11 +20,25 @@ test('guest uploads optional proof and reports partial amount without claiming v
  await page.goto(`/payment/?charge=${id}#booking=${booking}`);
  await expect(page.getByText('Bank fixture · 12345')).toBeVisible();
  await page.getByLabel('Nominal yang dibayar (Rp)').fill('2000');
- await page.getByLabel('Bukti opsional (PNG/JPG, maksimal 2 MB)').setInputFiles({name:'bukti.png',mimeType:'image/png',buffer:Buffer.from('89504e470d0a1a0a','hex')});
+ await page.getByLabel('Bukti opsional (PNG/JPG, maksimal 2 MiB)').setInputFiles({name:'bukti.png',mimeType:'image/png',buffer:Buffer.from('89504e470d0a1a0a','hex')});
  await page.getByRole('button',{name:'Saya sudah bayar'}).click();
  await expect(page.getByRole('status')).toHaveText('Laporan diterima. Menunggu verifikasi organizer.');
  expect(uploaded).toBe(true);
  expect(reported).toBe(true);
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+});
+
+test('guest melihat invoice postpay dan status overdue dari proyeksi server',async({page})=>{
+ const invoice='55555555-5555-4555-8555-555555555555',booking='b'.repeat(43);
+ await page.route(`**/dolend-api/v1/invoices/${invoice}`,route=>{
+  expect(route.request().headers()['x-booking-token']).toBe(booking);
+  return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:{id:invoice,invoice_number:'DL-FIXTURE',amount_due:50000,currency:'IDR',due_at:'2026-11-03T10:00:00Z',status:'open',overdue:true,participant_status:'confirmed',methods:[{id:'method',method_type:'manual_bank_transfer',instruction_snapshot:{recipient_name:'Host',bank_details:{bank:'BCA',account:'123456'}}}],attempts:[]}})});
+ });
+ await page.goto(`/payment/?invoice=${invoice}#booking=${booking}`);
+ await expect(page.getByText('DL-FIXTURE')).toBeVisible();
+ await expect(page.getByText(/50\.000/)).toBeVisible();
+ await expect(page.getByText(/Lewat jatuh tempo/)).toBeVisible();
+ await expect(page.getByText('BCA · 123456')).toBeVisible();
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });
 

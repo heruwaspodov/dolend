@@ -28,6 +28,7 @@ export function GuestBookingForm({ eventId,inviteToken,bookingToken }: { eventId
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
   const [chargeId,setChargeId] = useState<string | null>(null);
+  const [invoiceId,setInvoiceId] = useState<string | null>(null);
   const [issuedBookingToken,setIssuedBookingToken]=useState('');
 
   useEffect(() => {
@@ -42,6 +43,7 @@ export function GuestBookingForm({ eventId,inviteToken,bookingToken }: { eventId
       .then((booking) => {
         setStatus(booking.status);
         setChargeId(booking.charge_id ?? null);
+        setInvoiceId(booking.invoice_id ?? null);
         setBookingUrl(window.location.href);
       })
       .catch((requestError) => {
@@ -61,6 +63,7 @@ export function GuestBookingForm({ eventId,inviteToken,bookingToken }: { eventId
       window.history.replaceState(window.history.state, '', `${window.location.pathname}${window.location.search}#${hash}`);
       setStatus(booking.status);
       setIssuedBookingToken(booking.booking_token);
+      setInvoiceId(booking.invoice_id ?? null);
       setBookingUrl(window.location.href);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'Booking belum dapat dibuat.');
@@ -93,6 +96,7 @@ export function GuestBookingForm({ eventId,inviteToken,bookingToken }: { eventId
     <div className="mt-5 space-y-2"><Label htmlFor="booking-link">Tautan booking rahasia</Label><Input id="booking-link" readOnly value={bookingUrl} className="min-h-11" /></div>
     <Button type="button" variant="outline" className="mt-3 min-h-11" onClick={copyBookingLink}><Copy aria-hidden="true" />{copied ? 'Tautan tersalin' : 'Salin tautan booking'}</Button>
     {chargeId && <Button asChild className="mt-3 min-h-11"><a href={`/payment/?charge=${chargeId}${new URL(bookingUrl).hash}`}>Lihat tagihan dan pembayaran</a></Button>}
+    {invoiceId && <Button asChild className="mt-3 min-h-11"><a href={`/payment/?invoice=${invoiceId}${new URL(bookingUrl).hash}`}>Lihat invoice</a></Button>}
     {!['attended','no_show','cancelled'].includes(status)&&<details className="mt-5 border-t pt-4"><summary className="min-h-11 cursor-pointer py-3 text-sm font-medium">Batalkan booking</summary><form className="pt-3" onSubmit={cancelBooking}><Label htmlFor="guest-cancel-reason">Alasan</Label><Input id="guest-cancel-reason" name="reason" required maxLength={1000} className="mt-2 min-h-11"/><p className="mt-2 text-xs leading-relaxed text-muted-foreground">Jika iuran sudah dikunci, pembatalan tidak otomatis menghapus tagihan. Hubungi organizer untuk penyesuaian.</p><Button type="submit" variant="destructive" disabled={submitting} className="mt-3 min-h-11">{submitting?'Membatalkan…':'Batalkan booking'}</Button></form></details>}
     <p className="mt-3 text-xs leading-relaxed text-muted-foreground">Siapa pun yang memiliki tautan ini dapat melihat status booking. Jangan bagikan ke orang lain.</p>
     {error && <p className="mt-3 text-sm font-medium text-rose-700" role="alert">{error}</p>}

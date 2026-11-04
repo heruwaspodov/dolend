@@ -14,6 +14,9 @@ export type PublicEvent = {
   estimated_per_person?: number | null;
   contributions_locked_at?: string | null;
   payment_timing?: 'before_event' | 'after_event';
+  payment_mode?:'free'|'before_event'|'after_event';
+  payment_due_at?:string|null;
+  hold_minutes?:number;
   visibility?: 'public' | 'unlisted';
   price_amount: number;
   currency: 'IDR';

@@ -16,6 +16,7 @@ Brief produk T01 selesai untuk sumber yang tersedia dan **T02 kompatibilitas Ely
 - T11 live menambahkan event public/unlisted, tautan undangan hash-only dengan expiry/revoke, copy link, dan tombol WhatsApp eksplisit. Token invite berada di fragment URL dan aplikasi tidak mengirim WhatsApp otomatis.
 - T12 backend live menghubungkan join/status/cancel member Google dan cancel guest dari tautan booking. Akun organizer tetap akun biasa yang dapat ikut event; pembatalan mandiri setelah lock mempertahankan tagihan sampai organizer memutuskan penyesuaian.
 - T13 private-upload lifecycle selesai lokal dan menunggu rilis backend: staging registry 24 jam, attachment atomik QRIS/bukti, serta cleanup lintas Supabase/S3. Batas final file PNG/JPEG 2 MiB dan signed URL 120 detik.
+- T14 invoice selesai lokal dan menunggu rilis backend: event gratis/prepay/postpay, snapshot harga/rekening, hold atau due date, invoice scoped guest/member, overdue projection, dan roster invoice organizer. Submit bukti invoice tetap scope T15; gateway tetap ditunda.
 
 Detail progres dan kriteria penerimaan ada di [PLAN.md](PLAN.md) dan [hasil POC](docs/POC-RESULTS.md).
 

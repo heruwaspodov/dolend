@@ -1,6 +1,7 @@
 export type GuestBookingStatus = {
   participant_id: string;
   charge_id?: string | null;
+  invoice_id?: string | null;
   status: string;
   hold_expires_at: string | null;
   confirmed_at: string | null;
@@ -39,7 +40,7 @@ export async function createGuestBooking(eventId: string, input: { display_name:
     headers: { ...apiHeaders(), 'content-type': 'application/json',...(inviteToken?{'x-invite-token':inviteToken}:{}) },
     body: JSON.stringify(input),
   });
-  return responseData(response) as Promise<{ participant_id: string; status: string; booking_token: string }>;
+  return responseData(response) as Promise<{ participant_id: string; status: string; booking_token: string; invoice_id?:string|null }>;
 }
 
 export async function getGuestBooking(eventId: string, bookingToken: string, signal?: AbortSignal) {

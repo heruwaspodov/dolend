@@ -6,6 +6,7 @@ export type OwnParticipation={
   confirmed_at:string|null;
   cancelled_at?:string|null;
   updated_at:string;
+  invoice_id?:string|null;
 };
 
 function apiUrl(path:string) {

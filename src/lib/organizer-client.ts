@@ -18,12 +18,15 @@ export type RosterParticipant = {
   chargeable: boolean;
   users: { display_name: string } | { display_name: string }[] | null;
   participant_charges: { id: string; amount: number; balance: number }[];
+  invoices?:{id:string;amount_due:number;status:string;due_at:string}[];
   is_guest: boolean;
 };
 export type EventRoster = {
   estimated_total_cost: number;
   contributions_locked_at: string | null;
   payment_timing: 'before_event' | 'after_event';
+  contribution_mode?:'legacy'|'dynamic';
+  payment_mode?:'free'|'before_event'|'after_event';
   estimated_per_person: number | null;
   summary: { charged: number; received: number; refunded: number; adjustments: number; outstanding: number; credit: number };
   participants: RosterParticipant[];

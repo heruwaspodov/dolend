@@ -13,6 +13,7 @@ import { SessionGate } from './session-gate';
 const field = 'mt-2 min-h-11 border-slate-300 bg-white';
 const select = `${field} w-full rounded-lg border px-3 text-sm outline-none focus-visible:border-emerald-700 focus-visible:ring-3 focus-visible:ring-emerald-700/20`;
 const zones = [{ value: 'Asia/Jakarta', label: 'WIB', offset: '+07:00' }, { value: 'Asia/Makassar', label: 'WITA', offset: '+08:00' }, { value: 'Asia/Jayapura', label: 'WIT', offset: '+09:00' }];
+type PaymentMethod={id:string;type:'static_qris'|'bank_transfer'|'cash';recipient_name:string;is_active:boolean};
 
 export function EventCreateForm() {
   const { session, ready } = useOrganizerSession();
@@ -23,6 +24,8 @@ export function EventCreateForm() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [timezone, setTimezone] = useState('Asia/Jakarta');
+  const [billingMode,setBillingMode]=useState<'dynamic'|'free'|'before_event'|'after_event'>('dynamic');
+  const [paymentMethods,setPaymentMethods]=useState<PaymentMethod[]>([]);
 
   useEffect(() => {
     if (!session) return;
@@ -30,7 +33,8 @@ export function EventCreateForm() {
     void Promise.all([
       organizerRequest<OrganizerWorkspace[]>('/organizer/workspaces', session.access_token, { signal: controller.signal }),
       organizerRequest<ActivityType[]>('/activity-types', session.access_token, { signal: controller.signal }),
-    ]).then(([nextWorkspaces, nextActivities]) => { setWorkspaces(nextWorkspaces); setActivities(nextActivities); })
+      organizerRequest<PaymentMethod[]>('/payment-settings',session.access_token,{signal:controller.signal}),
+    ]).then(([nextWorkspaces, nextActivities,nextMethods]) => { setWorkspaces(nextWorkspaces); setActivities(nextActivities);setPaymentMethods(nextMethods.filter(method=>method.type==='bank_transfer'&&method.is_active)); })
       .catch((reason) => { if (reason.name !== 'AbortError') setError(reason.message); })
       .finally(() => setLoading(false));
     return () => controller.abort();
@@ -45,10 +49,12 @@ export function EventCreateForm() {
     const iso = (name: string) => `${String(form.get(name))}:00${offset}`;
     try {
       const venueSnapshot = venueSnapshotFromForm(form);
+      const fixed=billingMode!=='dynamic';
       const result = await organizerRequest<{ id: string }>('/events', session.access_token, { method: 'POST', body: JSON.stringify({
         workspace_id: form.get('workspace_id'), activity_type_id: form.get('activity_type_id'), title: form.get('title'), description: form.get('description') || undefined,
         starts_at: iso('starts_at'), ends_at: iso('ends_at'), registration_closes_at: iso('registration_closes_at'), timezone,
-        capacity: Number(form.get('capacity')), estimated_total_cost: Number(form.get('estimated_total_cost')), payment_timing: form.get('payment_timing'),
+        capacity: Number(form.get('capacity')),
+        ...(fixed?{billing_mode:billingMode,price_amount:billingMode==='free'?0:Number(form.get('price_amount')),hold_minutes:billingMode==='before_event'?Number(form.get('hold_minutes')):undefined,payment_due_at:billingMode==='after_event'?iso('payment_due_at'):undefined,payment_method_id:billingMode==='free'?undefined:form.get('payment_method_id')}:{estimated_total_cost:Number(form.get('estimated_total_cost')),payment_timing:form.get('payment_timing')}),
         visibility:form.get('visibility'),
         ...(venueSnapshot ? { venue_snapshot: venueSnapshot } : {}),
       }) });
@@ -74,11 +80,14 @@ export function EventCreateForm() {
         <div><Label htmlFor="closes">Pendaftaran ditutup</Label><Input id="closes" name="registration_closes_at" type="datetime-local" required className={field} /></div><div><Label htmlFor="timezone">Zona waktu</Label><select id="timezone" name="timezone" value={timezone} onChange={(event) => setTimezone(event.target.value)} className={select}>{zones.map((zone) => <option key={zone.value} value={zone.value}>{zone.label}</option>)}</select></div>
       </fieldset>
       <fieldset className="grid gap-5 sm:grid-cols-2"><legend className="mb-5 text-lg font-bold">Peserta dan biaya</legend>
-        <div><Label htmlFor="capacity">Kapasitas</Label><Input id="capacity" name="capacity" type="number" min={1} max={100000} defaultValue={12} required className={field} /></div><div><Label htmlFor="cost">Perkiraan biaya total (Rp)</Label><Input id="cost" name="estimated_total_cost" type="number" min={0} step={1000} defaultValue={0} required className={field} /></div>
-        <div className="sm:col-span-2"><Label htmlFor="timing">Waktu pembayaran</Label><select id="timing" name="payment_timing" className={select}><option value="before_event">Sebelum event</option><option value="after_event">Setelah event</option></select></div>
+        <div><Label htmlFor="capacity">Kapasitas</Label><Input id="capacity" name="capacity" type="number" min={1} max={100000} defaultValue={12} required className={field} /></div><div><Label htmlFor="billing-mode">Model biaya</Label><select id="billing-mode" name="billing_mode" value={billingMode} onChange={event=>setBillingMode(event.target.value as typeof billingMode)} className={select}><option value="dynamic">Patungan sesuai biaya aktual</option><option value="free">Gratis</option><option value="before_event">Harga tetap · bayar sebelum event</option><option value="after_event">Harga tetap · bayar setelah event</option></select></div>
+        {billingMode==='dynamic'&&<><div><Label htmlFor="cost">Perkiraan biaya total (Rp)</Label><Input id="cost" name="estimated_total_cost" type="number" min={0} step={1000} defaultValue={0} required className={field} /></div><div><Label htmlFor="timing">Waktu pembayaran</Label><select id="timing" name="payment_timing" className={select}><option value="before_event">Sebelum event</option><option value="after_event">Setelah event</option></select></div></>}
+        {billingMode!=='dynamic'&&billingMode!=='free'&&<><div><Label htmlFor="price">Harga per peserta (Rp)</Label><Input id="price" name="price_amount" type="number" min={1} max={1e12} step={1} required className={field}/></div><div><Label htmlFor="payment-method">Rekening penerima</Label><select id="payment-method" name="payment_method_id" required className={select}><option value="">Pilih rekening</option>{paymentMethods.map(method=><option key={method.id} value={method.id}>{method.recipient_name}</option>)}</select>{paymentMethods.length===0&&<p className="mt-2 text-xs text-amber-800">Tambahkan rekening bank aktif di halaman akun terlebih dahulu.</p>}</div></>}
+        {billingMode==='before_event'&&<div><Label htmlFor="hold-minutes">Durasi tahan kursi (menit)</Label><Input id="hold-minutes" name="hold_minutes" type="number" min={1} max={1440} defaultValue={15} required className={field}/></div>}
+        {billingMode==='after_event'&&<div><Label htmlFor="payment-due">Jatuh tempo pembayaran</Label><Input id="payment-due" name="payment_due_at" type="datetime-local" required className={field}/><p className="mt-2 text-xs text-slate-600">Harus setelah event selesai.</p></div>}
       </fieldset>
-      <fieldset className="grid gap-5 sm:grid-cols-2"><legend className="mb-2 text-lg font-bold">Venue <span className="text-sm font-normal text-slate-500">(opsional)</span></legend><p className="-mt-3 text-sm text-slate-600 sm:col-span-2">Kosongkan jika tempat masih dibicarakan.</p>
-        <div><Label htmlFor="venue-name">Nama tempat</Label><Input id="venue-name" name="venue_name" maxLength={200} className={field} /></div><div><Label htmlFor="venue-address">Alamat</Label><Input id="venue-address" name="venue_address" maxLength={1000} className={field} /></div>
+      <fieldset className="grid gap-5 sm:grid-cols-2"><legend className="mb-2 text-lg font-bold">Venue <span className="text-sm font-normal text-slate-500">{billingMode==='dynamic'?'(opsional)':'(wajib untuk harga tetap/gratis)'}</span></legend><p className="-mt-3 text-sm text-slate-600 sm:col-span-2">{billingMode==='dynamic'?'Kosongkan jika tempat masih dibicarakan.':'Event langsung dipublikasikan, jadi nama dan alamat tempat harus sudah pasti.'}</p>
+        <div><Label htmlFor="venue-name">Nama tempat</Label><Input id="venue-name" name="venue_name" maxLength={200} required={billingMode!=='dynamic'} className={field} /></div><div><Label htmlFor="venue-address">Alamat</Label><Input id="venue-address" name="venue_address" maxLength={1000} required={billingMode!=='dynamic'} className={field} /></div>
         <div><Label htmlFor="latitude">Latitude</Label><Input id="latitude" name="latitude" type="number" inputMode="decimal" min={-90} max={90} step="any" className={field} placeholder="-6.200000" /></div><div><Label htmlFor="longitude">Longitude</Label><Input id="longitude" name="longitude" type="number" inputMode="decimal" min={-180} max={180} step="any" className={field} placeholder="106.816666" /></div>
         <div className="sm:col-span-2"><Label htmlFor="maps">Tautan Google Maps <span className="font-normal text-slate-500">(opsional jika koordinat diisi)</span></Label><Input id="maps" name="maps_url" type="url" maxLength={2000} className={field} placeholder="https://www.google.com/maps/…" /></div>
         <div className="sm:col-span-2"><Label htmlFor="meeting-instructions">Petunjuk bertemu</Label><textarea id="meeting-instructions" name="meeting_instructions" maxLength={1000} rows={3} className={`${select} py-3`} placeholder="Contoh: tunggu di lobi utama 15 menit sebelum mulai" /></div>

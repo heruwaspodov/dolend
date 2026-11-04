@@ -200,6 +200,7 @@ try {
   await expectFailure("update public.profiles set user_id=$1 where id=$2",[ownerUser,other],/permission denied/);
   await db.exec('reset role');
   await db.exec(await readFile('supabase/tests/dynamic-manual.sql','utf8')); checks++;
+  await db.exec(await readFile('supabase/tests/billing-modes.sql','utf8')); checks++;
   console.log('PASS dynamic lock, rounding, partial/overpayment, review ownership/idempotency, refund limits and cancellation');
   const tables=await query("select relname from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind='r' and not c.relrowsecurity");
   assert.equal(tables.length,0);checks++;

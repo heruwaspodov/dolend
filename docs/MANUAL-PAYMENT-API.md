@@ -7,7 +7,7 @@ Prefix `/dolend-api/v1`. Organizer wajib JWT Google terverifikasi. Guest memakai
 | GET /organizer/events | Daftar event yang dapat dikelola beserta status planning dan lock |
 | GET /organizer/workspaces | Workspace dengan role owner/organizer untuk sesi Google |
 | GET /activity-types | Jenis aktivitas aktif untuk form create |
-| POST /events | Buat recruiting dynamic dengan workspace_id, activity_type_id, title, starts_at, ends_at, registration_closes_at, timezone, capacity, estimated_total_cost, payment_timing, dan visibility public/unlisted; venue_snapshot opsional berisi name, address, maps_url, pasangan latitude/longitude, dan meeting_instructions |
+| POST /events | Buat event dynamic (`estimated_total_cost`, `payment_timing`) atau billed (`billing_mode` free/before_event/after_event, `price_amount`, hold/due, rekening aktif). Event billed langsung published dan venue wajib |
 | GET /organizer/events/:id | Detail event milik organizer, termasuk status cancelled untuk rekonsiliasi |
 | GET /events/:id | DTO peserta tanpa kontak, rekening, bukti, atau kredensial pengelolaan; event unlisted wajib undangan aktif |
 | GET/POST /events/:id/invites | Organizer melihat metadata undangan atau membuat token 256-bit yang dikembalikan sekali; hash saja yang disimpan |
@@ -28,6 +28,8 @@ Prefix `/dolend-api/v1`. Organizer wajib JWT Google terverifikasi. Guest memakai
 | POST /payment-settings/qris-image | Body file PNG/JPG mentah, maksimal 2 MiB; menghasilkan storage_path |
 | POST /events/:id/payment-methods | method_id dan enabled; metode milik organizer |
 | GET /charges/:id | Tagihan scoped, balance, laporan dan metode aktif beserta signed download URL |
+| GET /invoices/:id | Invoice scoped booking token/JWT, due date, overdue projection, metode snapshot, dan riwayat attempt |
+| POST /invoices/:id/attempts | Membuat attempt idempotent untuk metode event; penyelesaian manual/gateway berada di T15/T16 |
 | POST /charges/:id/proof | File PNG/JPG mentah, opsional; akses scoped |
 | POST /charges/:id/payments | method_id, amount, idempotency_key, proof_storage_path opsional; pending_verification |
 | GET /events/:id/payment-reviews | Queue privat organizer, bukti signed URL |

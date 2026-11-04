@@ -12,11 +12,13 @@ export type GuestBooking = {
   participant_id: string;
   status: string;
   booking_token: string;
+  invoice_id?: string | null;
 };
 
 export type GuestBookingStatus = {
   participant_id: string;
   charge_id: string | null;
+  invoice_id?: string | null;
   status: string;
   hold_expires_at: string | null;
   confirmed_at: string | null;
@@ -117,7 +119,9 @@ export function createSupabaseGuestBookingService(url: string, serviceRoleKey: s
       }
       const participant = Array.isArray(data) ? data[0] : data;
       if (!participant?.id || !participant?.status) throw new GuestBookingError('BOOKING_UNAVAILABLE');
-      return { participant_id: participant.id, status: participant.status, booking_token: bookingToken };
+      const {data:invoice,error:invoiceError}=await client.from('invoices').select('id').eq('participant_id',participant.id).maybeSingle();
+      if(invoiceError)throw new GuestBookingError('BOOKING_UNAVAILABLE');
+      return { participant_id: participant.id, status: participant.status, booking_token: bookingToken,invoice_id:invoice?.id??null };
     },
     async get(eventId, bookingToken) {
       const tokenHash = await sha256(validToken(bookingToken));
@@ -126,7 +130,9 @@ export function createSupabaseGuestBookingService(url: string, serviceRoleKey: s
       const booking = Array.isArray(data) ? data[0] : data;
       if (!booking) return null;
       const {data: charge} = await client.from('participant_charges').select('id').eq('participant_id',booking.participant_id).maybeSingle();
-      return {...booking,charge_id:charge?.id ?? null};
+      const {data:invoice,error:invoiceError}=await client.from('invoices').select('id').eq('participant_id',booking.participant_id).maybeSingle();
+      if(invoiceError)throw new GuestBookingError('BOOKING_UNAVAILABLE');
+      return {...booking,charge_id:charge?.id ?? null,invoice_id:invoice?.id??null};
     },
     async recover(participantId,actorProfileId) {
       const bookingToken=randomToken();

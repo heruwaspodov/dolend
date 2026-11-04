@@ -80,7 +80,7 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
   async function rpc(name: string, params: Record<string, unknown>) {
     const { data, error } = await client().rpc(name, params);
     if (error) {
-      const domain=['EVENT_FULL','REGISTRATION_CLOSED','INVALID_EVENT_STATE','ATTENDANCE_RECORDED','REASON_REQUIRED','INVALID_UPLOAD'];
+      const domain=['EVENT_FULL','REGISTRATION_CLOSED','INVALID_EVENT_STATE','ATTENDANCE_RECORDED','REASON_REQUIRED','INVALID_UPLOAD','INVALID_PAYMENT_MODE','INVALID_BILLING_CONFIGURATION','INVALID_PAYMENT_DUE_AT','INVALID_PAYMENT_METHOD','INVOICE_NOT_PAYABLE','HOLD_EXPIRED','IDEMPOTENCY_MISMATCH'];
       const known=domain.find(code=>error.message.includes(code));
       throw new FinanceError(error.code === '42501' ? 'FORBIDDEN' : error.message.includes('EVENT_VERSION_CONFLICT') ? 'VERSION_CONFLICT' : known??'CONFLICT');
     }
@@ -127,8 +127,29 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
     if (profile?.user_id !== p.user_id) await rpc('manual_event_access',{p_event:p.event_id,p_actor:id});
     return { c, actor: id, hash: null };
   }
+  async function invoiceAccess(invoice:string,request:Request) {
+    const {data,error}=await client().from('invoices').select('id,participant_id,invoice_number,amount_due,currency,due_at,status,pricing_snapshot,event_participants!inner(id,event_id,user_id,status)').eq('id',invoice).single();
+    if(error||!data)throw new FinanceError('FORBIDDEN');
+    const participant=Array.isArray(data.event_participants)?data.event_participants[0]:data.event_participants;
+    if(!participant)throw new FinanceError('FORBIDDEN');
+    const token=request.headers.get('x-booking-token');
+    if(token) {
+      const hash=await tokenHash(token);
+      const booking=await rpc('get_guest_booking',{p_event:participant.event_id,p_token_hash:hash});
+      if(!booking?.some((row:{participant_id:string})=>row.participant_id===participant.id))throw new FinanceError('FORBIDDEN');
+      return {invoice:data,participant,actor:null,hash};
+    }
+    const actorId=await actor(request);
+    const {data:profile}=await client().from('profiles').select('user_id').eq('id',actorId).single();
+    if(profile?.user_id!==participant.user_id)await rpc('manual_event_access',{p_event:participant.event_id,p_actor:actorId});
+    return {invoice:data,participant,actor:actorId,hash:null};
+  }
+  async function participantDtoWithInvoice(participant:Record<string,unknown>) {
+    const {data:invoice}=await client().from('invoices').select('id').eq('participant_id',participant.id).maybeSingle();
+    return {...participantDto(participant),invoice_id:invoice?.id??null};
+  }
   async function eventDto(eventId: string, publicOnly: boolean) {
-    let query=client().from('events').select('id,title,description,starts_at,ends_at,registration_closes_at,timezone,capacity,price_amount,currency,status,visibility,venue_snapshot,venue_booking_status,estimated_total_cost,contributions_locked_at,contribution_mode,payment_timing,version').eq('id',eventId);
+    let query=client().from('events').select('id,title,description,starts_at,ends_at,registration_closes_at,timezone,capacity,price_amount,currency,status,visibility,venue_snapshot,venue_booking_status,estimated_total_cost,contributions_locked_at,contribution_mode,payment_mode,payment_due_at,payment_timing,hold_minutes,version').eq('id',eventId);
     if(publicOnly)query=query.in('status',['published','recruiting','confirmed','completed']);
     const {data:e,error}=await query.single();
     if(error)throw new FinanceError('FORBIDDEN');
@@ -141,7 +162,7 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
     .onBeforeHandle(({set}) => {set.headers['cache-control']='no-store';})
     .onError(({ error, set }) => {
       const code = error instanceof Error ? error.message : '';
-      if (!['UNAUTHORIZED','FORBIDDEN','CONFLICT','VERSION_CONFLICT','EVENT_FULL','REGISTRATION_CLOSED','INVALID_EVENT_STATE','ATTENDANCE_RECORDED','REASON_REQUIRED','STORAGE_UNAVAILABLE','INVALID_IMAGE','IMAGE_TOO_LARGE','INVALID_REQUEST','INVALID_UPLOAD'].includes(code)) return;
+      if (!['UNAUTHORIZED','FORBIDDEN','CONFLICT','VERSION_CONFLICT','EVENT_FULL','REGISTRATION_CLOSED','INVALID_EVENT_STATE','ATTENDANCE_RECORDED','REASON_REQUIRED','STORAGE_UNAVAILABLE','INVALID_IMAGE','IMAGE_TOO_LARGE','INVALID_REQUEST','INVALID_UPLOAD','INVALID_PAYMENT_MODE','INVALID_BILLING_CONFIGURATION','INVALID_PAYMENT_DUE_AT','INVALID_PAYMENT_METHOD','INVOICE_NOT_PAYABLE','HOLD_EXPIRED','IDEMPOTENCY_MISMATCH'].includes(code)) return;
       set.status = code === 'UNAUTHORIZED' ? 401 : code === 'FORBIDDEN' ? 403 : ['CONFLICT','VERSION_CONFLICT','EVENT_FULL','REGISTRATION_CLOSED','INVALID_EVENT_STATE','ATTENDANCE_RECORDED'].includes(code) ? 409 : code === 'STORAGE_UNAVAILABLE' ? 503 : 422;
       return { error: { code, message: 'Permintaan belum dapat diproses.' } };
     })
@@ -179,17 +200,35 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
       const venue=body.venue_snapshot?normalizeVenueSnapshot(body.venue_snapshot):undefined;
       const {data:membership}=await client().from('workspace_members').select('role').eq('workspace_id',body.workspace_id).eq('profile_id',id).in('role',['owner','organizer']).maybeSingle();
       if(!membership) throw new FinanceError('FORBIDDEN');
+      if(body.billing_mode) {
+        if(body.estimated_total_cost!==undefined||body.payment_timing!==undefined||!venue)throw new FinanceError('INVALID_REQUEST');
+        return {data:await rpc('create_billed_event',{
+          p_actor:id,p_workspace:body.workspace_id,p_activity_type:body.activity_type_id,p_title:body.title,
+          p_description:body.description??'',p_starts_at:body.starts_at,p_ends_at:body.ends_at,
+          p_registration_closes_at:body.registration_closes_at,p_timezone:body.timezone,p_capacity:body.capacity,
+          p_visibility:body.visibility,p_venue_snapshot:venue,p_payment_mode:body.billing_mode,
+          p_price_amount:body.price_amount??0,p_payment_due_at:body.payment_due_at??null,
+          p_hold_minutes:body.hold_minutes??15,p_payment_method:body.payment_method_id??null,
+        })};
+      }
+      if(body.estimated_total_cost===undefined||body.payment_timing===undefined||body.price_amount!==undefined||body.payment_due_at!==undefined||body.hold_minutes!==undefined||body.payment_method_id!==undefined)throw new FinanceError('INVALID_REQUEST');
       const {data,error}=await client().from('events').insert({...body,...(venue?{venue_snapshot:venue}:{}),organizer_profile_id:id,contribution_mode:'dynamic',payment_mode:'free',price_amount:0,status:'recruiting'}).select('id').single();
       if(error) throw new FinanceError('CONFLICT');
       return {data};
-    },{body:t.Object({workspace_id:uuid,activity_type_id:uuid,title:t.String({minLength:1,maxLength:200}),description:t.Optional(t.String({maxLength:10000})),starts_at:t.String({format:'date-time'}),ends_at:t.String({format:'date-time'}),registration_closes_at:t.String({format:'date-time'}),timezone:t.String({minLength:1,maxLength:100}),capacity:t.Integer({minimum:1,maximum:100000}),estimated_total_cost:amount,payment_timing:t.Union([t.Literal('before_event'),t.Literal('after_event')]),visibility:t.Union([t.Literal('public'),t.Literal('unlisted')]),venue_snapshot:t.Optional(venueSnapshot)},{additionalProperties:false})})
+    },{body:t.Object({workspace_id:uuid,activity_type_id:uuid,title:t.String({minLength:1,maxLength:200}),description:t.Optional(t.String({maxLength:10000})),starts_at:t.String({format:'date-time'}),ends_at:t.String({format:'date-time'}),registration_closes_at:t.String({format:'date-time'}),timezone:t.String({minLength:1,maxLength:100}),capacity:t.Integer({minimum:1,maximum:100000}),estimated_total_cost:t.Optional(amount),payment_timing:t.Optional(t.Union([t.Literal('before_event'),t.Literal('after_event')])),billing_mode:t.Optional(t.Union([t.Literal('free'),t.Literal('before_event'),t.Literal('after_event')])),price_amount:t.Optional(amount),payment_due_at:t.Optional(t.String({format:'date-time'})),hold_minutes:t.Optional(t.Integer({minimum:1,maximum:1440})),payment_method_id:t.Optional(uuid),visibility:t.Union([t.Literal('public'),t.Literal('unlisted')]),venue_snapshot:t.Optional(venueSnapshot)},{additionalProperties:false})})
     .patch('/events/:id/planning',async ({request,params,body}) => {
       const actorId=await actor(request);
       const {expected_version,...patch}=body;
-      return {data:await rpc('update_dynamic_event',{
+      const {data:event,error}=await client().from('events').select('contribution_mode').eq('id',params.id).single();
+      if(error||!event)throw new FinanceError('FORBIDDEN');
+      const common={
         p_event:params.id,p_actor:actorId,p_expected_version:expected_version,
         ...Object.fromEntries(Object.entries(patch).map(([field,value])=>[`p_${field}`,field==='venue_snapshot'&&value?normalizeVenueSnapshot(value as VenueSnapshot):value])),
-      })};
+      };
+      if(event.contribution_mode==='dynamic')return {data:await rpc('update_dynamic_event',common)};
+      const billed:Record<string,unknown>={...common};
+      delete billed.p_estimated_total_cost;delete billed.p_payment_timing;delete billed.p_timezone;
+      return {data:await rpc('update_billed_event',billed)};
     },{params:t.Object({id:uuid}),body:t.Object({expected_version:t.Integer({minimum:1}),title:t.Optional(t.String({minLength:1,maxLength:200})),description:t.Optional(t.String({maxLength:10000})),starts_at:t.Optional(t.String({format:'date-time'})),ends_at:t.Optional(t.String({format:'date-time'})),registration_closes_at:t.Optional(t.String({format:'date-time'})),timezone:t.Optional(t.String({minLength:1,maxLength:100})),capacity:t.Optional(t.Integer({minimum:1,maximum:100000})),estimated_total_cost:t.Optional(amount),payment_timing:t.Optional(t.Union([t.Literal('before_event'),t.Literal('after_event')])),venue_booking_status:t.Optional(t.Union([t.Literal('not_booked'),t.Literal('pending'),t.Literal('booked'),t.Literal('cancelled')])),status:t.Optional(t.Union([t.Literal('confirmed'),t.Literal('completed')])),venue_snapshot:t.Optional(venueSnapshot)},{additionalProperties:false,minProperties:2})})
     .post('/events/:id/join',async ({request,params}) => {
       const id=await actor(request);
@@ -197,7 +236,7 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
       catch(error) { if(error instanceof FinanceError&&error.message==='FORBIDDEN')await rpc('manual_event_access',{p_event:params.id,p_actor:id});else throw error; }
       const {data:p}=await client().from('profiles').select('user_id').eq('id',id).single();
       if(!p) throw new FinanceError('FORBIDDEN');
-      return {data:participantDto(await rpc('join_event',{p_event_id:params.id,p_user_id:p.user_id,p_actor_profile_id:id}))};
+      return {data:await participantDtoWithInvoice(await rpc('join_event',{p_event_id:params.id,p_user_id:p.user_id,p_actor_profile_id:id}))};
     },{params:t.Object({id:uuid})})
     .get('/events/:id/participation',async ({request,params})=>{
       const bookingToken=request.headers.get('x-booking-token');
@@ -210,15 +249,30 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
       if(profileError||!profile)throw new FinanceError('FORBIDDEN');
       const {data,error}=await client().from('event_participants').select('id,status,joined_as,hold_expires_at,confirmed_at,cancelled_at,updated_at').eq('event_id',params.id).eq('user_id',profile.user_id).maybeSingle();
       if(error)throw new FinanceError('STORAGE_UNAVAILABLE');
-      return {data:data??null};
+      return {data:data?await participantDtoWithInvoice(data):null};
     },{params:t.Object({id:uuid})})
     .post('/events/:id/participation/cancel',async ({request,params,body})=>{
       const bookingToken=request.headers.get('x-booking-token');
       const actorId=bookingToken?null:await actor(request);
-      const participant=await rpc('cancel_own_dynamic_participation',{
-        p_event:params.id,p_actor:actorId,p_guest_hash:bookingToken?await tokenHash(bookingToken):null,p_reason:body.reason,
-      });
-      return {data:participantDto(participant)};
+      const guestHash=bookingToken?await tokenHash(bookingToken):null;
+      const {data:event,error:eventError}=await client().from('events').select('contribution_mode').eq('id',params.id).single();
+      if(eventError||!event)throw new FinanceError('FORBIDDEN');
+      let participant;
+      if(event.contribution_mode==='dynamic')participant=await rpc('cancel_own_dynamic_participation',{p_event:params.id,p_actor:actorId,p_guest_hash:guestHash,p_reason:body.reason});
+      else {
+        let participantId:string|undefined;
+        if(guestHash) {
+          const booking=await rpc('get_guest_booking',{p_event:params.id,p_token_hash:guestHash});
+          participantId=(Array.isArray(booking)?booking[0]:booking)?.participant_id;
+        } else {
+          const {data:profile}=await client().from('profiles').select('user_id').eq('id',actorId!).single();
+          const {data:own}=profile?await client().from('event_participants').select('id').eq('event_id',params.id).eq('user_id',profile.user_id).maybeSingle():{data:null};
+          participantId=own?.id;
+        }
+        if(!participantId)throw new FinanceError('FORBIDDEN');
+        participant=await rpc('cancel_participation',{p_participant_id:participantId,p_reason:body.reason,p_actor_profile_id:actorId,p_guest_session_hash:guestHash});
+      }
+      return {data:await participantDtoWithInvoice(participant)};
     },{params:t.Object({id:uuid}),body:t.Object({reason:t.String({minLength:1,maxLength:1000})},{additionalProperties:false})})
     .get('/events/:id/invites',async ({request,params})=>{
       await ownEvent(params.id,request);
@@ -272,9 +326,18 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
     }, {parse: 'none'})
     .get('/events/:id/roster',async ({request,params,set})=>{
       set.headers['cache-control']='no-store';await ownEvent(params.id,request);
-      const {data:e,error}=await client().from('events').select('estimated_total_cost,contributions_locked_at,payment_timing').eq('id',params.id).single();
-      const {data:participants,error:pe}=await client().from('event_participants').select('id,status,chargeable,users(display_name,profiles(id)),participant_charges(id,amount)').eq('event_id',params.id);
+      const {data:e,error}=await client().from('events').select('estimated_total_cost,contributions_locked_at,payment_timing,contribution_mode,price_amount,payment_mode').eq('id',params.id).single();
+      const {data:participants,error:pe}=await client().from('event_participants').select('id,status,chargeable,users(display_name,profiles(id)),participant_charges(id,amount),invoices(id,amount_due,status,due_at)').eq('event_id',params.id);
       if(error||pe)throw new FinanceError('STORAGE_UNAVAILABLE');
+      if(e.contribution_mode==='legacy') {
+        const invoices=(participants??[]).flatMap(participant=>participant.invoices??[]);
+        const {data:entries,error:ledgerError}=invoices.length?await client().from('payment_ledger').select('invoice_id,entry_type,amount').in('invoice_id',invoices.map(invoice=>invoice.id)):{data:[],error:null};
+        if(ledgerError)throw new FinanceError('STORAGE_UNAVAILABLE');
+        const received=(entries??[]).filter(entry=>entry.entry_type==='receipt').reduce((sum,entry)=>sum+Number(entry.amount),0);
+        const refunded=(entries??[]).filter(entry=>entry.entry_type==='refund').reduce((sum,entry)=>sum+Number(entry.amount),0);
+        const charged=invoices.filter(invoice=>!['void','waived'].includes(invoice.status)).reduce((sum,invoice)=>sum+Number(invoice.amount_due),0);
+        return {data:{...e,estimated_per_person:e.price_amount,summary:{charged,received,refunded,adjustments:0,outstanding:Math.max(charged-received+refunded,0),credit:Math.max(received-refunded-charged,0)},participants:(participants??[]).map(participant=>({...participant,is_guest:!(participant.users??[]).some(user=>user.profiles?.length),participant_charges:[]}))}};
+      }
       const n=(participants??[]).filter(p=>p.chargeable&&p.status==='confirmed').length;
       const charges=(participants??[]).flatMap(p=>p.participant_charges??[]);
       const {data:ledger,error:le}=charges.length?await client().from('contribution_ledger').select('charge_id,entry_type,amount').in('charge_id',charges.map(c=>c.id)):{data:[],error:null};
@@ -302,8 +365,21 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
       if(!guestBookings)throw new FinanceError('STORAGE_UNAVAILABLE');
       return {data:await guestBookings.recover(params.id,id)};
     },{params:t.Object({id:uuid}),parse:'none'})
-    .post('/participants/:id/cancel',async ({request,params,body})=>({data:await rpc('cancel_dynamic_participant',{p_participant:params.id,p_actor:await actor(request),p_guest_hash:null,p_policy:body.policy,p_reason:body.reason,p_key:body.idempotency_key})}),{params:t.Object({id:uuid}),body:t.Object({policy:t.Union([t.Literal('retain'),t.Literal('waive')]),reason,idempotency_key:key},{additionalProperties:false})})
-    .post('/events/:id/cancel',async ({request,params,body})=>({data:await rpc('cancel_dynamic_event',{p_event:params.id,p_actor:await actor(request),p_policy:body.policy,p_reason:body.reason,p_key:body.idempotency_key})}),{params:t.Object({id:uuid}),body:t.Object({policy:t.Union([t.Literal('retain'),t.Literal('waive')]),reason,idempotency_key:t.String({minLength:1,maxLength:120})},{additionalProperties:false})})
+    .post('/participants/:id/cancel',async ({request,params,body})=>{
+      const actorId=await actor(request);
+      const {data:row}=await client().from('event_participants').select('event_id,events!inner(contribution_mode)').eq('id',params.id).single();
+      if(!row)throw new FinanceError('FORBIDDEN');
+      const event=Array.isArray(row.events)?row.events[0]:row.events;
+      return {data:event?.contribution_mode==='dynamic'
+        ?await rpc('cancel_dynamic_participant',{p_participant:params.id,p_actor:actorId,p_guest_hash:null,p_policy:body.policy,p_reason:body.reason,p_key:body.idempotency_key})
+        :await rpc('cancel_participation',{p_participant_id:params.id,p_reason:body.reason,p_actor_profile_id:actorId,p_guest_session_hash:null})};
+    },{params:t.Object({id:uuid}),body:t.Object({policy:t.Union([t.Literal('retain'),t.Literal('waive')]),reason,idempotency_key:key},{additionalProperties:false})})
+    .post('/events/:id/cancel',async ({request,params,body})=>{
+      const actorId=await actor(request);const {data:event}=await client().from('events').select('contribution_mode').eq('id',params.id).single();
+      if(!event)throw new FinanceError('FORBIDDEN');
+      if(event.contribution_mode==='dynamic')return {data:await rpc('cancel_dynamic_event',{p_event:params.id,p_actor:actorId,p_policy:body.policy,p_reason:body.reason,p_key:body.idempotency_key})};
+      await rpc('cancel_event',{p_event_id:params.id,p_actor_profile_id:actorId,p_reason:body.reason});return {data:{ok:true}};
+    },{params:t.Object({id:uuid}),body:t.Object({policy:t.Union([t.Literal('retain'),t.Literal('waive')]),reason,idempotency_key:t.String({minLength:1,maxLength:120})},{additionalProperties:false})})
     .post('/events/:id/contributions/lock',async ({request,params}) => ({ data:await rpc('lock_contributions',{p_event:params.id,p_actor:await actor(request)}) }),{params:t.Object({id:uuid})})
     .post('/participants/:id/charge',async ({request,params,body}) => ({ data:await rpc('assign_contribution',{p_participant:params.id,p_actor:await actor(request),p_amount:body.amount}) }),{params:t.Object({id:uuid}),body:t.Object({amount},{additionalProperties:false})})
     .post('/events/:id/payment-methods',async ({request,params,body}) => {
@@ -331,6 +407,18 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
       const net = (ledger ?? []).reduce((sum,l)=>sum+(l.entry_type==='receipt'? -Number(l.amount):Number(l.amount)),Number(c.amount));
       return {data:{id:c.id,amount:c.amount,balance:net,records:records??[],methods:visibleMethods}};
     },{params:t.Object({id:uuid})})
+    .get('/invoices/:id',async ({request,params,set})=>{
+      set.headers['cache-control']='no-store';
+      const {invoice,participant}=await invoiceAccess(params.id,request);
+      const {data:methods,error:methodsError}=await client().from('event_payment_methods').select('id,method_type,instruction_snapshot').eq('event_id',participant.event_id).eq('enabled',true).order('created_at');
+      const {data:attempts,error:attemptsError}=await client().from('payment_attempts').select('id,method_type,amount,currency,status,expires_at,review_deadline,exception_reason,created_at').eq('invoice_id',invoice.id).order('created_at',{ascending:false});
+      if(methodsError||attemptsError)throw new FinanceError('STORAGE_UNAVAILABLE');
+      return {data:{...invoice,participant_status:participant.status,overdue:invoice.status==='open'&&Date.parse(invoice.due_at)<Date.now(),methods:methods??[],attempts:attempts??[]}};
+    },{params:t.Object({id:uuid})})
+    .post('/invoices/:id/attempts',async ({request,params,body})=>{
+      const access=await invoiceAccess(params.id,request);
+      return {data:await rpc('create_payment_attempt',{p_invoice_id:params.id,p_method_id:body.method_id,p_key:body.idempotency_key,p_actor_profile_id:access.actor,p_guest_session_hash:access.hash})};
+    },{params:t.Object({id:uuid}),body:t.Object({method_id:uuid,idempotency_key:key},{additionalProperties:false})})
     .post('/charges/:id/proof',async ({request,params}) => {
       const access=await chargeAccess(params.id,request);
       const {bytes,mime,extension}=await imageBytes(request);

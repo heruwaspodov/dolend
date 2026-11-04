@@ -406,6 +406,8 @@ Setiap task adalah pekerjaan yang dapat ditinjau. Dependencies menyebut ID task 
 
 ### T14 — Invoice dan mode bayar sebelum/sesudah event
 
+**Status: Implementasi lokal selesai, belum diterapkan hosted, 4 November 2026.** Organizer dapat membuat event dynamic, gratis, harga tetap prepay, atau harga tetap postpay. Pembuatan event billed dan snapshot rekening berlangsung atomik; free tidak membuat invoice, prepay menahan kursi sesuai hold, dan postpay langsung confirmed dengan due date setelah event. Peserta member/guest mendapat invoice ID hanya dari sesi scoped, lalu dapat melihat nominal, status, overdue projection, metode, dan attempt tanpa data peserta lain. Planning/version check, cancel, roster, dan ringkasan organizer menangani domain dynamic maupun invoice lama. Replay 21 migration dan 72 assertion database, 22 API/unit test, build statis, 18 browser organizer serta 12 browser booking/participation/payment desktop-mobile lulus. Hosted migration/API/E2E belum dijalankan; submit bukti/review invoice dilanjutkan T15 dan gateway tetap ditunda.
+
 - **Description:** implementasi harga snapshot, free/prepay/postpay, due date, ledger, attempts, dan idempotency.
 - **Deliverables:** billing domain/RPC, invoice API/UI, payment state machine, overdue projection.
 - **Dependencies:** T04, T10, T12.
@@ -601,4 +603,4 @@ Dokumentasi resmi diperiksa 27 Oktober 2026. Referensi mendukung keputusan arsit
 
 Paket hasil mencakup rencana, aplikasi statis, POC runtime, database Supabase, landing/playground, CI/CD dan bukti verifikasi dalam `docs/`. Integrasi Auth, event API, undangan dan pembayaran produksi masih mengikuti backlog.
 
-Langkah berikutnya: tinjau dry-run lalu rilis migration/API T13 dan jalankan E2E Supabase Storage termasuk grace cleanup/URL expiry; R06 S3 hosted tetap opsional untuk pilot manual. Penjadwalan cleanup berkala tetap T19, bukan cron in-process. T11/T12 backend, redirect Google pada domain Firebase, concurrency dynamic lintas koneksi, E2E Storage guest nyata, venue, dan optimistic event update sudah aktif hosted. Jangan mengaktifkan payment gateway sementara. DP 50% pada playground tetap simulasi front-end.
+Langkah berikutnya: rilis migration/API T13–T14 secara berurutan lalu jalankan E2E hosted untuk lifecycle Storage dan free/prepay/postpay sebelum memulai submit/review transfer T15. R06 S3 hosted tetap opsional untuk pilot manual; penjadwalan cleanup berkala tetap T19, bukan cron in-process. T11/T12 backend, redirect Google pada domain Firebase, concurrency dynamic lintas koneksi, E2E Storage guest nyata, venue, dan optimistic event update sudah aktif hosted. Jangan mengaktifkan payment gateway sementara. DP 50% pada playground tetap simulasi front-end.
