@@ -327,7 +327,7 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
     .get('/events/:id/roster',async ({request,params,set})=>{
       set.headers['cache-control']='no-store';await ownEvent(params.id,request);
       const {data:e,error}=await client().from('events').select('estimated_total_cost,contributions_locked_at,payment_timing,contribution_mode,price_amount,payment_mode').eq('id',params.id).single();
-      const {data:participants,error:pe}=await client().from('event_participants').select('id,status,chargeable,users(display_name,profiles(id)),participant_charges(id,amount),invoices(id,amount_due,status,due_at)').eq('event_id',params.id);
+      const {data:participants,error:pe}=await client().from('event_participants').select('id,status,attendance_at,chargeable,users(display_name,profiles(id)),participant_charges(id,amount),invoices(id,amount_due,status,due_at)').eq('event_id',params.id);
       if(error||pe)throw new FinanceError('STORAGE_UNAVAILABLE');
       if(e.contribution_mode==='legacy') {
         const invoices=(participants??[]).flatMap(participant=>participant.invoices??[]);
@@ -354,6 +354,7 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
       const summary={charged:charges.reduce((sum,c)=>sum+Number(c.amount),0),received,refunded,adjustments,outstanding:balances.reduce((sum,value)=>sum+Math.max(value,0),0),credit:balances.reduce((sum,value)=>sum+Math.max(-value,0),0)};
       return {data:{...e,estimated_per_person:n?Math.ceil(Number(e.estimated_total_cost)/n):null,summary,participants:(participants??[]).map(p=>({...p,is_guest:!(p.users??[]).some(user=>user.profiles?.length),participant_charges:(p.participant_charges??[]).map(charge=>({...charge,balance:balanceByCharge.get(charge.id)??Number(charge.amount)}))}))}};
     },{params:t.Object({id:uuid})})
+    .post('/participants/:id/attendance',async ({request,params,body})=>({data:await rpc('record_event_attendance',{p_participant:params.id,p_actor:await actor(request),p_status:body.status})}),{params:t.Object({id:uuid}),body:t.Object({status:t.Union([t.Literal('attended'),t.Literal('no_show')])},{additionalProperties:false})})
     .post('/events/:id/participants',async ({request,params,body})=>{
       await ownEvent(params.id,request);
       if(!guestBookings)throw new FinanceError('STORAGE_UNAVAILABLE');

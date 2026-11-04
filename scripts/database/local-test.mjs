@@ -62,6 +62,15 @@ try {
   const [statusAudit]=await query(`select action,redacted_changes from public.audit_logs where entity_id=$1 and action='event.status_change' order by created_at desc limit 1`,[dynamicEvent.id]);
   assert.equal(statusAudit.redacted_changes.from_status,'confirmed');assert.equal(statusAudit.redacted_changes.to_status,'completed');checks++;
   await expectFailure(`select * from public.update_dynamic_event(p_event=>$1,p_actor=>$2,p_expected_version=>$3,p_title=>$4)`,[dynamicEvent.id,organizer,completedDynamic.version,'Final edit'],/EVENT_FINALIZED/);
+  const [attendanceParticipant]=await query('select id from public.event_participants where event_id=$1 and user_id=$2',[dynamicEvent.id,otherUser]);
+  await expectFailure('select * from public.record_event_attendance($1,$2,$3)',[attendanceParticipant.id,other,'attended'],/ORGANIZER_REQUIRED/);
+  const [attended]=await query('select * from public.record_event_attendance($1,$2,$3)',[attendanceParticipant.id,organizer,'attended']);
+  assert.equal(attended.status,'attended');assert(attended.attendance_at);checks++;
+  await db.query('select * from public.record_event_attendance($1,$2,$3)',[attendanceParticipant.id,organizer,'attended']);
+  assert.equal((await query("select count(*)::int n from public.participant_history where participant_id=$1 and to_status='attended'",[attendanceParticipant.id]))[0].n,1);checks++;
+  const [noShow]=await query('select * from public.record_event_attendance($1,$2,$3)',[attendanceParticipant.id,organizer,'no_show']);
+  assert.equal(noShow.status,'no_show');
+  assert.equal((await query('select status from public.invoices where participant_id=$1',[attendanceParticipant.id])).length,0);checks++;
   assert.equal(participant.status,'confirmed'); assert.equal((await join(free)).id,participant.id);
   assert.equal((await query('select count(*)::int n from public.invoices'))[0].n,0); checks++;
   await expectFailure('select * from public.join_event($1,$2,$3)',[free.id,otherUser,organizer],/ACTOR_MISMATCH/);
