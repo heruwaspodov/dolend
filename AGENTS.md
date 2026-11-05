@@ -1,64 +1,48 @@
-# Panduan agent — Dolend
+# Dolend agent guide
 
-Panduan ini berlaku untuk seluruh repository. Ikuti instruksi tambahan pada `AGENTS.md` di subdirektori bila tersedia.
+Instruksi ini berlaku untuk seluruh repo. `AGENTS.md` yang lebih dekat ke file kerja menambah atau mempersempit aturan ini.
 
-## Konteks dan sumber acuan
+## Mulai dengan konteks minimum
 
-Dolend adalah social activity network untuk merencanakan aktivitas bersama. Gunakan bahasa Indonesia untuk copy produk dan dokumentasi, mengikuti gaya file yang sedang diubah.
+1. Jalankan `git status --short` dan baca instruksi scoped terdekat.
+2. Untuk melanjutkan roadmap atau task lintas area, baca `docs/AI-HANDOFF.md`; gunakan `docs/AI-START.md` hanya bila perlu peta sumber/routing.
+3. Temukan simbol/file dengan `rg`; jangan membuka seluruh repo atau dokumen panjang tanpa kebutuhan.
+4. Untuk task roadmap, buka hanya bagian task aktif di `PLAN.md` beserta dependency dan acceptance criteria-nya.
+5. Buka dokumen domain sesuai perubahan: produk `docs/PRODUCT.md`; UI `docs/UI-FOUNDATION.md`; auth `docs/AUTH-FOUNDATION.md`; database `docs/DATABASE.md` lalu `docs/DATA-DICTIONARY.md` bila perlu; environment/release `docs/ENVIRONMENT.md` dan `docs/CI-CD.md`.
+6. Setelah konteks cukup, ubah hanya file yang dibutuhkan dan verifikasi berdasarkan dampak.
 
-- Baca `README.md` untuk setup, perintah, dan status implementasi; `PLAN.md` untuk scope, dependensi task, dan acceptance criteria.
-- Keputusan produk: `docs/PRODUCT.md`. UI: `docs/UI-FOUNDATION.md`. Auth: `docs/AUTH-FOUNDATION.md`.
-- Database: `docs/DATABASE.md` dan `docs/DATA-DICTIONARY.md`. Environment dan rilis: `docs/ENVIRONMENT.md` dan `docs/CI-CD.md`.
-- Bedakan fitur yang sudah terhubung dengan demo, fixture, dan shell. Jangan menyatakan alur auth/payment/event selesai hanya karena tampilannya tersedia.
-- SMS dan payment gateway ditunda atas permintaan pengguna; jangan mengaktifkannya tanpa perubahan scope dari pengguna. DP pada simulator adalah ilustrasi frontend.
+Gunakan `.agents/skills/context-efficient-coding/SKILL.md` secara default untuk setiap implementasi, debugging, atau review nontrivial.
 
-## Arsitektur dan lokasi perubahan
+## Scope dan sumber kebenaran
 
-- Frontend: Next.js App Router, React, TypeScript strict; halaman di `src/app/`, komponen fitur di `src/components/`, helper di `src/lib/`. Alias import `@/` menunjuk `src/`.
-- Pertahankan static export (`output: 'export'`), `trailingSlash`, dan kompatibilitas Firebase Hosting. Backend berjalan di Elysia melalui Deno pada Supabase Edge Functions, bukan runtime Next.js. Jangan menambahkan Server Actions atau API route yang memerlukan server Next.js.
-- Event memakai shell `/event/?id=<uuid>` dan client fetch. Pertahankan direct link, refresh, serta loading/error/empty states.
-- API utama: `supabase/functions/dolend-api/`; probe kompatibilitas terpisah di `supabase/functions/dolend-compat-poc/`. Ikuti konfigurasi Deno dan lockfile masing-masing.
-- Schema dan transaksi: `supabase/migrations/`; pengujian SQL: `supabase/tests/`; tooling database: `scripts/database/`.
-- UI menggunakan Tailwind CSS v4, shadcn/ui, dan Lucide. Gunakan komponen `src/components/ui/` serta semantic token di `src/app/globals.css`. Pertahankan label form, navigasi keyboard, focus yang terlihat, dan tampilan mobile 360 px.
+- Dolend adalah social activity network; copy produk dan dokumentasi memakai bahasa Indonesia serta gaya file terkait.
+- `PLAN.md` menyimpan scope, dependency, status, dan acceptance criteria. Jangan menghapus atau melonggarkan acceptance criteria T20-T29.
+- Fokus menuju MVP adalah menyelesaikan T20 lalu T21. T22-T29 adalah Phase 2/3 dan tidak dikerjakan tanpa permintaan eksplisit.
+- Keputusan revisi MVP 31 Oktober 2026 mengutamakan QRIS statis, transfer, dan tunai dengan verifikasi manual. Gateway/SMS ditunda; jangan aktifkan kembali dari catatan historis.
+- Bedakan implementasi nyata dari demo, fixture, shell, dan hasil lokal/hosted. Jangan menaikkan status task tanpa bukti acceptance criteria.
 
-## Data, keamanan, dan konfigurasi
+## Batas arsitektur dan keamanan
 
-- Jangan mencetak atau memasukkan `.env.local`, token, service-role key, maupun secret provider ke Git. Gunakan `.env.example` untuk nama variabel dan `npm run env:check` untuk validasi tanpa menampilkan key.
-- `NEXT_PUBLIC_*` masuk ke bundle browser saat build; hanya URL dan public/publishable key yang boleh tersedia di sana. Secret tetap pada server.
-- Perubahan schema dibuat sebagai migration baru; pertahankan RLS, grants, indeks FK, dan invariant transaksi. Jangan mengubah migration yang sudah diterapkan untuk memperbaiki schema hosted.
-- Otorisasi API harus memverifikasi identitas dan kepemilikan; service-role melewati RLS. Jangan mempercayai actor/user/profile ID dari input klien sebagai bukti identitas.
-- Identitas bisnis adalah `public.users`; identitas login adalah `auth.users`. Gunakan normalisasi `src/lib/phone.ts` untuk nomor Indonesia canonical `62...`.
-- Nilai uang disimpan sebagai integer IDR. Gunakan RPC transaksi yang tersedia untuk operasi bisnis yang memerlukan konsistensi, serta pertahankan idempotensi dan riwayat finansial.
-- `src/lib/database.types.ts` adalah hasil generate: gunakan `npm run db:types` setelah perubahan schema yang relevan; jangan memperbaiki kontrak hanya dengan mengedit file hasil generate.
+- Frontend adalah Next.js App Router static export. Pertahankan `output: 'export'`, `trailingSlash`, Firebase compatibility, dan query shell `/event/?id=<uuid>`.
+- Backend berada di Elysia/Deno Supabase Edge Functions, bukan Next.js API route atau Server Action.
+- Jangan baca, mencetak, atau commit `.env.local`, token, key, credential, PII, maupun bukti pembayaran. `NEXT_PUBLIC_*` hanya untuk nilai publik.
+- Client-supplied actor/user/profile ID bukan bukti identitas. Verifikasi JWT, ownership, scoped guest token, RLS, dan service-role boundary.
+- Identitas bisnis adalah `public.users`; identitas login adalah `auth.users`. Normalisasi nomor Indonesia melalui `src/lib/phone.ts`, bukan logika baru yang tersebar.
+- Schema berubah melalui migration baru. Pertahankan RLS, grants, FK indexes, idempotensi, integer IDR, audit, dan ledger history. Jangan edit migration yang sudah diterapkan.
+- `src/lib/database.types.ts` adalah generated output; regenerasi setelah perubahan schema, jangan jadikan patch manual sebagai sumber kontrak.
+- Gunakan Node dari `.node-version`, npm + `package-lock.json`, dan dependency exact. Jangan commit output build, cache, log, atau fixture sementara.
+- Push ke `main` memicu deployment live. Tidak ada deploy, hosted test/migration, push, atau perubahan resource eksternal kecuali pengguna memintanya secara eksplisit.
 
-## Workflow pengembangan
+## Verifikasi berdasar dampak
 
-- Gunakan Node sesuai `.node-version` dan npm dengan `package-lock.json`. Setup: `npm ci`; frontend dan API: `npm run dev:all`.
-- Pertahankan versi dependency exact dan lockfile terkait. Gunakan CLI lokal melalui script npm atau `npx`.
-- Ikuti pola kode yang ada dan batasi diff pada kebutuhan task. Jangan menyertakan output `out/`, `.next/`, cache, log, atau fixture sementara.
-- Perbarui dokumentasi terkait bila perilaku, konfigurasi, kontrak, atau status task berubah. Laporkan hasil verifikasi dan batas yang belum diuji secara konkret.
+- Docs/config agent saja: periksa diff, link/path, dan konsistensi dengan `PLAN.md`.
+- Frontend: `npm run lint`, `npm run build`, `npm run typecheck`; tambah test Playwright area terkait setelah build.
+- API: `npm run api:check` dan `npm run api:test`.
+- Database: `npm run db:test`; baca `docs/DATABASE.md` sebelum test hosted apa pun.
+- Nomor telepon: `npm run test:phone`.
+- Probe kompatibilitas: `npm run poc:check` dan `npm run poc:test`.
 
-## Verifikasi
-
-Pilih pemeriksaan sesuai dampak perubahan; perubahan dokumentasi saja cukup diperiksa diff dan referensinya.
-
-| Area | Pemeriksaan |
-| --- | --- |
-| Frontend | `npm run lint`, `npm run build`, lalu `npm run typecheck` |
-| Landing/demo/akun | Setelah build normal: `npm run test:landing`, `npm run test:demo`, atau `npm run test:account` sesuai area |
-| Normalisasi nomor | `npm run test:phone` |
-| API | `npm run api:check` dan `npm run api:test` |
-| Probe kompatibilitas | `npm run poc:check` dan `npm run poc:test` |
-| Database | `npm run db:test`; baca petunjuk database sebelum menjalankan pemeriksaan hosted |
-| Static hosting dengan fixture | `npm run build:preview`, `npm run preview:fixture`, lalu `npm run test:hosting` |
-
-Playwright melayani folder `out/`, sehingga perlu build terlebih dahulu. Default memakai Chrome lokal; gunakan `PLAYWRIGHT_CHANNEL=chromium` jika browser Chromium Playwright sudah dipasang. Build fixture khusus preview; build rilis normal harus memakai `NEXT_PUBLIC_POC_EVENT_FIXTURES=false`.
-
-## Deployment
-
-- Target frontend: Firebase project `dolend-apps`, Hosting site `dolend`, target `web`. Jangan tertukar dengan default site project.
-- Push ke `main` memicu checks dan deployment live melalui GitHub Actions. Perlakukan push tersebut sebagai tindakan rilis.
-- Deploy manual, migration hosted, dan test hosted dapat mengubah resource eksternal; jalankan hanya dalam scope yang diminta pengguna dan dengan target eksplisit. Ikuti `docs/CI-CD.md` serta prosedur database terkait.
+Laporkan command yang dijalankan, hasilnya, dan hal yang belum diverifikasi. Jangan mengklaim deployment atau kesiapan release dari verifikasi lokal.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

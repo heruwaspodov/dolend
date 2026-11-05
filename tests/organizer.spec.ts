@@ -88,12 +88,13 @@ test('form venue mengirim koordinat dan petunjuk bertemu', async ({ page }) => {
   await page.getByLabel('Alamat').fill('Jakarta Pusat');
   await page.getByLabel('Latitude').fill('-6.2');
   await page.getByLabel('Longitude').fill('106.816666');
+  await page.getByLabel('Kode area umum untuk rekomendasi').fill('id-jk');
   await page.getByLabel('Petunjuk bertemu').fill('Tunggu di lobi utama.');
   expect((await new AxeBuilder({page}).analyze()).violations).toEqual([]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
   await page.getByRole('button',{name:'Buat event'}).click();
   await expect(page).toHaveURL(`/event/manage/?id=${eventId}`);
-  expect(created?.venue_snapshot).toEqual({name:'GOR Jakarta',address:'Jakarta Pusat',maps_url:'',latitude:-6.2,longitude:106.816666,meeting_instructions:'Tunggu di lobi utama.'});
+  expect(created?.venue_snapshot).toEqual({name:'GOR Jakarta',address:'Jakarta Pusat',maps_url:'',latitude:-6.2,longitude:106.816666,meeting_instructions:'Tunggu di lobi utama.',coarse_region_code:'ID-JK'});
 });
 
 test('form membuat event harga tetap setelah event',async({page})=>{

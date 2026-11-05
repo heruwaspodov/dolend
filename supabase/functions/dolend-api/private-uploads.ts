@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import type { ObjectStorageRouter, StoredObjectInput } from './object-storage.ts';
 
-export type PrivateUploadPurpose = 'qris' | 'payment_proof';
+export type PrivateUploadPurpose = 'qris' | 'payment_proof' | 'activity_photo';
 export type PrivateUploadInput = {
   key: string;
   purpose: PrivateUploadPurpose;
@@ -46,12 +46,12 @@ export function createSupabasePrivateUploadService(url:string,serviceKey:string,
       for(const upload of claimed) {
         try {
           await storage.remove(upload.storage_reference);
-          const {error:deleteError}=await db.from('private_uploads').delete().eq('storage_reference',upload.storage_reference).is('attached_at',null);
+          const {error:deleteError}=await db.from('private_uploads').delete().eq('storage_reference',upload.storage_reference).not('cleanup_started_at','is',null);
           if(deleteError)throw deleteError;
           deleted++;
         } catch {
           failed++;
-          await db.from('private_uploads').update({cleanup_started_at:null}).eq('storage_reference',upload.storage_reference).is('attached_at',null);
+          await db.from('private_uploads').update({cleanup_started_at:null}).eq('storage_reference',upload.storage_reference).not('cleanup_started_at','is',null);
         }
       }
       return {claimed:claimed.length,deleted,failed};

@@ -1,4 +1,5 @@
 import { createApp } from './app.ts';
+import { manualPaymentReviewDto, organizerPaymentMethodDto } from './manual-payments.ts';
 import { AccountServiceError, type AccountIdentity, type AccountService, type Profile, type ProfilePatch } from './account.ts';
 import { GuestBookingError, type GuestBookingService } from './guest-booking.ts';
 import type { EventInviteService } from './event-invite.ts';
@@ -230,6 +231,25 @@ Deno.test('venue links only accept HTTPS Google Maps destinations', async () => 
   let pairRejected=false;
   try{normalizeVenueSnapshot({name:'GOR',address:'Jakarta',maps_url:'',latitude:-6.2});}catch{pairRejected=true;}
   assert(pairRejected,'partial coordinates accepted');
+});
+
+Deno.test('manual payment DTOs exclude raw storage and internal payment fields', () => {
+  const method = organizerPaymentMethodDto({
+    id: 'method-id', type: 'static_qris', recipient_name: 'Organizer', is_active: true,
+    created_at: '2026-11-05T00:00:00Z', storage_path: 'qris/private.png', bank_details: { account: 'private' },
+    organizer_id: 'owner-id', provider_payload: { secret: 'excluded' },
+  });
+  assert(JSON.stringify(method) === JSON.stringify({
+    id: 'method-id', type: 'static_qris', recipient_name: 'Organizer', is_active: true, created_at: '2026-11-05T00:00:00Z',
+  }), 'payment method DTO contains fields outside its allowlist');
+
+  const review = manualPaymentReviewDto({
+    id: 'payment-id', amount: 1000, status: 'pending_verification', proof_storage_path: 'proof/private.png',
+    idempotency_key: 'internal-key', recorded_by: 'profile-id', participant_charges: { participant_id: 'participant-id' },
+  }, 'https://signed.example.test/proof');
+  assert(JSON.stringify(review) === JSON.stringify({
+    id: 'payment-id', amount: 1000, status: 'pending_verification', proof_url: 'https://signed.example.test/proof',
+  }), 'payment review DTO contains raw evidence path or internal fields');
 });
 
 Deno.test('event planning requires an optimistic version', async () => {

@@ -2,6 +2,8 @@
 
 Generated from the hosted public schema on 3 November 2026. No user data is included. All business tables have UUID primary keys and RLS enabled. Domain mutation RPC is service-only except authenticated Google profile bootstrap; browser read scope is documented in DATABASE.md.
 
+This is a hosted-schema snapshot and does not include workspace-only migrations `20261105090000` through `20261105170000` (T22–T29). Regenerate from an isolated local Supabase database or after an authorized hosted migration; do not treat the snapshot as the current local schema.
+
 ## activity_types
 
 | Column | Type | Nullable | Default |
