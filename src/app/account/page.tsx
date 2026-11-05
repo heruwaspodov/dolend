@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { PageShell } from '@/components/layout/page-shell';
+import { OrganizerDashboardShell } from '@/components/organizer/dashboard-shell';
 import { AccountFoundation } from './account-foundation';
 
 export const metadata: Metadata = {
@@ -8,7 +8,5 @@ export const metadata: Metadata = {
 };
 
 export default function AccountPage() {
-  return <div className="min-h-dvh bg-slate-50 text-slate-900">
-    <PageShell><AccountFoundation /></PageShell>
-  </div>;
+  return <OrganizerDashboardShell><AccountFoundation /></OrganizerDashboardShell>;
 }

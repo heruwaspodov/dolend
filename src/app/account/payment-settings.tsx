@@ -2,6 +2,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { SettingsSection, settingsAction, settingsControl } from './settings-section';
 import { Label } from '@/components/ui/label';
 import { paymentRequest } from '@/lib/payment-client';
 
@@ -45,18 +46,86 @@ export function PaymentSettings({token}:{token:string}) {
     try{await paymentRequest(`/events/${eventId}/payment-methods`,token,{method:'POST',body:JSON.stringify({method_id:method.id,enabled})});setMessage(enabled?'Metode diaktifkan untuk event terpilih.':'Metode dimatikan untuk event terpilih.');}
     catch(e){setMessage(e instanceof Error?e.message:'Gagal mengubah metode event.');}finally{setBusy(false);}
   }
-  return <section className="space-y-5 rounded-xl border bg-card p-5 sm:p-8" aria-labelledby="payment-settings-title">
-    <h2 id="payment-settings-title" className="text-xl font-bold">Pengaturan pembayaran</h2>
-    <p className="text-sm text-muted-foreground">Dana langsung masuk ke organizer. Gunakan QRIS resmi milikmu. Gambar QRIS tidak menjadi konfirmasi pembayaran.</p>
-    <form onSubmit={save} className="grid gap-4">
-      <div className="space-y-2"><Label htmlFor="payment-type">Metode</Label><select id="payment-type" value={type} onChange={e=>setType(e.target.value)} className="min-h-11 w-full rounded-md border bg-background px-3"><option value="static_qris">QRIS statis</option><option value="bank_transfer">Transfer bank</option><option value="cash">Tunai</option></select></div>
-      <div className="space-y-2"><Label htmlFor="payment-recipient">Nama penerima / merchant</Label><Input id="payment-recipient" name="recipient" required maxLength={120}/></div>
-      {type==='static_qris'&&<div className="space-y-2"><Label htmlFor="payment-qris">Gambar QRIS (PNG/JPG, maksimal 2 MB)</Label><Input id="payment-qris" name="qris" type="file" accept="image/png,image/jpeg" required className="min-h-11"/><p className="text-sm text-muted-foreground">Untuk mengganti QRIS, tambahkan gambar baru lalu nonaktifkan metode lama. Riwayat tetap disimpan.</p></div>}
-      {type==='bank_transfer'&&<><div className="space-y-2"><Label htmlFor="payment-bank">Bank</Label><Input id="payment-bank" name="bank" required maxLength={120}/></div><div className="space-y-2"><Label htmlFor="payment-account">Nomor rekening</Label><Input id="payment-account" name="account" required maxLength={100}/></div></>}
-      <Button className="min-h-11" disabled={busy} type="submit">{busy?'Memproses…':'Simpan metode'}</Button>
-    </form>
-    <p role="status" aria-live="polite">{message}</p>
-    <div className="space-y-2"><Label htmlFor="method-event">Gunakan metode pada event</Label><select id="method-event" value={eventId} onChange={e=>setEventId(e.target.value)} className="min-h-11 w-full rounded-md border bg-background px-3"><option value="">Pilih event</option>{events.map(event=><option key={event.id} value={event.id}>{event.title}</option>)}</select></div>
-    {loading?<p>Memuat metode pembayaran…</p>:!methods.length?<p>Belum ada metode pembayaran.</p>:<ul className="divide-y">{methods.map(m=><li key={m.id} className="flex flex-wrap items-center justify-between gap-3 py-3"><span>{m.recipient_name} · {m.type==='static_qris'?'QRIS':m.type==='cash'?'Tunai':'Transfer'} · {m.is_active?'Aktif':'Nonaktif'}</span><Button variant="outline" className="min-h-11" disabled={busy} onClick={()=>toggle(m)}>{m.is_active?'Nonaktifkan':'Aktifkan'}</Button>{eventId&&m.is_active&&<div className="flex flex-wrap gap-2"><Button variant="outline" disabled={busy} className="min-h-11" onClick={()=>enable(m,true)}>Gunakan di event</Button><Button variant="outline" disabled={busy} className="min-h-11" onClick={()=>enable(m,false)}>Matikan di event</Button></div>}</li>)}</ul>}
-  </section>;
+  return (
+    <SettingsSection id="payment-settings-title" title="Pengaturan pembayaran" description="Dana masuk langsung ke organizer. Gunakan QRIS resmi milikmu.">
+      <div className="space-y-5">
+        <form onSubmit={save} className="grid gap-4 sm:grid-cols-2" aria-labelledby="add-method-title">
+          <h3 id="add-method-title" className="text-sm font-semibold sm:col-span-2">Tambah metode pembayaran</h3>
+          <div className="grid gap-2">
+            <Label htmlFor="payment-type">Metode</Label>
+            <select id="payment-type" value={type} onChange={e => setType(e.target.value)} className={settingsControl}>
+              <option value="static_qris">QRIS statis</option>
+              <option value="bank_transfer">Transfer bank</option>
+              <option value="cash">Tunai</option>
+            </select>
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="payment-recipient">Nama penerima / merchant</Label>
+            <Input id="payment-recipient" name="recipient" required maxLength={120} className={settingsControl} />
+          </div>
+          {type === 'static_qris' && (
+            <div className="grid gap-2 sm:col-span-2">
+              <Label htmlFor="payment-qris">Gambar QRIS</Label>
+              <Input id="payment-qris" name="qris" type="file" accept="image/png,image/jpeg" required aria-describedby="payment-qris-hint" className={`${settingsControl} py-2 file:me-3`} />
+              <p id="payment-qris-hint" className="text-sm leading-5 text-muted-foreground">
+                PNG atau JPG, maksimal 2 MB. Untuk mengganti QRIS, tambahkan gambar baru lalu nonaktifkan metode lama. Riwayat tetap disimpan. Gambar QRIS tidak menjadi konfirmasi pembayaran.
+              </p>
+            </div>
+          )}
+          {type === 'bank_transfer' && (
+            <>
+              <div className="grid gap-2">
+                <Label htmlFor="payment-bank">Bank</Label>
+                <Input id="payment-bank" name="bank" required maxLength={120} className={settingsControl} />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="payment-account">Nomor rekening</Label>
+                <Input id="payment-account" name="account" required maxLength={100} className={settingsControl} />
+              </div>
+            </>
+          )}
+          <Button className={`${settingsAction} w-full sm:col-span-2 sm:w-fit`} disabled={busy} type="submit">
+            {busy ? 'Memproses…' : 'Simpan metode'}
+          </Button>
+        </form>
+
+        <p role="status" className="text-sm empty:sr-only">{message}</p>
+        <section className="space-y-4 border-t pt-6" aria-labelledby="saved-methods-title">
+          <h3 id="saved-methods-title" className="text-base font-semibold">Metode tersimpan</h3>
+          <div className="grid gap-2">
+            <Label htmlFor="method-event">Gunakan metode pada event</Label>
+            <select id="method-event" value={eventId} onChange={e => setEventId(e.target.value)} className={settingsControl}>
+              <option value="">Pilih event</option>
+              {events.map(event => <option key={event.id} value={event.id}>{event.title}</option>)}
+            </select>
+          </div>
+          {loading ? <p className="text-sm text-muted-foreground">Memuat metode pembayaran…</p> : !methods.length ? (
+            <p className="text-sm text-muted-foreground">Belum ada metode pembayaran.</p>
+          ) : (
+            <ul className="divide-y">
+              {methods.map(method => (
+                <li key={method.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 py-3">
+                  <div className="min-w-0 flex-1 basis-full sm:basis-auto">
+                    <p className="break-words text-sm font-medium">{method.recipient_name}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {method.type === 'static_qris' ? 'QRIS' : method.type === 'cash' ? 'Tunai' : 'Transfer'} · {method.is_active ? 'Aktif' : 'Nonaktif'}
+                    </p>
+                  </div>
+                  <Button variant="outline" className="min-h-11" disabled={busy} onClick={() => toggle(method)}>
+                    {method.is_active ? 'Nonaktifkan' : 'Aktifkan'}
+                  </Button>
+                  {eventId && method.is_active && (
+                    <div className="flex flex-wrap gap-2">
+                      <Button variant="outline" disabled={busy} className="min-h-11" onClick={() => enable(method, true)}>Gunakan di event</Button>
+                      <Button variant="outline" disabled={busy} className="min-h-11" onClick={() => enable(method, false)}>Matikan di event</Button>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
+    </SettingsSection>
+  );
 }

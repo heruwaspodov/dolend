@@ -1,12 +1,11 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
-test('akun menjelaskan Google untuk organizer dan guest tanpa akun', async ({ page }) => {
+test('akun menampilkan akses masuk organizer', async ({ page }) => {
   await page.goto('/account/');
-  await expect(page.getByRole('heading', { name: 'Kelola event dengan akun Google' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Akun' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Masuk dengan Google' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Peserta tidak wajib punya akun' })).toBeVisible();
-  await expect(page.getByText('Hak mengelola diberikan per workspace atau event')).toBeVisible();
+  await expect(page.getByText('Masuk dengan Google untuk mengelola profil dan event.')).toBeVisible();
   const results = await new AxeBuilder({ page }).analyze();
   expect(results.violations).toEqual([]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
@@ -49,12 +48,13 @@ test('session Google memuat dan menyimpan profil sendiri', async ({ page }) => {
   await page.route('**/dolend-api/v1/payment-settings', route => route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:[]})}));
   await page.route('**/auth/v1/logout*', (route) => route.fulfill({ status: 204, body: '' }));
   await page.goto('/account/');
-  await expect(page.getByText('Masuk sebagai dolen@example.com.')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Dolen Browser' })).toBeVisible();
   await page.getByLabel('Tentang kamu').fill('Badminton tiap Jumat');
   await page.getByRole('button', { name: 'Simpan profil' }).click();
   await expect(page.getByText('Profil berhasil diperbarui.', { exact: true })).toBeVisible();
   expect(updates).toEqual([{ bio: 'Badminton tiap Jumat', default_timezone: 'Asia/Jakarta' }]);
+  const menu = page.getByRole('button', { name: 'Buka menu dashboard' });
+  if (await menu.isVisible()) await menu.click();
   await page.getByRole('button', { name: 'Keluar' }).click();
   await expect(page.getByRole('button', { name: 'Masuk dengan Google' })).toBeVisible();
 });
