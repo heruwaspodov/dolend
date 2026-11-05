@@ -458,14 +458,16 @@ Setiap task adalah pekerjaan yang dapat ditinjau. Dependencies menyebut ID task 
 
 ### T20 — Security, privacy, dan pengujian terpadu
 
-**Status: Hardening API dimulai lokal, 4 November 2026.** Semua respons API memakai `no-store`, `nosniff`, dan `no-referrer`; credential endpoint internal ditolak bila kurang dari 32 karakter dan env checker memvalidasi secret opsional tersebut. Negative tests mencakup header, secret kosong/salah, ownership, token, payload injection, RLS, dan ledger immutable. Audit terpadu hosted, dependency review final, retensi/deletion, serta restore drill tetap belum selesai.
+**Status: Verifikasi lokal/hosted luas, belum lulus, 5 November 2026.** API negative suite (23), lint, typecheck, production build, local DB (77 assertion), static export verification, dan hosted DB suite (13 checks, fixture cleanup) lulus. `npm audit --omit=dev` menemukan 0 runtime vulnerability; full audit 37 low/moderate pada dev/build graph, 0 high/critical. Guest registration actual lewat Function dan token-scoped status lulus. Migration `private_uploads` diterapkan, types digenerate, Function v24 live. Hosted Storage runner kini lulus staging/attachment, private proof, signed URL expiry, concurrency, orphan cleanup dan fixture cleanup; health live `no-store`/`nosniff`. Follow-up DTO payment memakai allowlist dan regression test API lulus 41/41; local Docker replay seluruh migration berhasil, generated types disegarkan, dan health Function lokal mengembalikan 200. Static export terverifikasi; suite hosting memakai preview build/fixture khusus lulus 14/14 desktop/mobile, sedangkan flow guest/member memakai build normal lulus 4/4. Rincian audit, risk register dan pemetaan §9: [T20-SECURITY-REVIEW.md](docs/T20-SECURITY-REVIEW.md), hosted test: [T20-HOSTED-REGISTRATION.md](docs/T20-HOSTED-REGISTRATION.md). Masih terbuka: managed backup restore hosted (PITR nonaktif, `backups: null`; replay migration lokal bukan restore), keputusan jadwal retensi/legal hold, E2E hosted browser dan beberapa skenario §9 yang belum dibuktikan terpadu. Audit DTO/log seluruh route belum exhaustif. Dua risiko tinggi release/policy masih terbuka; T20 belum lulus.
 
 - **Description:** verifikasi trust boundaries, abuse controls, akses file, concurrency, dan seluruh alur MVP di staging.
-- **Deliverables:** RLS/API negative tests, payment fixtures, E2E mobile/desktop, risk register terkini, data retention/deletion procedure.
+- **Deliverables:** RLS/API negative tests, payment fixtures, E2E mobile/desktop, risk register terkini, data retention/deletion procedure ([prosedur awal](docs/DATA-RETENTION.md); retensi final masih terbuka).
 - **Dependencies:** T06–T19.
 - **Acceptance criteria:** seluruh skenario §9 lulus; tidak ada temuan kritis/tinggi terbuka; public DTO bebas nomor/bukti/secret; OAuth code dan booking token tidak muncul log; counter rate limit atomik; dependency/build scan ditinjau; backup restore terbukti pada lingkungan uji.
 
 ### T21 — Pilot dan release MVP
+
+**Status: Penilaian kesiapan paralel dimulai, 5 November 2026; pilot belum dimulai.** Checklist gate, bukti dan gap tersedia di [T21-READINESS.md](docs/T21-READINESS.md). T20 masih belum memenuhi seluruh acceptance criteria; T05 payment gateway tetap ditunda dan OAuth production/merchant readiness belum dibuktikan. Revisi MVP memakai transfer, QRIS statis, dan tunai manual; kriteria historis gateway pada T21 konflik dengan revisi scope dan belum direkonsiliasi. Tidak ada event pilot atau transaksi nyata yang diklaim.
 
 - **Description:** jalankan pilot terbatas sebelum release, validasi Google OAuth, guest booking token, real payment minimal, settlement, refund, dan support.
 - **Deliverables:** pilot report, release checklist, deployment/rollback runbook, ownership support, production monitoring.
@@ -474,12 +476,16 @@ Setiap task adalah pekerjaan yang dapat ditinjau. Dependencies menyebut ID task 
 
 ### T22 — Follow friends dan privacy sosial (Phase 2)
 
+**Status: Implementasi lokal dan acceptance checks lulus, 5 November 2026.** Migration/API/UI sosial, approval profil privat, block/report, paginasi, dan kontrol tanpa pencarian nomor tersedia. `db:test` melewati 90 assertion gabungan; API suite 30/30; browser sosial desktop/mobile 4/4; lint, typecheck, dan build lulus. T22 tetap Phase 2 dan dependency T21 belum lulus; belum diterapkan ke hosted.
+
 - **Description:** relasi follow/unfollow, privacy profil, follow request, block/report.
 - **Deliverables:** migrations, API/UI relasi sosial, privacy matrix, abuse controls.
 - **Dependencies:** T21.
 - **Acceptance criteria:** no self/duplicate follow; private profile membutuhkan approval; blocked account tidak muncul pada feed/rekomendasi; nomor tidak searchable publik; pagination dan access tests lulus.
 
 ### T23 — Communities dan event komunitas (Phase 2)
+
+**Status: Implementasi lokal dan acceptance checks lulus, 5 November 2026.** Migration/RPC, route API, dan UI komunitas mencakup kontrol role, komunitas privat, transfer kepemilikan, dan tautan event. Replay database 90 assertion, API route auth 1/1 (termasuk dalam API suite 30/30), lint, typecheck, dan build lulus. Belum diterapkan ke hosted; dependency roadmap T21 masih terbuka.
 
 - **Description:** komunitas dengan owner/admin/member, membership requests/invites, serta event berafiliasi komunitas.
 - **Deliverables:** community schema, role policies, discovery/detail/manage UI, community event linkage.
@@ -488,12 +494,16 @@ Setiap task adalah pekerjaan yang dapat ditinjau. Dependencies menyebut ID task 
 
 ### T24 — Activity feed (Phase 2)
 
+**Status: Implementasi lokal dan acceptance checks lulus, 5 November 2026.** Feed/API mendukung visibility, filter block/community, cursor stabil, idempotensi publish, edit/delete/report, dan state UI. SQL rollback checks, tiga API tests (termasuk dalam API suite 30/30), `db:test` 90 assertion, lint, typecheck, dan build lulus. Belum diterapkan ke hosted; T22/T23 telah lulus checks lokal tetapi T21 dependency roadmap masih terbuka.
+
 - **Description:** tampilkan aktivitas diri/friends/community sesuai visibility dengan cursor dan sumber aktivitas yang jelas.
 - **Deliverables:** activity/feed schema, APIs, feed screen, edit/delete/report, dedupe publishing.
 - **Dependencies:** T22, T23.
 - **Acceptance criteria:** activity private/blocked tidak muncul; cursor tidak mengulang/melewatkan item pada urutan stabil; job retry tidak membuat post ganda; feed kosong/error tertangani; deleted activity hilang dari feed terkait.
 
 ### T25 — Photos dan moderation (Phase 2)
+
+**Status: Implementasi lokal dan acceptance checks lulus, 5 November 2026.** API upload PNG/JPEG memeriksa struktur/dimensi, menghapus metadata lokasi, mensyaratkan consent, memakai bucket privat dan signed URL 120 detik. UI mendukung upload, hapus, report, dan antrean moderator; akses foto mengikuti visibility activity dan cleanup memakai worker yang ada. Bukti: DB replay 95 assertions, API suite 41/41, build/lint/typecheck, serta browser suite T25–T29 16/16 desktop/mobile. Migration belum diterapkan ke hosted; moderator perlu provision lewat operasi tepercaya.
 
 - **Description:** upload foto aktivitas dengan consent, visibility inheritance, reporting, delete, dan moderator workflow.
 - **Deliverables:** Storage policies, photo UI/API, image processing/metadata cleanup, moderation queue dan retention rules.
@@ -502,12 +512,16 @@ Setiap task adalah pekerjaan yang dapat ditinjau. Dependencies menyebut ID task 
 
 ### T26 — Challenges (Phase 3)
 
+**Status: Implementasi lokal dan acceptance checks lulus, 5 November 2026.** Progress dihitung ulang dari kehadiran event selesai yang terverifikasi; aturan dan revisi challenge disimpan sebagai versi immutable, batch maintenance bounded dan idempotent. Bukti: SQL rollback regression, DB replay 95 assertions, API suite 41/41, typecheck/lint/build, browser suite gabungan 16/16. Endpoint maintenance siap, tetapi belum dijadwalkan di hosted.
+
 - **Description:** challenge berbatas waktu dengan metric dan eligibility rules yang dapat diaudit.
 - **Deliverables:** challenge schema/API/UI, join/progress calculator, rules/versioning, Cron processing.
 - **Dependencies:** T25.
 - **Acceptance criteria:** progress berasal dari data sah; cancelled/duplicate activity tidak menggandakan nilai; perhitungan idempotent dan rebuildable; zona waktu serta window challenge konsisten; privacy peserta dihormati.
 
 ### T27 — Achievements (Phase 3)
+
+**Status: Implementasi lokal dan acceptance checks lulus, 5 November 2026.** Award/revoke memakai definisi berversi, evidence event IDs, audit, dan batch rebuild idempotent; ambang, koreksi sumber, retry, dan privasi badge diuji. Bukti: SQL rollback regression, DB replay 95 assertions, API suite 41/41, typecheck/lint/build, browser suite gabungan 16/16. Belum ada hosted job schedule.
 
 - **Description:** penghargaan berdasarkan aturan terverifikasi, versioned, dan dapat dikoreksi saat data sumber berubah.
 - **Deliverables:** definitions, award/revoke jobs, profile badges, audit sumber penghargaan.
@@ -516,12 +530,16 @@ Setiap task adalah pekerjaan yang dapat ditinjau. Dependencies menyebut ID task 
 
 ### T28 — Stats (Phase 3)
 
+**Status: Implementasi lokal dan acceptance checks lulus, 5 November 2026.** Statistik privat membedakan kehadiran event selesai yang terverifikasi dari aktivitas yang dibagikan sendiri; periode memakai timezone profil dan rebuild dihitung dari sumber kanonis, termasuk koreksi serta event batal. Tidak ada metric jarak/kalori tanpa sumber. Bukti: SQL regression, DB replay 95 assertions, API suite 41/41, typecheck/lint/build, browser suite gabungan 16/16.
+
 - **Description:** statistik konsistensi dan aktivitas dengan definisi metric, periode, sumber data, serta perbedaan self-reported/verified.
 - **Deliverables:** metrics catalog, agregasi berversi, stats UI/API, rebuild job.
 - **Dependencies:** T26.
 - **Acceptance criteria:** jumlah hadir/event/frekuensi cocok sumber; jarak/kalori tidak ditampilkan tanpa data yang mendukung; periode menggunakan zona pengguna; rebuild menghasilkan nilai sama; privacy dan corrections dipropagasikan.
 
 ### T29 — Recommendations (Phase 3)
+
+**Status: Implementasi lokal dan evaluasi fixture lulus; rollout evaluation masih terbuka, 5 November 2026.** Rule-based ranking menyaring event penuh/selesai/terlarang dan blocked accounts, memberi alasan, mendukung consent, opt-out, coarse region, serta fallback. Feedback `open`/`dismiss` idempotent hanya menerima event rekomendasi aktif dan berhenti setelah opt-out. Bukti lokal: SQL regression, DB replay 95 assertions, API suite 41/41, typecheck/lint/build, browser suite gabungan 16/16, serta synthetic ranking hit@1 1/1 vs fallback 0/1 dan 3/3 kandidat terlarang tersaring. Evaluasi fixture lokal dan privacy checks dicatat di [T29-RECOMMENDATIONS.md](docs/T29-RECOMMENDATIONS.md); evaluasi opt-in/rollout hosted dan aktivasi belum dilakukan.
 
 - **Description:** rekomendasi awal berbasis kategori, lokasi kasar, jadwal, teman, dan kapasitas; mulai rule-based sebelum ML.
 - **Deliverables:** ranking rules, reason labels, consent/preferences/opt-out, feedback events, evaluasi kualitas.

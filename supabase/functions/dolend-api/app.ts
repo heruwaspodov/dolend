@@ -5,6 +5,13 @@ import { clientAddressFrom, createSupabaseGuestBookingService, GuestBookingError
 import { createObjectStorageFromEnv, type ObjectStorageRouter } from './object-storage.ts';
 import { createSupabaseEventInviteService, type EventInviteService } from './event-invite.ts';
 import { createSupabasePrivateUploadService, type PrivateUploadService } from './private-uploads.ts';
+import { createSupabaseSocialService, socialRoutes } from './social.ts';
+import { communityRoutes } from './community-routes.ts';
+import { activityRoutes } from './activities.ts';
+import { activityPhotoRoutes } from './activity-photos.ts';
+import { challengeRoutes } from './challenge-routes.ts';
+import { statsRoutes } from './stats.ts';
+import { recommendationRoutes } from './recommendations.ts';
 
 type Options = { allowedOrigins: string[]; pocMode?: boolean; accountService?: AccountService | null; guestBookingService?: GuestBookingService | null; objectStorage?: ObjectStorageRouter | null; eventInviteService?: EventInviteService | null; privateUploadService?:PrivateUploadService|null; storageCleanupKey?:string; maintenanceKey?:string };
 export function createApp({ allowedOrigins, pocMode = false, accountService, guestBookingService, objectStorage, eventInviteService, privateUploadService, storageCleanupKey, maintenanceKey }: Options) {
@@ -19,6 +26,7 @@ export function createApp({ allowedOrigins, pocMode = false, accountService, gue
   const files=objectStorage===undefined?createObjectStorageFromEnv(name=>Deno.env.get(name),url&&serviceRoleKey?{url,serviceKey:serviceRoleKey}:null):objectStorage;
   const eventInvites=eventInviteService===undefined&&url&&serviceRoleKey?createSupabaseEventInviteService(url,serviceRoleKey):eventInviteService;
   const privateUploads=privateUploadService===undefined&&url&&serviceRoleKey&&files?createSupabasePrivateUploadService(url,serviceRoleKey,files):privateUploadService;
+  const socialService=url&&serviceRoleKey?createSupabaseSocialService(url,serviceRoleKey):null;
   const tokenFrom = (request: Request) => request.headers.get('authorization')?.match(/^Bearer (.+)$/i)?.[1];
   const authenticate = async (request: Request): Promise<{ token: string; identity: AccountIdentity } | null> => {
     const token = tokenFrom(request);
@@ -53,8 +61,8 @@ export function createApp({ allowedOrigins, pocMode = false, accountService, gue
         set.headers['access-control-allow-origin'] = origin;
         set.headers['vary'] = 'Origin';
       }
-      set.headers['access-control-allow-methods'] = 'GET, PATCH, POST, OPTIONS';
-      set.headers['access-control-allow-headers'] = 'authorization, apikey, content-type, idempotency-key, x-booking-token, x-invite-token';
+      set.headers['access-control-allow-methods'] = 'GET, PATCH, POST, DELETE, OPTIONS';
+      set.headers['access-control-allow-headers'] = 'authorization, apikey, content-type, idempotency-key, x-booking-token, x-invite-token, x-photo-consent';
       if (request.method === 'OPTIONS') { set.status = 204; return new Response(null, { status: 204 }); }
       if (request.method === 'POST' && request.headers.get('content-type')?.includes('application/json') && (request.body === null || request.headers.get('content-length') === '0')) {
         set.status = 400;
@@ -89,6 +97,13 @@ export function createApp({ allowedOrigins, pocMode = false, accountService, gue
       return { error: { code: 'INTERNAL_ERROR', message: 'Terjadi kesalahan.' }, request_id };
     })
     .use(manualPaymentRoutes(accounts, url, serviceRoleKey, rateLimitPepper, guestBookings, files, eventInvites, privateUploads, storageCleanupKey??serviceRoleKey, maintenanceKey??Deno.env.get('INTERNAL_JOB_KEY')))
+    .use(socialRoutes(accounts ?? null, socialService))
+    .use(communityRoutes(accounts ?? null, url, serviceRoleKey))
+    .use(activityRoutes(accounts ?? null, url, serviceRoleKey))
+    .use(activityPhotoRoutes(accounts ?? null, url, serviceRoleKey, files ?? null, privateUploads ?? null))
+    .use(challengeRoutes(accounts ?? null, url, serviceRoleKey, undefined, maintenanceKey ?? Deno.env.get('INTERNAL_JOB_KEY')))
+    .use(statsRoutes(accounts ?? null, url, serviceRoleKey))
+    .use(recommendationRoutes(accounts ?? null, url, serviceRoleKey))
     .get('/health', ({ requestId }) => ({ data: { status: 'ok', service: 'dolend-api' }, request_id: requestId }))
     .get('/me', async ({ request, set, requestId }) => {
       if (!tokenFrom(request)) {

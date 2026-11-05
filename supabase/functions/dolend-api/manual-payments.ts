@@ -17,8 +17,15 @@ const venueSnapshot = t.Object({
   name:t.String({maxLength:200}),address:t.String({maxLength:1000}),maps_url:t.String({maxLength:2000}),
   latitude:t.Optional(t.Number({minimum:-90,maximum:90})),longitude:t.Optional(t.Number({minimum:-180,maximum:180})),
   meeting_instructions:t.Optional(t.String({maxLength:1000})),
+  coarse_region_code:t.Optional(t.String({maxLength:32,pattern:'^[A-Za-z0-9][A-Za-z0-9_-]{1,31}$'})),
 });
-type VenueSnapshot = {name:string;address:string;maps_url:string;latitude?:number;longitude?:number;meeting_instructions?:string};
+type VenueSnapshot = {name:string;address:string;maps_url:string;latitude?:number;longitude?:number;meeting_instructions?:string;coarse_region_code?:string};
+export function organizerPaymentMethodDto(row: Record<string, unknown>) {
+  return { id: row.id, type: row.type, recipient_name: row.recipient_name, is_active: row.is_active, created_at: row.created_at };
+}
+export function manualPaymentReviewDto(row: Record<string, unknown>, proofUrl: string | null) {
+  return { id: row.id, amount: row.amount, status: row.status, proof_url: proofUrl };
+}
 export function isSafeMapsUrl(value: string) {
   if (!value) return true;
   try {
@@ -34,7 +41,9 @@ export function normalizeVenueSnapshot(venue:VenueSnapshot) {
   const mapsUrl=venue.maps_url.trim() || (hasLatitude?`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${venue.latitude},${venue.longitude}`)}`:'');
   if(!isSafeMapsUrl(mapsUrl))throw new FinanceError('INVALID_REQUEST');
   const instructions=venue.meeting_instructions?.trim();
-  return {name:venue.name.trim(),address:venue.address.trim(),maps_url:mapsUrl,...(hasLatitude?{latitude:venue.latitude,longitude:venue.longitude}:{}),...(instructions?{meeting_instructions:instructions}:{})};
+  const region=venue.coarse_region_code?.trim().toUpperCase();
+  if(region&&!/^[A-Z0-9][A-Z0-9_-]{1,31}$/.test(region))throw new FinanceError('INVALID_REQUEST');
+  return {name:venue.name.trim(),address:venue.address.trim(),maps_url:mapsUrl,...(hasLatitude?{latitude:venue.latitude,longitude:venue.longitude}:{}),...(instructions?{meeting_instructions:instructions}:{}),...(region?{coarse_region_code:region}:{})};
 }
 export async function imageBytes(request: Request):Promise<{bytes:Uint8Array;mime:'image/png'|'image/jpeg';extension:'png'|'jpg'}> {
   const reader = request.body?.getReader();
@@ -110,22 +119,24 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
     }
   }
   async function chargeAccess(charge: string, request: Request) {
-    const { data: c, error } = await client().from('participant_charges').select('*,event_participants!inner(event_id,user_id)').eq('id',charge).single();
+    const { data: c, error } = await client().from('participant_charges').select('id,amount,participant_id,event_participants!inner(event_id,user_id)').eq('id',charge).single();
     if (error || !c) throw new FinanceError('FORBIDDEN');
-    const p = c.event_participants;
+    const p = Array.isArray(c.event_participants) ? c.event_participants[0] : c.event_participants;
+    if (!p) throw new FinanceError('FORBIDDEN');
+    const chargeRow = { ...c, event_participants: p };
     const token = request.headers.get('x-booking-token');
     if (token) {
       if (!/^[A-Za-z0-9_-]{43}$/.test(token)) throw new FinanceError('FORBIDDEN');
       const digest = await crypto.subtle.digest('SHA-256',new TextEncoder().encode(token));
       const hash = Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2,'0')).join('');
       const { data: booking } = await client().rpc('get_guest_booking',{ p_event: p.event_id,p_token_hash: hash });
-      if (!booking?.some((b: { participant_id: string }) => b.participant_id === c.participant_id)) throw new FinanceError('FORBIDDEN');
-      return { c, actor: null, hash };
+      if (!booking?.some((b: { participant_id: string }) => b.participant_id === chargeRow.participant_id)) throw new FinanceError('FORBIDDEN');
+      return { c: chargeRow, actor: null, hash };
     }
     const id = await actor(request);
     const { data: profile } = await client().from('profiles').select('user_id').eq('id',id).single();
     if (profile?.user_id !== p.user_id) await rpc('manual_event_access',{p_event:p.event_id,p_actor:id});
-    return { c, actor: id, hash: null };
+    return { c: chargeRow, actor: id, hash: null };
   }
   async function invoiceAccess(invoice:string,request:Request) {
     const {data,error}=await client().from('invoices').select('id,participant_id,invoice_number,amount_due,currency,due_at,status,pricing_snapshot,event_participants!inner(id,event_id,user_id,status)').eq('id',invoice).single();
@@ -156,7 +167,7 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
     const {count}=await client().from('event_participants').select('id',{count:'exact',head:true}).eq('event_id',e.id).in('status',['confirmed','attended','no_show']);
     const {count:chargeable}=await client().from('event_participants').select('id',{count:'exact',head:true}).eq('event_id',e.id).eq('chargeable',true).eq('status','confirmed');
     const {venue_snapshot,...rest}=e;
-    return {...rest,participants_count:count??0,estimated_per_person:chargeable?Math.ceil(Number(e.estimated_total_cost)/chargeable):null,venue:{name:venue_snapshot?.name?.trim()||'Venue belum ditentukan',address:venue_snapshot?.address??'',maps_url:venue_snapshot?.maps_url??'',...(venue_snapshot?.latitude!==undefined?{latitude:Number(venue_snapshot.latitude),longitude:Number(venue_snapshot.longitude)}:{}),...(venue_snapshot?.meeting_instructions?{meeting_instructions:venue_snapshot.meeting_instructions}:{})}};
+    return {...rest,participants_count:count??0,estimated_per_person:chargeable?Math.ceil(Number(e.estimated_total_cost)/chargeable):null,venue:{name:venue_snapshot?.name?.trim()||'Venue belum ditentukan',address:venue_snapshot?.address??'',maps_url:venue_snapshot?.maps_url??'',...(venue_snapshot?.latitude!==undefined?{latitude:Number(venue_snapshot.latitude),longitude:Number(venue_snapshot.longitude)}:{}),...(venue_snapshot?.meeting_instructions?{meeting_instructions:venue_snapshot.meeting_instructions}:{}),...(!publicOnly&&venue_snapshot?.coarse_region_code?{coarse_region_code:venue_snapshot.coarse_region_code}:{})}};
   }
   return new Elysia({ aot: false })
     .onBeforeHandle(({set}) => {set.headers['cache-control']='no-store';})
@@ -296,9 +307,9 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
     },{params:t.Object({id:uuid}),parse:'none'})
     .get('/payment-settings', async ({ request }) => {
       const id = await actor(request);
-      const { data,error } = await client().from('organizer_payment_methods').select('*').eq('organizer_id',id).order('created_at');
+      const { data,error } = await client().from('organizer_payment_methods').select('id,type,recipient_name,is_active,created_at').eq('organizer_id',id).order('created_at');
       if (error) throw new FinanceError('STORAGE_UNAVAILABLE');
-      return { data };
+      return { data: (data ?? []).map(organizerPaymentMethodDto) };
     })
     .post('/payment-settings', async ({ request,body }) => {
       const id = await actor(request);
@@ -306,16 +317,17 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
         if (!body.storage_path || !new RegExp(`^qris/${id}/[0-9a-f-]{36}\\.(png|jpg)$`).test(logicalKey(body.storage_path))) throw new FinanceError('FORBIDDEN');
         if (!await objectExists(body.storage_path)) throw new FinanceError('INVALID_IMAGE');
       }
-      return {data:await rpc('create_organizer_payment_method',{
+      const method=await rpc('create_organizer_payment_method',{
         p_actor:id,p_type:body.type,p_recipient_name:body.recipient_name,
         p_storage_reference:body.storage_path??null,p_bank_details:body.bank_details??null,
-      })};
+      });
+      return {data:organizerPaymentMethodDto(method as Record<string,unknown>)};
     }, { body:t.Object({type:t.Union([t.Literal('static_qris'),t.Literal('bank_transfer'),t.Literal('cash')]),recipient_name:t.String({minLength:1,maxLength:120}),storage_path:t.Optional(t.String({maxLength:512})),bank_details:t.Optional(t.Object({bank:t.String({minLength:1,maxLength:120}),account:t.String({minLength:1,maxLength:100})}))},{additionalProperties:false}) })
     .patch('/payment-settings/:id', async ({ request,params,body }) => {
       const id = await actor(request);
-      const { data,error } = await client().from('organizer_payment_methods').update({is_active:body.is_active}).eq('id',params.id).eq('organizer_id',id).select().single();
+      const { data,error } = await client().from('organizer_payment_methods').update({is_active:body.is_active}).eq('id',params.id).eq('organizer_id',id).select('id,type,recipient_name,is_active,created_at').single();
       if (error) throw new FinanceError('FORBIDDEN');
-      return { data };
+      return { data: organizerPaymentMethodDto(data) };
     }, {params:t.Object({id:uuid}),body:t.Object({is_active:t.Boolean()},{additionalProperties:false})})
     .post('/payment-settings/qris-image', async ({request}) => {
       const id = await actor(request);
@@ -471,9 +483,9 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
     .get('/events/:id/payment-reviews',async ({request,params,set}) => {
       set.headers['cache-control']='no-store';
       await ownEvent(params.id,request);
-      const {data,error}=await client().from('manual_payment_records').select('*,participant_charges!inner(participant_id,event_participants!inner(event_id))').eq('participant_charges.event_participants.event_id',params.id);
+      const {data,error}=await client().from('manual_payment_records').select('id,amount,status,proof_storage_path,participant_charges!inner(event_participants!inner(event_id))').eq('participant_charges.event_participants.event_id',params.id);
       if(error) throw new FinanceError('STORAGE_UNAVAILABLE');
-      return {data:await Promise.all((data??[]).map(async r=>{let proof_url:string|null=null;if(r.proof_storage_path)try{proof_url=await files().signedDownloadUrl(r.proof_storage_path,120);}catch{throw new FinanceError('STORAGE_UNAVAILABLE');}return {...r,proof_url};}))};
+      return {data:await Promise.all((data??[]).map(async r=>{let proof_url:string|null=null;if(r.proof_storage_path)try{proof_url=await files().signedDownloadUrl(r.proof_storage_path,120);}catch{throw new FinanceError('STORAGE_UNAVAILABLE');}return manualPaymentReviewDto(r,proof_url);}))};
     },{params:t.Object({id:uuid})})
     .post('/payments/:id/review',async ({request,params,body}) => ({data:await rpc('review_manual_payment',{p_payment:params.id,p_actor:await actor(request),p_decision:body.decision,p_reason:body.reason})}),{params:t.Object({id:uuid}),body:t.Object({decision:t.Union([t.Literal('verified'),t.Literal('rejected')]),reason},{additionalProperties:false})})
     .post('/charges/:id/adjustments',async ({request,params,body}) => ({data:await rpc('adjust_contribution',{p_charge:params.id,p_actor:await actor(request),p_type:body.type,p_amount:body.amount,p_reason:body.reason,p_key:body.idempotency_key})}),{params:t.Object({id:uuid}),body:t.Object({type:t.Union([t.Literal('refund'),t.Literal('adjustment')]),amount:t.Integer({minimum:-1e12,maximum:1e12}),reason,idempotency_key:key},{additionalProperties:false})})

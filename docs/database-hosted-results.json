@@ -1,11 +1,12 @@
 {
-  "date": "2026-11-01",
+  "date": "2026-11-04",
   "project": "fpbefabsqryxmnmxufjw",
   "checks": [
     "20 hosted joins for 5 seats: exactly 5 confirmations and 15 EVENT_FULL",
     "10 concurrent join retries retain one participant",
     "capacity cannot shrink below occupied seats",
     "cancellation releases one seat and replacement preserves capacity",
+    "invite unlisted verifies hash, rejects foreign revoke, and fails after revoke",
     "success status requires matching ledger receipt",
     "wrong provider amount rejected",
     "20 concurrent provider callbacks: one receipt and one confirmed seat",

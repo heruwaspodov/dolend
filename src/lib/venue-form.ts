@@ -5,6 +5,7 @@ export type VenueSnapshotDraft = {
   latitude?: number;
   longitude?: number;
   meeting_instructions?: string;
+  coarse_region_code?: string;
 };
 
 export function venueSnapshotFromForm(form: FormData): VenueSnapshotDraft | undefined {
@@ -15,7 +16,8 @@ export function venueSnapshotFromForm(form: FormData): VenueSnapshotDraft | unde
   const latitudeText = text('latitude');
   const longitudeText = text('longitude');
   const meetingInstructions = text('meeting_instructions');
-  if (!name && !address && !mapsUrl && !latitudeText && !longitudeText && !meetingInstructions) return;
+  const coarseRegion = text('coarse_region_code').toUpperCase();
+  if (!name && !address && !mapsUrl && !latitudeText && !longitudeText && !meetingInstructions && !coarseRegion) return;
   if (Boolean(latitudeText) !== Boolean(longitudeText)) throw new Error('Isi latitude dan longitude bersama-sama.');
   let coordinates: { latitude: number; longitude: number } | undefined;
   if (latitudeText && longitudeText) {
@@ -27,11 +29,13 @@ export function venueSnapshotFromForm(form: FormData): VenueSnapshotDraft | unde
     }
     coordinates = { latitude, longitude };
   }
+  if (coarseRegion && !/^[A-Z0-9][A-Z0-9_-]{1,31}$/.test(coarseRegion)) throw new Error('Kode area umum tidak valid.');
   return {
     name,
     address,
     maps_url: mapsUrl,
     ...coordinates,
     ...(meetingInstructions ? { meeting_instructions: meetingInstructions } : {}),
+    ...(coarseRegion ? { coarse_region_code: coarseRegion } : {}),
   };
 }

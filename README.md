@@ -6,6 +6,8 @@ Direktori kerja proyek: `/Users/wspdv/Works/dolend`.
 
 ## Status proyek
 
+Untuk melanjutkan pekerjaan tanpa membaca seluruh repository, mulai dari [AI handoff aktif](docs/AI-HANDOFF.md). [AI start map](docs/AI-START.md) menjelaskan sumber kebenaran dan routing konteks. `README.md` adalah overview; scope dan acceptance criteria tetap dimiliki `PLAN.md`.
+
 Brief produk T01 selesai untuk sumber yang tersedia dan **T02 kompatibilitas Elysia/Supabase sudah GO**. **T03 static Hosting juga sudah GO**: query-route serta auth/payment return shell lulus pengujian browser pada preview Firebase.
 
 - Next.js menghasilkan static export untuk beranda, `/account/`, `/event/`, `/auth/callback/`, dan `/payment/`. Target Hosting: project `dolend-apps`, site `dolend`.
@@ -215,6 +217,8 @@ Folder dependency, hasil build, file environment lokal, log, dan cache layanan t
 
 ## Dokumen proyek
 
+- [AI handoff aktif](docs/AI-HANDOFF.md): task sekarang, bukti, gap, dan next action.
+- [AI start map](docs/AI-START.md): urutan baca, source-of-truth, routing, dan level bukti.
 - [Rencana implementasi](PLAN.md): MVP, schema, API, milestones, dan risks.
 - [Product brief](docs/PRODUCT.md): persona, istilah, dan keputusan produk.
 - [Fondasi UI](docs/UI-FOUNDATION.md): React/Tailwind/shadcn, tokens, komponen, dan cara menambah komponen.
