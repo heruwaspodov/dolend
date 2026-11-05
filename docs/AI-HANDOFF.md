@@ -30,6 +30,7 @@ Terakhir diperbarui: 5 November 2026. Sumber scope: `PLAN.md` T20–T29 dan §9.
 | T29 synthetic fixture check: personalized hit@1 1/1 vs chronological baseline 0/1; 3/3 invalid candidates filtered; privacy assertions pass | Local SQL regression | `T29-RECOMMENDATIONS.md`, `supabase/tests/recommendations.sql` |
 | Supabase local Docker stack started; fresh local migration replay succeeded and generated DB types were regenerated from local schema | Local environment | `DATABASE.md`; `DATA-DICTIONARY.md` remains hosted snapshot |
 | Function `dolend-api` lokal health merespons HTTP 200 dengan header no-store/nosniff | Local API probe | Local Supabase stack on port 54321 |
+| T18 attendance guard: future start and non-organizer rejected, retry keeps one audit row, no-show preserves invoice; DB suite now 99 assertions | Local database test | `PLAN.md` T18; migration `20261105180000_attendance_start_guard.sql` |
 | Preview build + fixture: hosting/browser checks 14/14; normal build guest booking/member participation 4/4 | Local browser test | `npm run build:preview`, `npm run preview:fixture`, `npm run test:hosting`; normal `npm run build` + targeted Playwright |
 
 ## Gap T20 yang masih terbuka

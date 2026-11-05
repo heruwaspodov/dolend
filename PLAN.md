@@ -440,7 +440,7 @@ Setiap task adalah pekerjaan yang dapat ditinjau. Dependencies menyebut ID task 
 
 ### T18 — Dashboard organizer dan kehadiran
 
-**Status: Backend attendance dikerjakan lokal, 4 November 2026.** RPC dan API organizer mencatat `attended`/`no_show` secara idempotent setelah event mulai, memakai lock event lalu peserta, audit, serta histori status. Perubahan kehadiran tidak mengubah invoice. UI action, filter/search, dan ringkasan lintas event masih belum selesai.
+**Status: Backend attendance lulus pemeriksaan lokal, UI belum selesai, 5 November 2026.** RPC dan API organizer mencatat `attended`/`no_show` secara idempotent setelah event mulai, memakai lock event lalu peserta, audit, serta histori status. Guard waktu ditambahkan lewat migration forward-only setelah ditemukan RPC lama belum memeriksa waktu mulai. Regression DB memverifikasi pencatatan sebelum mulai dan organizer lain ditolak, retry tidak menggandakan audit, serta `no_show` tidak mengubah invoice. UI action, filter/search, dan ringkasan lintas event masih belum selesai.
 
 - **Description:** satukan event, occupancy, roster, pending review, paid/unpaid/overdue, dan attendance tanpa mencampur status bayar dengan ikut.
 - **Deliverables:** dashboard, filter/search, attendance action, ringkasan penerimaan/refund/outstanding.
