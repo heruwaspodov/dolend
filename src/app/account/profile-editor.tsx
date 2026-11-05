@@ -5,7 +5,7 @@ import type { Session } from '@supabase/supabase-js';
 import { LoaderCircle, UserRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { SettingsSection, settingsAction, settingsControl } from './settings-section';
+import { WorkspaceFormSection, workspaceFormAction, workspaceFormControl } from '@/components/organizer/workspace-form';
 import { Label } from '@/components/ui/label';
 import { ensureOwnProfile, getOwnProfile, updateOwnProfile, type OwnProfile } from '@/lib/profile-client';
 
@@ -55,7 +55,7 @@ export function ProfileEditor({ session }: { session: Session }) {
   }
 
   return (
-    <SettingsSection id="profile-title" title="Profil" description="Atur bio dan zona waktu yang kamu gunakan.">
+    <WorkspaceFormSection id="profile-title" title="Profil" description="Atur bio dan zona waktu yang kamu gunakan.">
       {loading ? (
         <p className="flex items-center gap-2 text-sm text-muted-foreground" role="status">
           <LoaderCircle className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />
@@ -76,14 +76,14 @@ export function ProfileEditor({ session }: { session: Session }) {
           </div>
           <div className="grid max-w-56 gap-2">
             <Label htmlFor="profile-timezone">Zona waktu</Label>
-            <Input id="profile-timezone" className={settingsControl} value={timezone} onChange={(event) => setTimezone(event.target.value)} required maxLength={100} />
+            <Input id="profile-timezone" className={workspaceFormControl} value={timezone} onChange={(event) => setTimezone(event.target.value)} required maxLength={100} />
           </div>
 
           <div className="grid gap-2">
             <Label htmlFor="profile-bio">Tentang kamu</Label>
             <textarea
               id="profile-bio"
-              className={`${settingsControl} h-auto min-h-24 resize-y py-2 placeholder:text-muted-foreground`}
+              className={`${workspaceFormControl} h-auto min-h-24 resize-y py-2 placeholder:text-muted-foreground`}
               aria-describedby="profile-bio-count"
               maxLength={1000}
               value={bio}
@@ -93,13 +93,13 @@ export function ProfileEditor({ session }: { session: Session }) {
             <p id="profile-bio-count" className="text-right text-xs tabular-nums text-muted-foreground">{bio.length}/1000 karakter</p>
           </div>
 
-          <Button type="submit" className={`${settingsAction} w-full sm:w-fit`} disabled={saving}>
+          <Button type="submit" className={`${workspaceFormAction} w-full sm:w-fit`} disabled={saving}>
             {saving && <LoaderCircle className="animate-spin motion-reduce:animate-none" aria-hidden="true" />}
             {saving ? 'Menyimpan…' : 'Simpan profil'}
           </Button>
           {(error || message) && <p className={`text-sm font-medium ${error ? 'text-rose-700' : 'text-emerald-700'}`} role={error ? 'alert' : 'status'}>{error || message}</p>}
         </form>
       )}
-    </SettingsSection>
+    </WorkspaceFormSection>
   );
 }

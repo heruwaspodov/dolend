@@ -2,7 +2,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { SettingsSection, settingsAction, settingsControl } from './settings-section';
+import { WorkspaceFormSection, workspaceFormAction, workspaceFormControl } from '@/components/organizer/workspace-form';
 import { Label } from '@/components/ui/label';
 import { paymentRequest } from '@/lib/payment-client';
 
@@ -47,13 +47,13 @@ export function PaymentSettings({token}:{token:string}) {
     catch(e){setMessage(e instanceof Error?e.message:'Gagal mengubah metode event.');}finally{setBusy(false);}
   }
   return (
-    <SettingsSection id="payment-settings-title" title="Pengaturan pembayaran" description="Dana masuk langsung ke organizer. Gunakan QRIS resmi milikmu.">
+    <WorkspaceFormSection id="payment-settings-title" title="Pengaturan pembayaran" description="Dana masuk langsung ke organizer. Gunakan QRIS resmi milikmu.">
       <div className="space-y-5">
         <form onSubmit={save} className="grid gap-4 sm:grid-cols-2" aria-labelledby="add-method-title">
           <h3 id="add-method-title" className="text-sm font-semibold sm:col-span-2">Tambah metode pembayaran</h3>
           <div className="grid gap-2">
             <Label htmlFor="payment-type">Metode</Label>
-            <select id="payment-type" value={type} onChange={e => setType(e.target.value)} className={settingsControl}>
+            <select id="payment-type" value={type} onChange={e => setType(e.target.value)} className={workspaceFormControl}>
               <option value="static_qris">QRIS statis</option>
               <option value="bank_transfer">Transfer bank</option>
               <option value="cash">Tunai</option>
@@ -61,12 +61,12 @@ export function PaymentSettings({token}:{token:string}) {
           </div>
           <div className="grid gap-2">
             <Label htmlFor="payment-recipient">Nama penerima / merchant</Label>
-            <Input id="payment-recipient" name="recipient" required maxLength={120} className={settingsControl} />
+            <Input id="payment-recipient" name="recipient" required maxLength={120} className={workspaceFormControl} />
           </div>
           {type === 'static_qris' && (
             <div className="grid gap-2 sm:col-span-2">
               <Label htmlFor="payment-qris">Gambar QRIS</Label>
-              <Input id="payment-qris" name="qris" type="file" accept="image/png,image/jpeg" required aria-describedby="payment-qris-hint" className={`${settingsControl} py-2 file:me-3`} />
+              <Input id="payment-qris" name="qris" type="file" accept="image/png,image/jpeg" required aria-describedby="payment-qris-hint" className={`${workspaceFormControl} py-2 file:me-3`} />
               <p id="payment-qris-hint" className="text-sm leading-5 text-muted-foreground">
                 PNG atau JPG, maksimal 2 MB. Untuk mengganti QRIS, tambahkan gambar baru lalu nonaktifkan metode lama. Riwayat tetap disimpan. Gambar QRIS tidak menjadi konfirmasi pembayaran.
               </p>
@@ -76,15 +76,15 @@ export function PaymentSettings({token}:{token:string}) {
             <>
               <div className="grid gap-2">
                 <Label htmlFor="payment-bank">Bank</Label>
-                <Input id="payment-bank" name="bank" required maxLength={120} className={settingsControl} />
+                <Input id="payment-bank" name="bank" required maxLength={120} className={workspaceFormControl} />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="payment-account">Nomor rekening</Label>
-                <Input id="payment-account" name="account" required maxLength={100} className={settingsControl} />
+                <Input id="payment-account" name="account" required maxLength={100} className={workspaceFormControl} />
               </div>
             </>
           )}
-          <Button className={`${settingsAction} w-full sm:col-span-2 sm:w-fit`} disabled={busy} type="submit">
+          <Button className={`${workspaceFormAction} w-full sm:col-span-2 sm:w-fit`} disabled={busy} type="submit">
             {busy ? 'Memproses…' : 'Simpan metode'}
           </Button>
         </form>
@@ -94,7 +94,7 @@ export function PaymentSettings({token}:{token:string}) {
           <h3 id="saved-methods-title" className="text-base font-semibold">Metode tersimpan</h3>
           <div className="grid gap-2">
             <Label htmlFor="method-event">Gunakan metode pada event</Label>
-            <select id="method-event" value={eventId} onChange={e => setEventId(e.target.value)} className={settingsControl}>
+            <select id="method-event" value={eventId} onChange={e => setEventId(e.target.value)} className={workspaceFormControl}>
               <option value="">Pilih event</option>
               {events.map(event => <option key={event.id} value={event.id}>{event.title}</option>)}
             </select>
@@ -126,6 +126,6 @@ export function PaymentSettings({token}:{token:string}) {
           )}
         </section>
       </div>
-    </SettingsSection>
+    </WorkspaceFormSection>
   );
 }

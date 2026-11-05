@@ -10,8 +10,9 @@ import { useOrganizerSession } from '@/lib/use-organizer-session';
 import { venueSnapshotFromForm } from '@/lib/venue-form';
 import { SessionGate } from './session-gate';
 
-const field = 'mt-2 min-h-11 border-slate-300 bg-white';
-const select = `${field} w-full rounded-lg border px-3 text-sm outline-none focus-visible:border-emerald-700 focus-visible:ring-3 focus-visible:ring-emerald-700/20`;
+import { WorkspaceFormSection, workspaceFormAction, workspaceFormControl, workspaceFormPanel, workspaceFormWidth } from './workspace-form';
+
+const field = `mt-2 ${workspaceFormControl}`;
 const zones = [{ value: 'Asia/Jakarta', label: 'WIB', offset: '+07:00' }, { value: 'Asia/Makassar', label: 'WITA', offset: '+08:00' }, { value: 'Asia/Jayapura', label: 'WIT', offset: '+09:00' }];
 type PaymentMethod={id:string;type:'static_qris'|'bank_transfer'|'cash';recipient_name:string;is_active:boolean};
 
@@ -63,38 +64,60 @@ export function EventCreateForm() {
   }
 
   if (!session) return <SessionGate ready={ready} />;
-  return <div className="mx-auto max-w-3xl">
-    <header><p className="text-xs font-bold tracking-widest text-emerald-700 uppercase">Event baru</p><h1 className="mt-2 text-3xl font-extrabold tracking-tight">Mulai dari rencana yang sudah pasti</h1><p className="mt-3 text-sm leading-relaxed text-slate-600">Waktu dan perkiraan biaya dibutuhkan sekarang. Venue bisa ditambahkan atau diperbarui saat planning.</p></header>
+  return <div className={workspaceFormWidth}>
+    <header className="mb-6">
+      <h1 className="text-3xl font-semibold tracking-tight">Buat event</h1>
+      <p className="mt-1.5 text-sm leading-6 text-muted-foreground">Tentukan waktu dan biaya. Untuk event patungan, venue bisa dilengkapi saat planning.</p>
+    </header>
     {loading && <p className="mt-6 rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-600" role="status">Menyiapkan form…</p>}
     {!loading && workspaces.length === 0 && !error && <p className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-950" role="alert">Akun ini belum punya akses organizer pada workspace mana pun.</p>}
-    {!loading && workspaces.length > 0 && <form className="mt-7 space-y-7 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7" onSubmit={submit}>
-      <fieldset className="grid gap-5 sm:grid-cols-2"><legend className="mb-5 text-lg font-bold">Dasar event</legend>
-        <div><Label htmlFor="workspace">Workspace</Label><select id="workspace" name="workspace_id" required className={select}>{workspaces.map((workspace) => <option key={workspace.id} value={workspace.id}>{workspace.name}</option>)}</select></div>
-        <div><Label htmlFor="activity">Jenis aktivitas</Label><select id="activity" name="activity_type_id" required className={select}>{activities.map((activity) => <option key={activity.id} value={activity.id}>{activity.name}</option>)}</select></div>
-        <div className="sm:col-span-2"><Label htmlFor="title">Nama event</Label><Input id="title" name="title" required maxLength={200} className={field} placeholder="Badminton Jumat malam" /></div>
-        <div className="sm:col-span-2"><Label htmlFor="description">Deskripsi <span className="font-normal text-slate-500">(opsional)</span></Label><textarea id="description" name="description" maxLength={10000} rows={4} className={`${select} py-3`} placeholder="Level permainan, perlengkapan, atau catatan lain" /></div>
-        <div className="sm:col-span-2"><Label htmlFor="visibility">Akses event</Label><select id="visibility" name="visibility" defaultValue="unlisted" className={select}><option value="unlisted">Hanya lewat undangan</option><option value="public">Publik</option></select><p className="mt-2 text-xs leading-relaxed text-slate-600">Event undangan tidak tampil di discovery dan hanya dapat dibuka lewat tautan aktif.</p></div>
-      </fieldset>
-      <fieldset className="grid gap-5 sm:grid-cols-2"><legend className="mb-5 text-lg font-bold">Waktu</legend>
-        <div><Label htmlFor="starts">Mulai</Label><Input id="starts" name="starts_at" type="datetime-local" required className={field} /></div><div><Label htmlFor="ends">Selesai</Label><Input id="ends" name="ends_at" type="datetime-local" required className={field} /></div>
-        <div><Label htmlFor="closes">Pendaftaran ditutup</Label><Input id="closes" name="registration_closes_at" type="datetime-local" required className={field} /></div><div><Label htmlFor="timezone">Zona waktu</Label><select id="timezone" name="timezone" value={timezone} onChange={(event) => setTimezone(event.target.value)} className={select}>{zones.map((zone) => <option key={zone.value} value={zone.value}>{zone.label}</option>)}</select></div>
-      </fieldset>
-      <fieldset className="grid gap-5 sm:grid-cols-2"><legend className="mb-5 text-lg font-bold">Peserta dan biaya</legend>
-        <div><Label htmlFor="capacity">Kapasitas</Label><Input id="capacity" name="capacity" type="number" min={1} max={100000} defaultValue={12} required className={field} /></div><div><Label htmlFor="billing-mode">Model biaya</Label><select id="billing-mode" name="billing_mode" value={billingMode} onChange={event=>setBillingMode(event.target.value as typeof billingMode)} className={select}><option value="dynamic">Patungan sesuai biaya aktual</option><option value="free">Gratis</option><option value="before_event">Harga tetap · bayar sebelum event</option><option value="after_event">Harga tetap · bayar setelah event</option></select></div>
-        {billingMode==='dynamic'&&<><div><Label htmlFor="cost">Perkiraan biaya total (Rp)</Label><Input id="cost" name="estimated_total_cost" type="number" min={0} step={1000} defaultValue={0} required className={field} /></div><div><Label htmlFor="timing">Waktu pembayaran</Label><select id="timing" name="payment_timing" className={select}><option value="before_event">Sebelum event</option><option value="after_event">Setelah event</option></select></div></>}
-        {billingMode!=='dynamic'&&billingMode!=='free'&&<><div><Label htmlFor="price">Harga per peserta (Rp)</Label><Input id="price" name="price_amount" type="number" min={1} max={1e12} step={1} required className={field}/></div><div><Label htmlFor="payment-method">Rekening penerima</Label><select id="payment-method" name="payment_method_id" required className={select}><option value="">Pilih rekening</option>{paymentMethods.map(method=><option key={method.id} value={method.id}>{method.recipient_name}</option>)}</select>{paymentMethods.length===0&&<p className="mt-2 text-xs text-amber-800">Tambahkan rekening bank aktif di halaman akun terlebih dahulu.</p>}</div></>}
-        {billingMode==='before_event'&&<div><Label htmlFor="hold-minutes">Durasi tahan kursi (menit)</Label><Input id="hold-minutes" name="hold_minutes" type="number" min={1} max={1440} defaultValue={15} required className={field}/></div>}
-        {billingMode==='after_event'&&<div><Label htmlFor="payment-due">Jatuh tempo pembayaran</Label><Input id="payment-due" name="payment_due_at" type="datetime-local" required className={field}/><p className="mt-2 text-xs text-slate-600">Harus setelah event selesai.</p></div>}
-      </fieldset>
-      <fieldset className="grid gap-5 sm:grid-cols-2"><legend className="mb-2 text-lg font-bold">Venue <span className="text-sm font-normal text-slate-500">{billingMode==='dynamic'?'(opsional)':'(wajib untuk harga tetap/gratis)'}</span></legend><p className="-mt-3 text-sm text-slate-600 sm:col-span-2">{billingMode==='dynamic'?'Kosongkan jika tempat masih dibicarakan.':'Event langsung dipublikasikan, jadi nama dan alamat tempat harus sudah pasti.'}</p>
-        <div><Label htmlFor="venue-name">Nama tempat</Label><Input id="venue-name" name="venue_name" maxLength={200} required={billingMode!=='dynamic'} className={field} /></div><div><Label htmlFor="venue-address">Alamat</Label><Input id="venue-address" name="venue_address" maxLength={1000} required={billingMode!=='dynamic'} className={field} /></div>
-        <div><Label htmlFor="latitude">Latitude</Label><Input id="latitude" name="latitude" type="number" inputMode="decimal" min={-90} max={90} step="any" className={field} placeholder="-6.200000" /></div><div><Label htmlFor="longitude">Longitude</Label><Input id="longitude" name="longitude" type="number" inputMode="decimal" min={-180} max={180} step="any" className={field} placeholder="106.816666" /></div>
-        <div className="sm:col-span-2"><Label htmlFor="maps">Tautan Google Maps <span className="font-normal text-slate-500">(opsional jika koordinat diisi)</span></Label><Input id="maps" name="maps_url" type="url" maxLength={2000} className={field} placeholder="https://www.google.com/maps/…" /></div>
-        <div className="sm:col-span-2"><Label htmlFor="coarse-region-code">Kode area umum untuk rekomendasi</Label><Input id="coarse-region-code" name="coarse_region_code" maxLength={32} className={field} placeholder="Contoh: ID-JK" /><p className="mt-1 text-xs text-slate-500">Opsional. Gunakan kode kota/provinsi umum, jangan masukkan koordinat atau alamat di kolom ini.</p></div>
-        <div className="sm:col-span-2"><Label htmlFor="meeting-instructions">Petunjuk bertemu</Label><textarea id="meeting-instructions" name="meeting_instructions" maxLength={1000} rows={3} className={`${select} py-3`} placeholder="Contoh: tunggu di lobi utama 15 menit sebelum mulai" /></div>
-      </fieldset>
-      {error && <p className="rounded-lg bg-rose-50 p-4 text-sm font-medium text-rose-800" role="alert">{error}</p>}
-      <Button type="submit" disabled={saving || activities.length === 0} className="min-h-11 w-full bg-emerald-700 px-5 text-white hover:bg-emerald-800 sm:w-auto">{saving ? 'Membuat event…' : 'Buat event'}</Button>
+    {!loading && workspaces.length > 0 && <form className={workspaceFormPanel} onSubmit={submit}>
+      <WorkspaceFormSection id="event-basics" title="Dasar event" description="Beri nama event dan tentukan siapa yang bisa membukanya.">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div><Label htmlFor="workspace">Workspace</Label><select id="workspace" name="workspace_id" required className={field}>{workspaces.map((workspace) => <option key={workspace.id} value={workspace.id}>{workspace.name}</option>)}</select></div>
+          <div><Label htmlFor="activity">Jenis aktivitas</Label><select id="activity" name="activity_type_id" required className={field}>{activities.map((activity) => <option key={activity.id} value={activity.id}>{activity.name}</option>)}</select></div>
+          <div className="sm:col-span-2"><Label htmlFor="title">Nama event</Label><Input id="title" name="title" required maxLength={200} className={field} placeholder="Badminton Jumat malam" /></div>
+          <div className="sm:col-span-2"><Label htmlFor="description">Deskripsi <span className="font-normal text-slate-500">(opsional)</span></Label><textarea id="description" name="description" maxLength={10000} rows={4} className={`${field} h-auto resize-y py-2 placeholder:text-muted-foreground`} placeholder="Level permainan, perlengkapan, atau catatan lain" /></div>
+          <div className="sm:col-span-2"><Label htmlFor="visibility">Akses event</Label><select id="visibility" name="visibility" defaultValue="unlisted" className={field}><option value="unlisted">Hanya lewat undangan</option><option value="public">Publik</option></select><p className="mt-2 text-xs leading-relaxed text-slate-600">Event undangan tidak tampil di discovery dan hanya dapat dibuka lewat tautan aktif.</p></div>
+        </div>
+      </WorkspaceFormSection>
+      <WorkspaceFormSection id="event-time" title="Waktu" description="Atur jadwal dan batas pendaftaran dalam zona waktu event.">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div><Label htmlFor="starts">Mulai</Label><Input id="starts" name="starts_at" type="datetime-local" required className={field} /></div>
+          <div><Label htmlFor="ends">Selesai</Label><Input id="ends" name="ends_at" type="datetime-local" required className={field} /></div>
+          <div><Label htmlFor="closes">Pendaftaran ditutup</Label><Input id="closes" name="registration_closes_at" type="datetime-local" required className={field} /></div>
+          <div><Label htmlFor="timezone">Zona waktu</Label><select id="timezone" name="timezone" value={timezone} onChange={(event) => setTimezone(event.target.value)} className={field}>{zones.map((zone) => <option key={zone.value} value={zone.value}>{zone.label}</option>)}</select></div>
+        </div>
+      </WorkspaceFormSection>
+      <WorkspaceFormSection id="event-billing" title="Peserta dan biaya" description="Tentukan kapasitas dan cara peserta membayar.">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div><Label htmlFor="capacity">Kapasitas</Label><Input id="capacity" name="capacity" type="number" min={1} max={100000} defaultValue={12} required className={field} /></div>
+          <div><Label htmlFor="billing-mode">Model biaya</Label><select id="billing-mode" name="billing_mode" value={billingMode} onChange={event=>setBillingMode(event.target.value as typeof billingMode)} className={field}><option value="dynamic">Patungan sesuai biaya aktual</option><option value="free">Gratis</option><option value="before_event">Harga tetap · bayar sebelum event</option><option value="after_event">Harga tetap · bayar setelah event</option></select></div>
+          {billingMode==='dynamic'&&<><div><Label htmlFor="cost">Perkiraan biaya total (Rp)</Label><Input id="cost" name="estimated_total_cost" type="number" min={0} step={1000} defaultValue={0} required className={field} /></div>
+          <div><Label htmlFor="timing">Waktu pembayaran</Label><select id="timing" name="payment_timing" className={field}><option value="before_event">Sebelum event</option><option value="after_event">Setelah event</option></select></div></>}
+          {billingMode!=='dynamic'&&billingMode!=='free'&&<><div><Label htmlFor="price">Harga per peserta (Rp)</Label><Input id="price" name="price_amount" type="number" min={1} max={1e12} step={1} required className={field}/></div>
+          <div><Label htmlFor="payment-method">Rekening penerima</Label><select id="payment-method" name="payment_method_id" required className={field}><option value="">Pilih rekening</option>{paymentMethods.map(method=><option key={method.id} value={method.id}>{method.recipient_name}</option>)}</select>{paymentMethods.length===0&&<p className="mt-2 text-xs text-amber-800">Tambahkan rekening bank aktif di halaman akun terlebih dahulu.</p>}</div></>}
+          {billingMode==='before_event'&&<div><Label htmlFor="hold-minutes">Durasi tahan kursi (menit)</Label><Input id="hold-minutes" name="hold_minutes" type="number" min={1} max={1440} defaultValue={15} required className={field}/></div>}
+          {billingMode==='after_event'&&<div><Label htmlFor="payment-due">Jatuh tempo pembayaran</Label><Input id="payment-due" name="payment_due_at" type="datetime-local" required className={field}/><p className="mt-2 text-xs text-slate-600">Harus setelah event selesai.</p></div>}
+        </div>
+      </WorkspaceFormSection>
+      <WorkspaceFormSection id="event-venue" title="Venue" description={billingMode === 'dynamic' ? 'Opsional. Kosongkan jika tempat masih dibicarakan.' : 'Nama dan alamat tempat wajib diisi karena event langsung dipublikasikan.'}>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div><Label htmlFor="venue-name">Nama tempat</Label><Input id="venue-name" name="venue_name" maxLength={200} required={billingMode!=='dynamic'} className={field} /></div>
+          <div><Label htmlFor="venue-address">Alamat</Label><Input id="venue-address" name="venue_address" maxLength={1000} required={billingMode!=='dynamic'} className={field} /></div>
+          <div><Label htmlFor="latitude">Latitude</Label><Input id="latitude" name="latitude" type="number" inputMode="decimal" min={-90} max={90} step="any" className={field} placeholder="-6.200000" /></div>
+          <div><Label htmlFor="longitude">Longitude</Label><Input id="longitude" name="longitude" type="number" inputMode="decimal" min={-180} max={180} step="any" className={field} placeholder="106.816666" /></div>
+          <div className="sm:col-span-2"><Label htmlFor="maps">Tautan Google Maps <span className="font-normal text-slate-500">(opsional jika koordinat diisi)</span></Label><Input id="maps" name="maps_url" type="url" maxLength={2000} className={field} placeholder="https://www.google.com/maps/…" /></div>
+          <div className="sm:col-span-2"><Label htmlFor="coarse-region-code">Kode area umum untuk rekomendasi</Label><Input id="coarse-region-code" name="coarse_region_code" maxLength={32} className={field} placeholder="Contoh: ID-JK" /><p className="mt-1 text-xs text-slate-500">Opsional. Gunakan kode kota/provinsi umum, jangan masukkan koordinat atau alamat di kolom ini.</p></div>
+          <div className="sm:col-span-2"><Label htmlFor="meeting-instructions">Petunjuk bertemu</Label><textarea id="meeting-instructions" name="meeting_instructions" maxLength={1000} rows={3} className={`${field} h-auto resize-y py-2 placeholder:text-muted-foreground`} placeholder="Contoh: tunggu di lobi utama 15 menit sebelum mulai" /></div>
+        </div>
+      </WorkspaceFormSection>
+      <div className="px-5 py-5 sm:px-8">
+        {error && <p className="mb-3 rounded-lg bg-rose-50 p-4 text-sm font-medium text-rose-800" role="alert">{error}</p>}
+        <div className="flex sm:justify-end">
+          <Button type="submit" disabled={saving || activities.length === 0} className={`${workspaceFormAction} w-full sm:w-fit`}>{saving ? 'Membuat event…' : 'Buat event'}</Button>
+        </div>
+      </div>
     </form>}
     {error && (loading || workspaces.length === 0) && <p className="mt-6 rounded-xl border border-rose-200 bg-rose-50 p-5 text-sm font-medium text-rose-800" role="alert">{error}</p>}
   </div>;

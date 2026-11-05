@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-export function SettingsSection({ id, title, description, children }: {
+export function WorkspaceFormSection({ id, title, description, children }: {
   id: string;
   title: string;
   description?: string;
@@ -17,5 +17,8 @@ export function SettingsSection({ id, title, description, children }: {
   );
 }
 
-export const settingsControl = 'h-11 w-full min-w-0 rounded-lg border border-input bg-card px-3 text-base outline-none focus-visible:border-[#0069c7] focus-visible:ring-2 focus-visible:ring-[#0069c7]/30 md:text-sm';
-export const settingsAction = 'min-h-11 bg-[#0069c7] px-4 text-white hover:bg-[#0059aa] focus-visible:ring-[#0069c7]';
+export const workspaceFormControl = 'h-11 w-full min-w-0 rounded-lg border border-input bg-card px-3 text-base outline-none focus-visible:border-[#0069c7] focus-visible:ring-2 focus-visible:ring-[#0069c7]/30 md:text-sm';
+export const workspaceFormAction = 'min-h-11 bg-[#0069c7] px-4 text-white hover:bg-[#0059aa] focus-visible:ring-[#0069c7]';
+
+export const workspaceFormWidth = 'mx-auto w-full max-w-4xl';
+export const workspaceFormPanel = 'divide-y rounded-xl border bg-card';

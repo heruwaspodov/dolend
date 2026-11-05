@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { LogIn } from 'lucide-react';
+import { workspaceFormPanel, workspaceFormWidth } from '@/components/organizer/workspace-form';
 import { Button } from '@/components/ui/button';
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser';
 import { ProfileEditor } from './profile-editor';
@@ -50,12 +51,12 @@ export function AccountFoundation() {
   </section>;
 
   return (
-    <div className="mx-auto w-full max-w-4xl">
+    <div className={workspaceFormWidth}>
       <header className="mb-6">
         <h1 className="text-3xl font-semibold tracking-tight">Akun</h1>
         <p className="mt-1.5 text-sm text-muted-foreground">Kelola profil dan pembayaran untuk event yang kamu adakan.</p>
       </header>
-      <div className="divide-y rounded-xl border bg-card">
+      <div className={workspaceFormPanel}>
         <ProfileEditor session={session} />
         <PaymentSettings token={session.access_token} />
         <PaymentReviews token={session.access_token} />

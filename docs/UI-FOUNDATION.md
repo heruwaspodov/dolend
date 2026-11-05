@@ -32,3 +32,10 @@ Referensi resmi:
 ## Arahan 31 Oktober 2026
 
 Pengguna memilih clean UI dengan Tailwind dan shadcn/ui. Pertahankan identitas emerald, latar terang, semantic tokens, hierarki tipografi sederhana dan form berlabel. Hindari dekorasi yang tidak membantu alur.
+
+### Form
+
+- **Form halaman penuh.** Gunakan `workspaceFormWidth` dari `src/components/organizer/workspace-form.tsx` pada pembungkus halaman. Lebarnya 100% dari area yang tersedia, dengan batas 896 px (56 rem). Pasang batas di pembungkus supaya judul, panel, dan seluruh bagian memakai garis tepi yang sama. Akun dan Buat Event adalah acuan.
+- **Form dalam kartu, dialog, sidebar, atau tabel.** Ikuti lebar wadah dengan kontrol yang bisa menyusut. Terapkan tinggi kontrol, label, jarak, dan fokus yang sama. Pembatas lebar halaman penuh dipakai di level halaman.
+- **Susunan.** Untuk form workspace dengan beberapa bagian, gunakan `workspaceFormPanel` dan `WorkspaceFormSection`. Judul dan penjelasan ada di kiri pada desktop, field di kanan. Di layar sempit, susun menjadi satu kolom. Letakkan label di atas field serta bantuan dan pesan kesalahan dekat field terkait.
+- **Kontrol dan aksi.** Pakai kontrol bersama untuk tinggi, border, dan fokus. Aksi utama workspace memakai aksen biru. Pertahankan target sentuh minimal 44 px untuk aksi utama dan cek tampilan serta urutan fokus di lebar 360 px dan desktop.
