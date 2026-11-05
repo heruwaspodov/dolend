@@ -1147,6 +1147,7 @@ export type Database = {
       "events": {
         Row: {
           "activity_type_id": string;
+          "archived_at": string | null;
           "cancellation_policy": NonNullable<Json>;
           "capacity": number;
           "community_id": string | null;
@@ -1182,6 +1183,7 @@ export type Database = {
         ComputedFields: never;
         Insert: {
           "activity_type_id": string;
+          "archived_at"?: string | null;
           "cancellation_policy"?: NonNullable<Json>;
           "capacity": number;
           "community_id"?: string | null;
@@ -1216,6 +1218,7 @@ export type Database = {
         };
         Update: {
           "activity_type_id"?: string;
+          "archived_at"?: string | null;
           "cancellation_policy"?: NonNullable<Json>;
           "capacity"?: number;
           "community_id"?: string | null;
@@ -3148,6 +3151,7 @@ export type Database = {
         };
         Returns: {
           "activity_type_id": string;
+          "archived_at": string | null;
           "cancellation_policy": NonNullable<Json>;
           "capacity": number;
           "community_id": string | null;
@@ -3821,6 +3825,14 @@ export type Database = {
         };
         Returns: undefined;
       };
+      "set_organizer_event_archive": {
+        Args: {
+          "p_actor": string;
+          "p_archived": boolean;
+          "p_event": string;
+        };
+        Returns: string;
+      };
       "set_recommendation_preferences": {
         Args: {
           "p_activity_type_ids"?: (string)[];
@@ -3976,6 +3988,7 @@ export type Database = {
         };
         Returns: {
           "activity_type_id": string;
+          "archived_at": string | null;
           "cancellation_policy": NonNullable<Json>;
           "capacity": number;
           "community_id": string | null;
@@ -4071,6 +4084,7 @@ export type Database = {
         };
         Returns: {
           "activity_type_id": string;
+          "archived_at": string | null;
           "cancellation_policy": NonNullable<Json>;
           "capacity": number;
           "community_id": string | null;

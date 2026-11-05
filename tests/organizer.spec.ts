@@ -31,6 +31,78 @@ test('dashboard organizer menampilkan event nyata dan aman di 360 px', async ({ 
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
 });
 
+test('My Event mencari, mengurutkan, memilih kolom, dan memulihkan arsip', async ({ page }) => {
+  await withSession(page);
+  const second = { ...publicEvent, id: workspaceId, title: 'Aerobik Sabtu', visibility: 'public', status: 'completed' };
+  let archived = false;
+  await page.route('**/dolend-api/v1/organizer/events?view=*', route => {
+    const view = new URL(route.request().url()).searchParams.get('view');
+    const data = view === 'archived' ? (archived ? [{ ...publicEvent, archived_at: '2026-11-06T12:00:00Z' }] : []) : archived ? [second] : [publicEvent, second];
+    return route.fulfill({ json: { data } });
+  });
+  await page.route(`**/dolend-api/v1/organizer/events/${eventId}/archive`, route => {
+    expect(route.request().method()).toBe('PATCH');
+    archived = route.request().postDataJSON().archived;
+    return route.fulfill({ json: { data: { archived_at: archived ? '2026-11-06T12:00:00Z' : null } } });
+  });
+  await page.goto('/dashboard/events/');
+  await expect(page.getByRole('combobox', { name: 'Urutkan' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Jadwal', exact: true }).click();
+  await expect(page.getByRole('columnheader', { name: 'Jadwal', exact: true })).toHaveAttribute('aria-sort', 'ascending');
+  await page.getByRole('button', { name: 'Event', exact: true }).click();
+  const rows = page.getByRole('table').locator('tbody tr');
+  await expect(rows.first()).toContainText('Aerobik Sabtu');
+  await page.getByRole('button', { name: 'Event', exact: true }).click();
+  await expect(rows.first()).toContainText('Badminton Jumat');
+  await expect(page.getByRole('columnheader', { name: 'Event', exact: true })).toHaveAttribute('aria-sort', 'descending');
+  await page.getByRole('button', { name: 'Event', exact: true }).click();
+  await expect(rows.first().getByRole('link', { name: 'Lihat event' })).toHaveAttribute('href', `/event/?id=${workspaceId}`);
+  await page.getByRole('combobox', { name: 'Status', exact: true }).selectOption('recruiting');
+  await expect(rows).toHaveCount(1);
+  await page.getByLabel('Cari event').fill('Tidak cocok');
+  await expect(page.getByText('Tidak ada event yang cocok')).toBeVisible();
+  await page.getByLabel('Cari event').fill('badminton');
+  await page.getByText('Kolom', { exact: true }).click();
+  await page.getByRole('checkbox', { name: 'Venue' }).check();
+  await expect(page.getByRole('columnheader', { name: 'Venue' })).toBeVisible();
+  await page.getByText('Kolom', { exact: true }).click();
+  await page.getByRole('button', { name: 'Arsipkan' }).click();
+  await expect(page.getByText('Event dipindahkan ke arsip.')).toBeVisible();
+  await page.getByRole('button', { name: 'Arsip', exact: true }).click();
+  await expect(rows).toHaveCount(1);
+  await page.getByRole('button', { name: 'Pulihkan' }).click();
+  await expect(page.getByText('Arsip masih kosong')).toBeVisible();
+  await page.getByRole('button', { name: 'Daftar utama' }).click();
+  await expect(rows.first()).toContainText('Badminton Jumat');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
+});
+
+test('My Event membagi hasil sesuai ukuran halaman', async ({ page }) => {
+  await withSession(page);
+  const data = Array.from({ length: 23 }, (_, index) => ({
+    ...publicEvent, id: String(index), title: `Latihan ${index + 1}`,
+  }));
+  await page.route('**/dolend-api/v1/organizer/events?view=active', route => route.fulfill({ json: { data } }));
+  await page.goto('/dashboard/events/');
+  const rows = page.getByRole('table').locator('tbody tr');
+  await expect(rows).toHaveCount(10);
+  const pageSize = page.getByLabel('Event per halaman');
+  for (const size of [5, 10, 15, 20]) {
+    await pageSize.selectOption(String(size));
+    await expect(rows).toHaveCount(size);
+  }
+  await page.getByRole('button', { name: 'Berikutnya' }).click();
+  await expect(rows).toHaveCount(3);
+  await expect(page.getByText('21–23 dari 23 event')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Berikutnya' })).toBeDisabled();
+  await page.getByRole('button', { name: 'Sebelumnya' }).click();
+  await expect(rows).toHaveCount(20);
+  await page.getByRole('button', { name: 'Berikutnya' }).click();
+  await page.getByLabel('Cari event').fill('Latihan 1');
+  await expect(rows).toHaveCount(11);
+  await expect(page.getByRole('button', { name: 'Sebelumnya' })).toBeDisabled();
+});
+
 test('form membuat recruiting event tanpa venue wajib', async ({ page }) => {
   await withSession(page);
   let created: Record<string, unknown> | undefined;

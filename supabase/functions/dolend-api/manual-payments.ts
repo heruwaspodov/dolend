@@ -177,16 +177,24 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
       set.status = code === 'UNAUTHORIZED' ? 401 : code === 'FORBIDDEN' ? 403 : ['CONFLICT','VERSION_CONFLICT','EVENT_FULL','REGISTRATION_CLOSED','INVALID_EVENT_STATE','ATTENDANCE_RECORDED'].includes(code) ? 409 : code === 'STORAGE_UNAVAILABLE' ? 503 : 422;
       return { error: { code, message: 'Permintaan belum dapat diproses.' } };
     })
-    .get('/organizer/events',async ({request})=>{
+    .get('/organizer/events',async ({request,query})=>{
       const id=await actor(request);
       const {data:members,error:me}=await client().from('workspace_members').select('workspace_id').eq('profile_id',id).in('role',['owner','organizer']);
       const {data:roles,error:re}=await client().from('event_organizers').select('event_id').eq('profile_id',id).in('role',['owner','organizer']);
       if(me||re)throw new FinanceError('STORAGE_UNAVAILABLE');
       const filters=[...(members?.length?[`workspace_id.in.(${members.map(m=>m.workspace_id).join(',')})`]:[]),...(roles?.length?[`id.in.(${roles.map(r=>r.event_id).join(',')})`]:[])];
       if(!filters.length)return {data:[]};
-      const {data,error}=await client().from('events').select('id,title,status,visibility,starts_at,ends_at,timezone,venue_booking_status,estimated_total_cost,contributions_locked_at').or(filters.join(',')).order('starts_at',{ascending:false}).limit(100);
+      let events=client().from('events').select('id,title,status,visibility,starts_at,ends_at,timezone,venue_booking_status,estimated_total_cost,contributions_locked_at,archived_at').or(filters.join(','));
+      if(query.view==='active') events=events.is('archived_at',null);
+      if(query.view==='archived') events=events.not('archived_at','is',null);
+      const {data,error}=await events.order('starts_at',{ascending:false}).order('id').limit(100);
       if(error)throw new FinanceError('STORAGE_UNAVAILABLE');return {data};
-    })
+    },{query:t.Object({view:t.Optional(t.Union([t.Literal('active'),t.Literal('archived')]))})})
+    .patch('/organizer/events/:id/archive',async ({request,params,body})=>{
+      const actorId=await actor(request);
+      const archived_at=await rpc('set_organizer_event_archive',{p_event:params.id,p_actor:actorId,p_archived:body.archived});
+      return {data:{archived_at}};
+    },{params:t.Object({id:uuid}),body:t.Object({archived:t.Boolean()},{additionalProperties:false})})
     .get('/organizer/workspaces',async ({request})=>{
       const id=await actor(request);
       const {data,error}=await client().from('workspace_members').select('role,workspaces!inner(id,name)').eq('profile_id',id).in('role',['owner','organizer']).order('created_at');

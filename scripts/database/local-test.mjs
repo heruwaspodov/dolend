@@ -51,6 +51,16 @@ try {
     await db.query(`update public.events set status='published' where id=$1`,[id]);
     return {id,method,gateway};
   };
+  const archiveFixture = await event();
+  await expectFailure('select public.set_organizer_event_archive($1,$2,true)', [archiveFixture.id, other], /ORGANIZER_REQUIRED/);
+  const archiveArgs = [archiveFixture.id, organizer];
+  const [archived] = await query('select public.set_organizer_event_archive($1,$2,true) as at', archiveArgs);
+  assert(archived.at);
+  assert.deepEqual(await query('select public.set_organizer_event_archive($1,$2,true) as at', archiveArgs), [archived]);
+  assert.equal((await query('select status from public.events where id=$1', [archiveFixture.id]))[0].status, 'published');
+  assert.equal((await query('select public.set_organizer_event_archive($1,$2,false) as at', archiveArgs))[0].at, null);
+  assert.deepEqual((await query("select action from public.audit_logs where entity_id=$1 and action in ('event.archive','event.restore') order by action", [archiveFixture.id])).map(row => row.action), ['event.archive', 'event.restore']);
+  checks += 5;
   const join=async(e,userId=otherUser,actor=other)=> (await query('select * from public.join_event($1,$2,$3)',[e.id,userId,actor]))[0];
   const free=await event(); const participant=await join(free);
   await expectFailure('select public.record_event_attendance($1,$2,$3)',[participant.id,organizer,'attended'],/ATTENDANCE_NOT_STARTED/);

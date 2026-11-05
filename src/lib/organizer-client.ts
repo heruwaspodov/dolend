@@ -1,6 +1,8 @@
 export type OrganizerEvent = {
   id: string;
   title: string;
+  visibility?: string;
+  archived_at?: string | null;
   status: string;
   starts_at: string;
   ends_at: string;
