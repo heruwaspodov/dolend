@@ -2,13 +2,15 @@
 
 import Link from 'next/link';
 import { useState, type ComponentProps } from 'react';
-import { Archive, ArrowDown, ArrowDownUp, ArrowUp, ChevronDown, ChevronLeft, ChevronRight, Columns3, Eye, List, Plus, RotateCcw, Search } from 'lucide-react';
+import { Archive, ArrowDown, ArrowDownUp, ArrowUp, ChevronDown, ChevronLeft, ChevronRight, Columns3, Eye, List, Plus, UserCheck, RotateCcw, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { SessionGate } from '@/components/organizer/session-gate';
 import { workspaceFormAction, workspaceFormControl } from '@/components/organizer/workspace-form';
 import { organizerRequest, type OrganizerEvent } from '@/lib/organizer-client';
 import { useOrganizerEvents } from '@/lib/use-organizer-events';
+import { useOrganizerSession } from '@/lib/use-organizer-session';
+import { JoinedEvents } from './joined-events';
 
 const rupiah = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 });
 const byName = new Intl.Collator('id-ID', { sensitivity: 'base', numeric: true });
@@ -74,6 +76,35 @@ function schedule(event: OrganizerEvent) {
 }
 
 export function MyEvents() {
+  const { session, ready } = useOrganizerSession();
+  const [tab, setTab] = useState<'managed' | 'joined'>('managed');
+  if (!session) return <SessionGate ready={ready} />;
+
+  return (
+    <div className="mx-auto max-w-6xl space-y-5">
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-semibold tracking-tight">My Event</h1>
+          <p className="mt-1.5 text-sm leading-6 text-muted-foreground">Cek pendaftaranmu dan kelola event yang kamu adakan.</p>
+        </div>
+        <Button asChild className={workspaceFormAction}>
+          <Link href="/event/create/"><Plus aria-hidden="true" /> Buat event</Link>
+        </Button>
+      </header>
+      <nav aria-label="Peran di event" className="flex gap-2 border-b">
+        <Button variant="ghost" className="min-h-11 rounded-b-none aria-pressed:shadow-[inset_0_-2px_#0069c7] aria-pressed:text-[#005bab]" aria-pressed={tab === 'joined'} onClick={() => setTab('joined')}>
+          <UserCheck aria-hidden="true" /> Diikuti
+        </Button>
+        <Button variant="ghost" className="min-h-11 rounded-b-none aria-pressed:shadow-[inset_0_-2px_#0069c7] aria-pressed:text-[#005bab]" aria-pressed={tab === 'managed'} onClick={() => setTab('managed')}>
+          <List aria-hidden="true" /> Dikelola
+        </Button>
+      </nav>
+      {tab === 'joined' ? <JoinedEvents key={session.user.id} token={session.access_token} /> : <ManagedEvents />}
+    </div>
+  );
+}
+
+function ManagedEvents() {
   const [view, setView] = useState<'active' | 'archived'>('active');
   const { session, ready, events, loading, error, reload } = useOrganizerEvents(view);
   const [search, setSearch] = useState('');
@@ -118,17 +149,6 @@ export function MyEvents() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight">Event yang kamu kelola</h1>
-          <p className="mt-1.5 text-sm leading-6 text-muted-foreground">Cari event, cek jadwal, dan rapikan daftar dengan arsip.</p>
-        </div>
-        <Button asChild className={workspaceFormAction}>
-          <Link href="/event/create/"><Plus aria-hidden="true" /> Buat event</Link>
-        </Button>
-      </header>
-
       <section aria-label="Daftar event" className="min-w-0 rounded-xl border bg-card">
         <div className="space-y-4 border-b px-4 py-4 sm:px-5">
           <div className="flex flex-wrap gap-2" aria-label="Tampilan daftar">
@@ -255,6 +275,5 @@ export function MyEvents() {
           </>
         )}
       </section>
-    </div>
   );
 }

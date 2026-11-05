@@ -204,6 +204,8 @@ Deno.test('manual finance endpoints reject anonymous organizers and invalid payl
   for (const [path,method,body] of [
     ['/payment-settings','GET',undefined],
     ['/organizer/workspaces','GET',undefined],
+    ['/participant/events','GET',undefined],
+    ['/participant/events/11111111-1111-4111-8111-111111111111','GET',undefined],
     ['/events/11111111-1111-4111-8111-111111111111/participation','GET',undefined],
     ['/events/11111111-1111-4111-8111-111111111111/participation/cancel','POST',{reason:'Tidak jadi ikut'}],
     ['/events/11111111-1111-4111-8111-111111111111/contributions/lock','POST',undefined],

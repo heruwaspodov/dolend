@@ -7,11 +7,14 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { fetchPublicEvent, isEventPreview, isUuid, safeMapsUrl, type PublicEvent } from '@/lib/event-client';
+import { getSupabaseBrowserClient } from '@/lib/supabase/browser';
 import { EventParticipation } from './event-participation';
 
 type Result = { id: string; kind: 'found'; event: PublicEvent; inviteToken?:string;bookingToken?:string } | { id: string; kind: 'missing' } | { id: string; kind: 'error' };
 export function EventDetail() {
-  const id = useSearchParams().get('id') ?? '';
+  const params = useSearchParams();
+  const id = params.get('id') ?? '';
+  const memberView = params.get('member') === '1';
   const [result, setResult] = useState<Result | null>(null);
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
@@ -22,13 +25,17 @@ export function EventDetail() {
     const bookingToken=fragment.get('booking')??undefined;
     const timeout = setTimeout(() => controller.abort('timeout'), 15000);
     let active = true;
-    fetchPublicEvent(id, controller.signal,inviteToken,bookingToken).then((event) => {
+    fetchPublicEvent(id, controller.signal,inviteToken,bookingToken).then(async event => {
+      if (event || !memberView || isEventPreview || controller.signal.aborted) return event;
+      const { data: { session } } = await getSupabaseBrowserClient().auth.getSession();
+      return session ? fetchPublicEvent(id, controller.signal, undefined, undefined, session.access_token) : null;
+    }).then((event) => {
       if (active) setResult(event ? { id, kind: 'found', event,inviteToken,bookingToken } : { id, kind: 'missing' });
     }).catch(() => {
       if (active) setResult({ id, kind: 'error' });
     }).finally(() => clearTimeout(timeout));
     return () => { active = false; clearTimeout(timeout); controller.abort(); };
-  }, [id, attempt]);
+  }, [id, attempt, memberView]);
   if (!id || !isUuid(id)) return <State title="Tautan aktivitas tidak valid" description="Gunakan tautan lengkap dari penyelenggara untuk membuka aktivitas." />;
   if (!result || result.id !== id) return <EventLoading />;
   if (result.kind === 'missing') return <State title="Aktivitas tidak ditemukan" description="Aktivitas ini belum tersedia atau tautannya sudah tidak berlaku." />;

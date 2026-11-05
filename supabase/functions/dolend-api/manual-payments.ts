@@ -155,6 +155,18 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
     if(profile?.user_id!==participant.user_id)await rpc('manual_event_access',{p_event:participant.event_id,p_actor:actorId});
     return {invoice:data,participant,actor:actorId,hash:null};
   }
+  function canViewAsParticipant(status: string, holdExpiresAt: string | null) {
+    return ['confirmed', 'attended', 'no_show'].includes(status) ||
+      (status === 'held' && holdExpiresAt !== null && Date.parse(holdExpiresAt) > Date.now());
+  }
+
+  async function participantUser(request: Request) {
+    const id = await actor(request);
+    const {data, error} = await client().from('profiles').select('user_id').eq('id', id).single();
+    if (error || !data?.user_id) throw new FinanceError('FORBIDDEN');
+    return data.user_id;
+  }
+
   async function participantDtoWithInvoice(participant:Record<string,unknown>) {
     const {data:invoice}=await client().from('invoices').select('id').eq('participant_id',participant.id).maybeSingle();
     return {...participantDto(participant),invoice_id:invoice?.id??null};
@@ -177,6 +189,32 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
       set.status = code === 'UNAUTHORIZED' ? 401 : code === 'FORBIDDEN' ? 403 : ['CONFLICT','VERSION_CONFLICT','EVENT_FULL','REGISTRATION_CLOSED','INVALID_EVENT_STATE','ATTENDANCE_RECORDED'].includes(code) ? 409 : code === 'STORAGE_UNAVAILABLE' ? 503 : 422;
       return { error: { code, message: 'Permintaan belum dapat diproses.' } };
     })
+    .get('/participant/events', async ({request}) => {
+      const userId = await participantUser(request);
+      const {data, error} = await client().from('event_participants')
+        .select('id,status,hold_expires_at,events!inner(id,title,starts_at,timezone,status,visibility),invoices(id,status)')
+        .eq('user_id', userId).order('updated_at', {ascending:false}).order('id').limit(100);
+      if (error) throw new FinanceError('STORAGE_UNAVAILABLE');
+      return {data: (data ?? []).map(row => {
+        const event = Array.isArray(row.events) ? row.events[0] : row.events;
+        const invoice = Array.isArray(row.invoices) ? row.invoices[0] : row.invoices;
+        return {
+          id: event.id, title: event.title, starts_at: event.starts_at, timezone: event.timezone,
+          event_status: event.status, participation_status: row.status,
+          can_view: ['published','recruiting','confirmed','completed'].includes(event.status) &&
+            (event.visibility === 'public' || canViewAsParticipant(row.status, row.hold_expires_at)),
+          invoice: invoice ?? null,
+        };
+      })};
+    })
+    .get('/participant/events/:id', async ({request,params}) => {
+      const userId = await participantUser(request);
+      const {data, error} = await client().from('event_participants').select('status,hold_expires_at')
+        .eq('event_id', params.id).eq('user_id', userId).maybeSingle();
+      if (error) throw new FinanceError('STORAGE_UNAVAILABLE');
+      if (!data || !canViewAsParticipant(data.status, data.hold_expires_at)) throw new FinanceError('FORBIDDEN');
+      return {data: await eventDto(params.id, true)};
+    },{params:t.Object({id:uuid})})
     .get('/organizer/events',async ({request,query})=>{
       const id=await actor(request);
       const {data:members,error:me}=await client().from('workspace_members').select('workspace_id').eq('profile_id',id).in('role',['owner','organizer']);

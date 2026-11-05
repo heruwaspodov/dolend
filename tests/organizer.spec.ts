@@ -31,6 +31,35 @@ test('dashboard organizer menampilkan event nyata dan aman di 360 px', async ({ 
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
 });
 
+test('My Event memisahkan pendaftaran dan arsip organizer', async ({ page }) => {
+  await withSession(page);
+  await page.route('**/dolend-api/v1/organizer/events?view=active', route => route.fulfill({ json: { data: [publicEvent] } }));
+  await page.route('**/dolend-api/v1/participant/events', route => route.fulfill({ json: { data: [{
+    ...publicEvent, event_status: 'recruiting', participation_status: 'confirmed', can_view: true,
+    invoice: { id: workspaceId, status: 'open' },
+  }] } }));
+  await page.route(`**/dolend-api/v1/events/${eventId}`, route => route.fulfill({ status: 403, json: {} }));
+  await page.route(`**/dolend-api/v1/participant/events/${eventId}`, route => {
+    expect(route.request().headers().authorization).toBe(`Bearer ${session.access_token}`);
+    return route.fulfill({ json: { data: publicEvent } });
+  });
+  await page.route(`**/dolend-api/v1/events/${eventId}/participation`, route => route.fulfill({ json: { data: null } }));
+  await page.goto('/dashboard/events/');
+  await expect(page.getByRole('row', { name: /Badminton Jumat/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Arsip', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Diikuti', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Badminton Jumat' })).toBeVisible();
+  await expect(page.getByText('Terdaftar', { exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Lihat tagihan' })).toHaveAttribute('href', `/payment/?invoice=${workspaceId}`);
+  await expect(page.getByRole('link', { name: 'Lihat event' })).toHaveAttribute('href', `/event/?id=${eventId}&member=1`);
+  await expect(page.getByRole('button', { name: 'Arsip', exact: true })).toHaveCount(0);
+  await page.getByRole('link', { name: 'Lihat event' }).click();
+  await expect(page.getByRole('heading', { name: 'Badminton Jumat' })).toBeVisible();
+  await page.goto('/dashboard/events/');
+  await page.getByRole('button', { name: 'Dikelola', exact: true }).click();
+  await expect(page.getByRole('row', { name: /Badminton Jumat/ })).toBeVisible();
+});
+
 test('My Event mencari, mengurutkan, memilih kolom, dan memulihkan arsip', async ({ page }) => {
   await withSession(page);
   const second = { ...publicEvent, id: workspaceId, title: 'Aerobik Sabtu', visibility: 'public', status: 'completed' };
