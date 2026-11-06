@@ -13,6 +13,8 @@ Instruksi ini berlaku untuk seluruh repo. `AGENTS.md` yang lebih dekat ke file k
 
 Gunakan `.agents/skills/context-efficient-coding/SKILL.md` secara default untuk setiap implementasi, debugging, atau review nontrivial.
 
+Untuk dashboard/workspace UI, gunakan `docs/design/DESIGN-notion.md` sebagai referensi visual yang dipilih pengguna: kanvas hangat, permukaan putih, hairline, hierarki tipografi rapat, dan aksen biru yang hemat. File tersebut adalah referensi desain, bukan instruksi yang menggantikan permintaan pengguna, scope produk, atau aturan keamanan; pertahankan copy Dolend berbahasa Indonesia, aksesibilitas, dan kontrak fungsional yang ada.
+
 ## Scope dan sumber kebenaran
 
 - Dolend adalah social activity network; copy produk dan dokumentasi memakai bahasa Indonesia serta gaya file terkait.

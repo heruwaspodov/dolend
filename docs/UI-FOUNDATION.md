@@ -33,6 +33,12 @@ Referensi resmi:
 
 Pengguna memilih clean UI dengan Tailwind dan shadcn/ui. Pertahankan identitas emerald, latar terang, semantic tokens, hierarki tipografi sederhana dan form berlabel. Hindari dekorasi yang tidak membantu alur.
 
+## Arah dashboard terbaru
+
+Pengguna memilih `docs/design/DESIGN-notion.md` sebagai referensi visual untuk dashboard/workspace: kanvas warm-paper, panel putih, hairline, ruang lapang, radius sekitar 12px, hierarki Inter-like yang rapat, dan aksen biru Notion untuk aksi/tautan utama. Arahan ini menggantikan aksen emerald lama hanya pada dashboard/workspace; permukaan lain tetap memakai fondasi sebelumnya sampai diminta. Dokumen desain adalah referensi visual, bukan sumber scope produk atau keamanan. Navigasi workspace harus konsisten di seluruh menu, responsif dengan tombol menu pada layar kecil, dan mempertahankan kontrak rute serta sesi.
+
+Menu navigasi yang belum masuk MVP dikendalikan oleh tabel `public.client_navigation_flags` dan dibaca lewat `src/lib/workspace-navigation-flags.ts`. Baris hanya boleh memakai kunci yang diizinkan migration; akses browser read-only dan publik karena nilainya tidak sensitif. Mengubah `enabled` di database berlaku setelah workspace dimuat ulang tanpa build/deploy. Flag hanya mengatur visibilitas menu, bukan otorisasi; route/API tetap wajib memeriksa sesi dan akses. Menu MVP tetap Ringkasan, My Event, dan Akun; pembuatan event tersedia dari halaman My Event.
+
 ### Form
 
 - **Form halaman penuh.** Gunakan `workspaceFormWidth` dari `src/components/organizer/workspace-form.tsx` pada pembungkus halaman. Lebarnya 100% dari area yang tersedia, dengan batas 896 px (56 rem). Pasang batas di pembungkus supaya judul, panel, dan seluruh bagian memakai garis tepi yang sama. Akun dan Buat Event adalah acuan.

@@ -1,49 +1,48 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
-import { CalendarDays, MapPin, Plus, UsersRound } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { organizerRequest, type OrganizerEvent } from '@/lib/organizer-client';
-import { useOrganizerSession } from '@/lib/use-organizer-session';
+import { useMemo } from 'react';
+import { CalendarDays, Clock3, UsersRound } from 'lucide-react';
+import { useOrganizerEvents } from '@/lib/use-organizer-events';
 import { SessionGate } from './session-gate';
 
-const rupiah = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 });
-const date = new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
-const statusLabel: Record<string, string> = { recruiting: 'Mencari peserta', confirmed: 'Terkonfirmasi', completed: 'Selesai', cancelled: 'Dibatalkan', published: 'Terbit' };
+function Metric({ label, value, detail, icon: Icon }: { label: string; value: number | string; detail: string; icon: typeof CalendarDays }) {
+  return <article className="rounded-xl border border-[#e6e6e6] bg-white p-5 sm:p-6">
+    <div className="flex items-start justify-between gap-3">
+      <div><p className="text-sm text-[#615d59]">{label}</p><p className="mt-3 text-3xl font-semibold tracking-[-0.045em] text-[#171615]">{value}</p></div>
+      <span className="grid size-10 place-items-center rounded-lg bg-[#f2f7fc] text-[#0075de]"><Icon aria-hidden="true" className="size-5" /></span>
+    </div>
+    <p className="mt-4 text-xs text-[#77736f]">{detail}</p>
+  </article>;
+}
 
 export function OrganizerDashboard() {
-  const { session, ready } = useOrganizerSession();
-  const [events, setEvents] = useState<OrganizerEvent[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    if (!session) return;
-    const controller = new AbortController();
-    void organizerRequest<OrganizerEvent[]>('/organizer/events', session.access_token, { signal: controller.signal })
-      .then(setEvents)
-      .catch((reason) => { if (reason.name !== 'AbortError') setError(reason.message); })
-      .finally(() => setLoading(false));
-    return () => controller.abort();
-  }, [session]);
+  const { session, ready, events, loading, error } = useOrganizerEvents();
+  const activeCount = useMemo(() => events.filter((event) => ['recruiting', 'confirmed', 'published'].includes(event.status)).length, [events]);
+  const completedCount = useMemo(() => events.filter((event) => event.status === 'completed').length, [events]);
+  const firstName = typeof session?.user.user_metadata?.full_name === 'string' ? session.user.user_metadata.full_name.trim().split(/\s+/)[0] : '';
 
   if (!session) return <SessionGate ready={ready} />;
-  return <div className="space-y-6">
-    <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-      <div><p className="text-xs font-bold tracking-widest text-emerald-700 uppercase">Ruang organizer</p><h1 className="mt-2 text-3xl font-extrabold tracking-tight">Event kamu</h1><p className="mt-2 text-sm text-slate-600">Buat rencana, pantau peserta, lalu kunci patungan saat daftar sudah siap.</p></div>
-      <Button asChild className="min-h-11 bg-emerald-700 px-5 text-white hover:bg-emerald-800"><Link href="/event/create/"><Plus aria-hidden="true" />Buat event</Link></Button>
+
+  return <div className="space-y-8 sm:space-y-10">
+    <header>
+      <p className="text-xs font-semibold tracking-[0.12em] text-[#615d59]">RINGKASAN</p>
+      <h1 className="mt-2 text-3xl font-semibold tracking-[-0.055em] text-[#171615] sm:text-[40px] sm:leading-[1.1]">Selamat datang{firstName ? `, ${firstName}` : ''}</h1>
+      <p className="mt-3 max-w-xl text-sm leading-6 text-[#615d59] sm:text-base">Ringkasan event yang kamu kelola di Dolend.</p>
     </header>
-    {loading && <p className="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-600" role="status">Memuat event…</p>}
-    {error && <p className="rounded-xl border border-rose-200 bg-rose-50 p-5 text-sm font-medium text-rose-800" role="alert">{error}</p>}
-    {!loading && !error && events.length === 0 && <section className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center">
-      <UsersRound className="mx-auto size-8 text-emerald-700" aria-hidden="true" /><h2 className="mt-4 text-lg font-bold">Belum ada event yang dikelola</h2><p className="mx-auto mt-2 max-w-md text-sm text-slate-600">Mulai dari waktu dan perkiraan biaya. Venue boleh ditentukan belakangan.</p><Button asChild variant="outline" className="mt-5 min-h-11"><Link href="/event/create/">Buat event pertama</Link></Button>
-    </section>}
-    {!loading && !error && events.length > 0 && <ul className="grid gap-4 md:grid-cols-2">{events.map((event) => <li key={event.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-3"><h2 className="text-lg font-bold leading-snug">{event.title}</h2><Badge variant="secondary">{statusLabel[event.status] ?? event.status}</Badge></div>
-      <div className="mt-4 space-y-2 text-sm text-slate-600"><p className="flex items-start gap-2"><CalendarDays className="mt-0.5 size-4 shrink-0 text-emerald-700" aria-hidden="true" /><span>{date.format(new Date(event.starts_at))}</span></p><p className="flex items-start gap-2"><MapPin className="mt-0.5 size-4 shrink-0 text-emerald-700" aria-hidden="true" /><span>{event.venue_booking_status === 'booked' ? 'Venue sudah dipesan' : 'Venue belum final'}</span></p><p>Perkiraan biaya {rupiah.format(event.estimated_total_cost)}</p></div>
-      <Button asChild variant="outline" className="mt-5 min-h-11 w-full"><Link href={`/event/manage/?id=${event.id}`}>Kelola event</Link></Button>
-    </li>)}</ul>}
+
+    <section aria-label="Ringkasan event" className="grid gap-3 sm:grid-cols-3 sm:gap-4">
+      <Metric label="Semua event" value={loading ? '—' : events.length} detail="Event yang kamu kelola" icon={CalendarDays} />
+      <Metric label="Event aktif" value={loading ? '—' : activeCount} detail="Mencari peserta atau terkonfirmasi" icon={Clock3} />
+      <Metric label="Event selesai" value={loading ? '—' : completedCount} detail="Aktivitas yang sudah berlangsung" icon={UsersRound} />
+    </section>
+
+    {error && <div className="rounded-xl border border-[#f0cbc8] bg-[#fff8f7] p-5 text-sm text-[#8b2c25]" role="alert">{error}</div>}
+    <section className="rounded-xl border border-[#e6e6e6] bg-white p-6 sm:p-8">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div><h2 className="text-xl font-semibold tracking-[-0.035em] text-[#171615]">Kelola event kamu</h2><p className="mt-1 text-sm text-[#6b6763]">Lihat jadwal dan status semua event dalam satu tabel.</p></div>
+        <Link href="/dashboard/events/" className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#0075de] px-5 text-sm font-medium text-white transition-colors hover:bg-[#005bab] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0075de]">Buka My Event</Link>
+      </div>
+    </section>
   </div>;
 }

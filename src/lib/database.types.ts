@@ -771,6 +771,25 @@ export type Database = {
           },
         ];
       };
+      "client_navigation_flags": {
+        Row: {
+          "enabled": boolean;
+          "flag_key": string;
+          "updated_at": string;
+        };
+        ComputedFields: never;
+        Insert: {
+          "enabled"?: boolean;
+          "flag_key": string;
+          "updated_at"?: string;
+        };
+        Update: {
+          "enabled"?: boolean;
+          "flag_key"?: string;
+          "updated_at"?: string;
+        };
+        Relationships: [];
+      };
       "communities": {
         Row: {
           "avatar_path": string | null;

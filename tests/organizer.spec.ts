@@ -12,6 +12,12 @@ const session = {
 const publicEvent = { id:eventId,title:'Badminton Jumat',description:'Main santai bersama',starts_at:'2026-11-06T19:00:00+07:00',ends_at:'2026-11-06T21:00:00+07:00',registration_closes_at:'2026-11-06T17:00:00+07:00',timezone:'Asia/Jakarta',capacity:12,participants_count:1,price_amount:0,currency:'IDR',status:'recruiting',visibility:'unlisted',venue_booking_status:'not_booked',estimated_total_cost:240000,contributions_locked_at:null,contribution_mode:'dynamic',payment_timing:'before_event',version:3,venue:{name:'Venue belum ditentukan',address:'',maps_url:''} };
 
 test.beforeEach(async({page})=>{
+  await page.route('**/rest/v1/client_navigation_flags**',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify([
+    {flag_key:'phase2Network',enabled:false},
+    {flag_key:'phase3Recommendations',enabled:false},
+    {flag_key:'phase3Challenges',enabled:false},
+    {flag_key:'phase3Stats',enabled:false},
+  ])}));
   await page.route(`**/dolend-api/v1/events/${eventId}/invites`,route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:[]})}));
   await page.route('**/dolend-api/v1/payment-settings',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:[{id:bankMethodId,type:'bank_transfer',recipient_name:'BCA Host',is_active:true}]})}));
 });
@@ -20,13 +26,31 @@ async function withSession(page: Page) {
   await page.addInitScript(({ value }) => localStorage.setItem('sb-fpbefabsqryxmnmxufjw-auth-token', JSON.stringify(value)), { value: session });
 }
 
-test('dashboard organizer menampilkan event nyata dan aman di 360 px', async ({ page }) => {
+test('dashboard menampilkan tiga menu utama dan daftar event berbentuk tabel', async ({ page }) => {
   await withSession(page);
   await page.route('**/dolend-api/v1/organizer/events', route => route.fulfill({ status:200, contentType:'application/json', body:JSON.stringify({data:[publicEvent]}) }));
   await page.goto('/dashboard/');
-  await expect(page.getByRole('heading', { name:'Event kamu' })).toBeVisible();
-  await expect(page.getByRole('heading', { name:'Badminton Jumat' })).toBeVisible();
-  await expect(page.getByRole('link', { name:'Kelola event' })).toHaveAttribute('href', `/event/manage/?id=${eventId}`);
+  await expect(page.getByRole('heading', { name:'Selamat datang, Host' })).toBeVisible();
+  await expect(page.getByText('Semua event', {exact:true})).toBeVisible();
+  if ((page.viewportSize()?.width ?? 1280) < 1024) {
+    await page.getByRole('button', { name:'Buka menu dashboard' }).click();
+  }
+  const dashboardNav = page.getByRole('navigation', { name:'Navigasi utama' });
+  await expect(dashboardNav.getByRole('link', { name:'Ringkasan' })).toHaveAttribute('aria-current', 'page');
+  await expect(dashboardNav.getByRole('link', { name:'My Event' })).toHaveAttribute('href', '/dashboard/events/');
+  await expect(dashboardNav.getByRole('link', { name:'Akun' })).toHaveAttribute('href', '/account/');
+  await expect(dashboardNav.getByRole('link')).toHaveCount(3);
+  await expect(dashboardNav.getByRole('heading', { name:'MENU UTAMA' })).toBeVisible();
+  await expect(dashboardNav.getByRole('link', { name:'Temukan aktivitas' })).toHaveCount(0);
+  await expect(dashboardNav.getByRole('link', { name:'Tantangan' })).toHaveCount(0);
+  await expect(dashboardNav.getByRole('link', { name:'Aktivitas', exact:true })).toHaveCount(0);
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  await page.route('**/dolend-api/v1/organizer/events?view=active', route => route.fulfill({json:{data:[publicEvent]}}));
+  await dashboardNav.getByRole('link', { name:'My Event' }).click();
+  await expect(page.getByRole('heading', { name:'My Event' })).toBeVisible();
+  await expect(page.getByRole('table', { name:'Daftar event yang kamu kelola' }).getByRole('row', { name:/Badminton Jumat/ })).toBeVisible();
+  await expect(page.getByRole('link', { name:'Buat event', exact:true })).toHaveAttribute('href', '/event/create/');
+  await expect(page.getByRole('link', { name:'Lihat event' })).toHaveAttribute('href', `/event/manage/?id=${eventId}`);
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
 });
@@ -157,11 +181,12 @@ test('organizer membuat, membagikan, dan mencabut undangan event',async({page,co
   await withSession(page);
   const inviteId='99999999-9999-4999-8999-999999999999';
   const inviteToken='i'.repeat(43);
+  const expiresAt = new Date(Date.now() + 86_400_000).toISOString();
   let revoked=false;
   await page.route(`**/dolend-api/v1/organizer/events/${eventId}`,route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:publicEvent})}));
   await page.route(`**/dolend-api/v1/events/${eventId}/roster`,route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:{estimated_total_cost:240000,contributions_locked_at:null,payment_timing:'before_event',estimated_per_person:null,summary:{charged:0,received:0,refunded:0,adjustments:0,outstanding:0,credit:0},participants:[]}})}));
-  await page.route(`**/dolend-api/v1/events/${eventId}/invites`,route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:route.request().method()==='POST'?{id:inviteId,token:inviteToken,created_at:'2026-11-03T10:00:00Z',expires_at:'2026-11-06T10:00:00Z',revoked_at:null}:[]})}));
-  await page.route(`**/dolend-api/v1/invites/${inviteId}/revoke`,route=>{revoked=true;return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:{id:inviteId,created_at:'2026-11-03T10:00:00Z',expires_at:'2026-11-06T10:00:00Z',revoked_at:'2026-11-03T11:00:00Z'}})});});
+  await page.route(`**/dolend-api/v1/events/${eventId}/invites`,route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:route.request().method()==='POST'?{id:inviteId,token:inviteToken,created_at:'2026-11-03T10:00:00Z',expires_at:expiresAt,revoked_at:null}:[]})}));
+  await page.route(`**/dolend-api/v1/invites/${inviteId}/revoke`,route=>{revoked=true;return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:{id:inviteId,created_at:'2026-11-03T10:00:00Z',expires_at:expiresAt,revoked_at:'2026-11-03T11:00:00Z'}})});});
   await page.goto(`/event/manage/?id=${eventId}`);
   await page.getByRole('button',{name:'Buat tautan undangan'}).click();
   const expected=`${page.url().split('/event/manage/')[0]}/event/?id=${eventId}#invite=${inviteToken}`;
