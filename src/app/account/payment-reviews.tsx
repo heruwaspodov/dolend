@@ -105,7 +105,7 @@ export function PaymentReviews({ token }: { token: string }) {
         {charge && <><div className="space-y-2"><Label htmlFor="cash-method">Penerima tunai</Label><select id="cash-method" name="method" required className={workspaceFormControl}>{methods.map(m => <option key={m.id} value={m.id}>{m.recipient_name}</option>)}</select></div>
           <div className="space-y-2"><Label htmlFor="cash-amount">Nominal diterima (Rp)</Label><Input id="cash-amount" name="amount" type="number" min={1} max={1e12} step={1} required className={workspaceFormControl} /></div>
           <div className="space-y-2"><Label htmlFor="cash-reason">Catatan penerimaan</Label><Input id="cash-reason" name="reason" maxLength={1000} required className={workspaceFormControl} /></div>
-          {!methods.length && <p className="text-sm text-muted-foreground sm:col-span-2">Metode tunai harus diaktifkan untuk event ini terlebih dahulu.</p>}
+          {!methods.length && <p className="text-sm text-[#615d59] sm:col-span-2">Metode tunai harus diaktifkan untuk event ini terlebih dahulu.</p>}
           <Button disabled={busy || !methods.length} className={`${workspaceFormAction} w-full sm:col-span-2 sm:w-fit`}>Catat tunai diterima</Button></>}
       </form>}
       <ul className="max-w-4xl space-y-4">{reviews.map(row => <li key={row.id} className="space-y-3 border-t pt-4">

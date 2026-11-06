@@ -160,9 +160,10 @@ test('form membuat recruiting event tanpa venue wajib', async ({ page }) => {
   await withSession(page);
   let created: Record<string, unknown> | undefined;
   await page.route('**/dolend-api/v1/organizer/workspaces', route => route.fulfill({ status:200, contentType:'application/json', body:JSON.stringify({data:[{id:workspaceId,name:'Workspace Host',role:'owner'}]}) }));
-  await page.route('**/dolend-api/v1/activity-types', route => route.fulfill({ status:200, contentType:'application/json', body:JSON.stringify({data:[{id:activityId,slug:'badminton',name:'Badminton'}]}) }));
+  await page.route('**/dolend-api/v1/activity-types', route => route.fulfill({ status:200, contentType:'application/json', body:JSON.stringify({data:[{id:activityId,slug:'badminton',name:'Badminton'},{id:eventId,slug:'football',name:'Football / Futsal'}]}) }));
   await page.route('**/dolend-api/v1/events', async route => { if (route.request().method() !== 'POST') return route.fallback(); created=route.request().postDataJSON(); await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:{id:eventId}})}); });
   await page.goto('/event/create/');
+  await page.getByRole('radio', { name: 'Football / Futsal' }).check();
   await page.getByLabel('Nama event').fill('Badminton Jumat');
   await page.getByLabel('Mulai').fill('2026-11-06T19:00');
   await page.getByLabel('Selesai').fill('2026-11-06T21:00');
@@ -170,6 +171,7 @@ test('form membuat recruiting event tanpa venue wajib', async ({ page }) => {
   await page.getByLabel('Perkiraan biaya total (Rp)').fill('240000');
   await page.getByRole('button', { name:'Buat event' }).click();
   await expect(page).toHaveURL(`/event/manage/?id=${eventId}`);
+  expect(created?.activity_type_id).toBe(eventId);
   expect(created?.venue_snapshot).toBeUndefined();
   expect(created?.starts_at).toBe('2026-11-06T19:00:00+07:00');
   expect(created?.payment_timing).toBe('before_event');
@@ -212,6 +214,7 @@ test('form venue mengirim koordinat dan petunjuk bertemu', async ({ page }) => {
   await page.getByLabel('Pendaftaran ditutup').fill('2026-11-05T19:00');
   await page.getByLabel('Nama tempat').fill('GOR Jakarta');
   await page.getByLabel('Alamat').fill('Jakarta Pusat');
+  await page.getByText('Koordinat dan kode area', { exact: true }).click();
   await page.getByLabel('Latitude').fill('-6.2');
   await page.getByLabel('Longitude').fill('106.816666');
   await page.getByLabel('Kode area umum untuk rekomendasi').fill('id-jk');
@@ -231,7 +234,7 @@ test('form membuat event harga tetap setelah event',async({page})=>{
   await page.goto('/event/create/');
   await page.getByLabel('Nama event').fill('Badminton postpay');
   await page.getByLabel('Mulai').fill('2026-11-06T19:00');await page.getByLabel('Selesai').fill('2026-11-06T21:00');await page.getByLabel('Pendaftaran ditutup').fill('2026-11-05T19:00');
-  await page.getByLabel('Model biaya').selectOption('after_event');
+  await page.getByRole('radio', { name: 'Harga tetap, bayar setelah event', exact: true }).check();
   await page.getByLabel('Harga per peserta (Rp)').fill('50000');await page.getByLabel('Rekening penerima').selectOption(bankMethodId);await page.getByLabel('Jatuh tempo pembayaran').fill('2026-11-07T21:00');
   await page.getByLabel('Nama tempat').fill('GOR Jakarta');await page.getByLabel('Alamat').fill('Jakarta Pusat');
   await page.getByRole('button',{name:'Buat event'}).click();await expect(page).toHaveURL(`/event/manage/?id=${eventId}`);
@@ -281,6 +284,7 @@ test('planning memperbarui snapshot venue lengkap', async ({page}) => {
   await page.getByLabel('Nama event').fill('Badminton Sabtu');
   await page.getByLabel('Kapasitas').fill('16');
   await page.getByLabel('Alamat').fill('Jakarta Pusat');
+  await page.getByText('Koordinat dan kode area', { exact: true }).click();
   await page.getByLabel('Latitude').fill('-6.2');
   await page.getByLabel('Longitude').fill('106.816666');
   await page.getByLabel('Petunjuk bertemu').fill('Masuk dari pintu timur.');

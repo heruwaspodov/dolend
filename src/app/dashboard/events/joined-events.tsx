@@ -38,7 +38,7 @@ export function JoinedEvents({ token }: { token: string }) {
   }, [token, attempt]);
 
   return (
-    <section aria-labelledby="joined-title" className="rounded-xl border bg-card">
+    <section aria-labelledby="joined-title">
       <header className="border-b px-4 py-4 sm:px-5">
         <h2 id="joined-title" className="font-semibold">Event yang kamu ikuti</h2>
         <p className="mt-1 text-sm text-muted-foreground">Lihat jadwal, status pendaftaran, dan tagihanmu.</p>

@@ -2,11 +2,11 @@
 
 import Link from 'next/link';
 import { useState, type ComponentProps } from 'react';
-import { Archive, ArrowDown, ArrowDownUp, ArrowUp, ChevronDown, ChevronLeft, ChevronRight, Columns3, Eye, List, Plus, UserCheck, RotateCcw, Search } from 'lucide-react';
+import { Archive, ArrowDown, ArrowDownUp, ArrowUp, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Columns3, Eye, List, Plus, UserCheck, RotateCcw, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { SessionGate } from '@/components/organizer/session-gate';
-import { workspaceFormAction, workspaceFormControl } from '@/components/organizer/workspace-form';
+import { WorkspaceFormHeader, workspaceFormAction, workspaceFormControl, workspaceFormPanel } from '@/components/organizer/workspace-form';
 import { organizerRequest, type OrganizerEvent } from '@/lib/organizer-client';
 import { useOrganizerEvents } from '@/lib/use-organizer-events';
 import { useOrganizerSession } from '@/lib/use-organizer-session';
@@ -47,13 +47,8 @@ const comparators: Record<SortField, (a: OrganizerEvent, b: OrganizerEvent) => n
   cost: (a, b) => a.estimated_total_cost - b.estimated_total_cost,
 };
 
-function TableSelect({ children, className = '', ...props }: ComponentProps<'select'>) {
-  return (
-    <div className="relative min-w-0">
-      <select {...props} className={`${workspaceFormControl} appearance-none px-2.5 pr-6 sm:pr-8 ${className}`}>{children}</select>
-      <ChevronDown aria-hidden="true" className="pointer-events-none absolute top-1/2 right-2 size-3.5 sm:right-3 -translate-y-1/2 text-muted-foreground" />
-    </div>
-  );
+function TableSelect({ className = '', ...props }: ComponentProps<'select'>) {
+  return <select {...props} className={`${workspaceFormControl} ${className}`} />;
 }
 
 function SortHeader({ label, direction, onSort, className = '' }: {
@@ -81,17 +76,18 @@ export function MyEvents() {
   if (!session) return <SessionGate ready={ready} />;
 
   return (
-    <div className="mx-auto max-w-6xl space-y-5">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight">My Event</h1>
-          <p className="mt-1.5 text-sm leading-6 text-muted-foreground">Cek pendaftaranmu dan kelola event yang kamu adakan.</p>
-        </div>
-        <Button asChild className={workspaceFormAction}>
-          <Link href="/event/create/"><Plus aria-hidden="true" /> Buat event</Link>
-        </Button>
-      </header>
-      <nav aria-label="Peran di event" className="flex gap-2 border-b">
+    <div className={`mx-auto max-w-6xl ${workspaceFormPanel}`}>
+      <WorkspaceFormHeader
+        icon={CalendarDays}
+        title="My Event"
+        description="Cek pendaftaranmu dan kelola event yang kamu adakan."
+        action={
+          <Button asChild className={workspaceFormAction}>
+            <Link href="/event/create/"><Plus aria-hidden="true" /> Buat event</Link>
+          </Button>
+        }
+      />
+      <nav aria-label="Peran di event" className="flex gap-2 px-5 sm:px-8">
         <Button variant="ghost" className="min-h-11 rounded-b-none aria-pressed:shadow-[inset_0_-2px_#0069c7] aria-pressed:text-[#005bab]" aria-pressed={tab === 'joined'} onClick={() => setTab('joined')}>
           <UserCheck aria-hidden="true" /> Diikuti
         </Button>
@@ -149,7 +145,7 @@ function ManagedEvents() {
   }
 
   return (
-      <section aria-label="Daftar event" className="min-w-0 rounded-xl border bg-card">
+      <section aria-label="Daftar event" className="min-w-0">
         <div className="space-y-4 border-b px-4 py-4 sm:px-5">
           <div className="flex flex-wrap gap-2" aria-label="Tampilan daftar">
             {(['active', 'archived'] as const).map(option => (

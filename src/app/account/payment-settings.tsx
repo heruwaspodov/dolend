@@ -67,7 +67,7 @@ export function PaymentSettings({token}:{token:string}) {
             <div className="grid gap-2 sm:col-span-2">
               <Label htmlFor="payment-qris">Gambar QRIS</Label>
               <Input id="payment-qris" name="qris" type="file" accept="image/png,image/jpeg" required aria-describedby="payment-qris-hint" className={`${workspaceFormControl} py-2 file:me-3`} />
-              <p id="payment-qris-hint" className="text-sm leading-5 text-muted-foreground">
+              <p id="payment-qris-hint" className="text-sm leading-5 text-[#615d59]">
                 PNG atau JPG, maksimal 2 MB. Untuk mengganti QRIS, tambahkan gambar baru lalu nonaktifkan metode lama. Riwayat tetap disimpan. Gambar QRIS tidak menjadi konfirmasi pembayaran.
               </p>
             </div>
@@ -99,15 +99,15 @@ export function PaymentSettings({token}:{token:string}) {
               {events.map(event => <option key={event.id} value={event.id}>{event.title}</option>)}
             </select>
           </div>
-          {loading ? <p className="text-sm text-muted-foreground">Memuat metode pembayaran…</p> : !methods.length ? (
-            <p className="text-sm text-muted-foreground">Belum ada metode pembayaran.</p>
+          {loading ? <p className="text-sm text-[#615d59]">Memuat metode pembayaran…</p> : !methods.length ? (
+            <p className="text-sm text-[#615d59]">Belum ada metode pembayaran.</p>
           ) : (
             <ul className="divide-y">
               {methods.map(method => (
                 <li key={method.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 py-3">
                   <div className="min-w-0 flex-1 basis-full sm:basis-auto">
                     <p className="break-words text-sm font-medium">{method.recipient_name}</p>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-sm text-[#615d59]">
                       {method.type === 'static_qris' ? 'QRIS' : method.type === 'cash' ? 'Tunai' : 'Transfer'} · {method.is_active ? 'Aktif' : 'Nonaktif'}
                     </p>
                   </div>
