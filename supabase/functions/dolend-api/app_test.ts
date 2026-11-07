@@ -1,5 +1,5 @@
 import { createApp } from './app.ts';
-import { manualPaymentReviewDto, organizerPaymentMethodDto } from './manual-payments.ts';
+import { manualPaymentReviewDto, manualPaymentRoutes, organizerPaymentMethodDto } from './manual-payments.ts';
 import { AccountServiceError, type AccountIdentity, type AccountService, type Profile, type ProfilePatch } from './account.ts';
 import { GuestBookingError, type GuestBookingService } from './guest-booking.ts';
 import type { EventInviteService } from './event-invite.ts';
@@ -215,6 +215,36 @@ Deno.test('manual finance endpoints reject anonymous organizers and invalid payl
   ] as const) {
     const response=await finance.handle(new Request(`http://localhost/dolend-api/v1${path}`,{method,headers:{'content-type':'application/json'},...(method==='POST'?{body:JSON.stringify(body??{})}:{})}));
     if(response.status!==401) throw new Error(`Expected 401 for ${path}, got ${response.status}: ${await response.text()}`);
+  }
+});
+
+Deno.test('organizer roster reads participant users embedded as objects', async () => {
+  const originalFetch = globalThis.fetch;
+  let contributionMode = 'legacy';
+  const participants = [
+    { id: 'member', users: { display_name: 'Anggota', profiles: { id: 'profile' } } },
+    { id: 'guest', users: { display_name: 'Tamu', profiles: null } },
+  ];
+  globalThis.fetch = (input) => {
+    const path = new URL(String(input)).pathname;
+    if (path === '/rest/v1/rpc/manual_event_access') return Promise.resolve(Response.json(null));
+    if (path === '/rest/v1/events') return Promise.resolve(Response.json({ contribution_mode: contributionMode }));
+    if (path === '/rest/v1/event_participants') return Promise.resolve(Response.json(participants));
+    throw new Error(`Unexpected roster request: ${path}`);
+  };
+  try {
+    const routes = manualPaymentRoutes(accountMock(), 'http://supabase.test', 'test-key');
+    for (contributionMode of ['legacy', 'dynamic']) {
+      const response = await routes.handle(new Request(`http://localhost/events/${identity.id}/roster`, { headers: authHeaders }));
+      assert(response.ok, `Expected ${contributionMode} roster, got ${response.status}`);
+      const { data } = await response.json();
+      assert(data.participants[0]?.is_guest === false, 'Member marked as guest');
+      assert(data.participants[1]?.is_guest === true, 'Guest marked as member');
+      assert(data.participants[0]?.users?.display_name === 'Anggota', 'Member name missing');
+      assert(!('profiles' in data.participants[0].users), 'Roster exposes internal profile data');
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
   }
 });
 

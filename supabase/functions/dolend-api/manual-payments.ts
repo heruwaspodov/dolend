@@ -388,6 +388,15 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
       const {data:e,error}=await client().from('events').select('estimated_total_cost,contributions_locked_at,payment_timing,contribution_mode,price_amount,payment_mode').eq('id',params.id).single();
       const {data:participants,error:pe}=await client().from('event_participants').select('id,status,attendance_at,chargeable,users(display_name,profiles(id)),participant_charges(id,amount),invoices(id,amount_due,status,due_at)').eq('event_id',params.id);
       if(error||pe)throw new FinanceError('STORAGE_UNAVAILABLE');
+      const rosterParticipants = (participants ?? []).map(({ users, ...participant }) => {
+        const user = Array.isArray(users) ? users[0] : users;
+        const profiles = user?.profiles;
+        return {
+          ...participant,
+          users: user ? { display_name: user.display_name } : null,
+          is_guest: Array.isArray(profiles) ? profiles.length === 0 : !profiles,
+        };
+      });
       if(e.contribution_mode==='legacy') {
         const invoices=(participants??[]).flatMap(participant=>participant.invoices??[]);
         const {data:entries,error:ledgerError}=invoices.length?await client().from('payment_ledger').select('invoice_id,entry_type,amount').in('invoice_id',invoices.map(invoice=>invoice.id)):{data:[],error:null};
@@ -395,7 +404,7 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
         const received=(entries??[]).filter(entry=>entry.entry_type==='receipt').reduce((sum,entry)=>sum+Number(entry.amount),0);
         const refunded=(entries??[]).filter(entry=>entry.entry_type==='refund').reduce((sum,entry)=>sum+Number(entry.amount),0);
         const charged=invoices.filter(invoice=>!['void','waived'].includes(invoice.status)).reduce((sum,invoice)=>sum+Number(invoice.amount_due),0);
-        return {data:{...e,estimated_per_person:e.price_amount,summary:{charged,received,refunded,adjustments:0,outstanding:Math.max(charged-received+refunded,0),credit:Math.max(received-refunded-charged,0)},participants:(participants??[]).map(participant=>({...participant,is_guest:!(participant.users??[]).some(user=>user.profiles?.length),participant_charges:[]}))}};
+        return {data:{...e,estimated_per_person:e.price_amount,summary:{charged,received,refunded,adjustments:0,outstanding:Math.max(charged-received+refunded,0),credit:Math.max(received-refunded-charged,0)},participants:rosterParticipants.map(participant=>({...participant,participant_charges:[]}))}};
       }
       const n=(participants??[]).filter(p=>p.chargeable&&p.status==='confirmed').length;
       const charges=(participants??[]).flatMap(p=>p.participant_charges??[]);
@@ -411,7 +420,7 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
       }
       const balances=[...balanceByCharge.values()];
       const summary={charged:charges.reduce((sum,c)=>sum+Number(c.amount),0),received,refunded,adjustments,outstanding:balances.reduce((sum,value)=>sum+Math.max(value,0),0),credit:balances.reduce((sum,value)=>sum+Math.max(-value,0),0)};
-      return {data:{...e,estimated_per_person:n?Math.ceil(Number(e.estimated_total_cost)/n):null,summary,participants:(participants??[]).map(p=>({...p,is_guest:!(p.users??[]).some(user=>user.profiles?.length),participant_charges:(p.participant_charges??[]).map(charge=>({...charge,balance:balanceByCharge.get(charge.id)??Number(charge.amount)}))}))}};
+      return {data:{...e,estimated_per_person:n?Math.ceil(Number(e.estimated_total_cost)/n):null,summary,participants:rosterParticipants.map(p=>({...p,participant_charges:(p.participant_charges??[]).map(charge=>({...charge,balance:balanceByCharge.get(charge.id)??Number(charge.amount)}))}))}};
     },{params:t.Object({id:uuid})})
     .post('/participants/:id/attendance',async ({request,params,body})=>({data:await rpc('record_event_attendance',{p_participant:params.id,p_actor:await actor(request),p_status:body.status})}),{params:t.Object({id:uuid}),body:t.Object({status:t.Union([t.Literal('attended'),t.Literal('no_show')])},{additionalProperties:false})})
     .post('/events/:id/participants',async ({request,params,body})=>{
