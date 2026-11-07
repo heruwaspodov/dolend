@@ -1,7 +1,8 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import Link from 'next/link';
-import { useState, type ComponentProps } from 'react';
+import { useState } from 'react';
 import { Archive, ArrowDown, ArrowDownUp, ArrowUp, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Columns3, Eye, List, Plus, UserCheck, RotateCcw, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -46,10 +47,6 @@ const comparators: Record<SortField, (a: OrganizerEvent, b: OrganizerEvent) => n
   venue: (a, b) => byName.compare(venueLabel(a), venueLabel(b)),
   cost: (a, b) => a.estimated_total_cost - b.estimated_total_cost,
 };
-
-function TableSelect({ className = '', ...props }: ComponentProps<'select'>) {
-  return <select {...props} className={`${workspaceFormControl} ${className}`} />;
-}
 
 function SortHeader({ label, direction, onSort, className = '' }: {
   label: string; direction?: Direction; onSort: () => void; className?: string;
@@ -167,10 +164,10 @@ function ManagedEvents() {
             </label>
             <div className="grid min-w-0 gap-1.5 text-xs font-medium">
               <label htmlFor="events-status">Status</label>
-              <TableSelect id="events-status" value={status} onChange={event => { setStatus(event.target.value); setPage(1); }}>
+              <SearchableSelect id="events-status" value={status} onValueChange={event => { setStatus(event); setPage(1); }}>
                 <option value="">Semua status</option>
                 {Object.entries(statusLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-              </TableSelect>
+              </SearchableSelect>
             </div>
             <details className="relative">
               <summary className="flex min-h-11 cursor-pointer items-center justify-between gap-3 rounded-lg border px-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-[#0069c7]"><span className="inline-flex items-center gap-2"><Columns3 aria-hidden="true" className="size-4 text-muted-foreground" />Kolom</span><ChevronDown aria-hidden="true" className="size-4 text-muted-foreground" /></summary>
@@ -252,10 +249,10 @@ function ManagedEvents() {
             <div className="flex flex-wrap items-center justify-between gap-x-5 gap-y-2 border-t px-4 py-3 sm:px-5">
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <label htmlFor="events-page-size">Event per halaman</label>
-                <TableSelect id="events-page-size" className="max-w-20" value={pageSize}
-                  onChange={event => { setPageSize(Number(event.target.value)); setPage(1); }}>
+                <SearchableSelect id="events-page-size" className="w-24" value={pageSize}
+                  onValueChange={event => { setPageSize(Number(event)); setPage(1); }}>
                   {[5, 10, 15, 20].map(size => <option key={size} value={size}>{size}</option>)}
-                </TableSelect>
+                </SearchableSelect>
               </div>
               <nav aria-label="Halaman daftar event" className="ml-auto flex flex-wrap items-center justify-end gap-1">
                 <p className="mr-2 text-xs tabular-nums text-muted-foreground" role="status">

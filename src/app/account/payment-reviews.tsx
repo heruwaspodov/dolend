@@ -1,5 +1,6 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -90,19 +91,19 @@ export function PaymentReviews({ token }: { token: string }) {
     <div className="space-y-4">
       <form onSubmit={load} className="grid max-w-3xl gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
         <div className="space-y-2"><Label htmlFor="review-event">Event yang dikelola</Label>
-        <select id="review-event" required value={event} onChange={e => { setEvent(e.target.value); setReviews([]); setParticipants([]); setCharge(''); }} className={workspaceFormControl}>
-          <option value="">Pilih event</option>{events.map(item => <option key={item.id} value={item.id}>{item.title}</option>)}
-        </select></div>
+        <SearchableSelect id="review-event" placeholder="Cari event…" disabled={busy} required value={event} onValueChange={e => { setEvent(e); setReviews([]); setParticipants([]); setCharge(''); }}>
+          {events.map(item => <option key={item.id} value={item.id}>{item.title}</option>)}
+        </SearchableSelect></div>
         <Button disabled={busy} className={`${workspaceFormAction} w-full sm:w-fit`}>Muat laporan</Button>
       </form>
       <p role="status" className="text-sm empty:sr-only">{message}</p>
       {participants.some(p => p.participant_charges) && <form onSubmit={recordCash} className="grid max-w-3xl gap-4 border-t pt-5 sm:grid-cols-2">
         <h3 className="font-semibold sm:col-span-2">Catat penerimaan tunai</h3>
         <div className="space-y-2"><Label htmlFor="cash-participant">Peserta</Label>
-        <select id="cash-participant" required value={charge} disabled={busy} onChange={e => void selectCharge(e.target.value)} className={workspaceFormControl}>
+        <SearchableSelect id="cash-participant" required value={charge} disabled={busy} onValueChange={e => void selectCharge(e)}>
           <option value="">Pilih peserta</option>{participants.filter(p => p.participant_charges).map(p => <option key={p.id} value={p.participant_charges!.id}>{p.users.display_name}</option>)}
-        </select></div>
-        {charge && <><div className="space-y-2"><Label htmlFor="cash-method">Penerima tunai</Label><select id="cash-method" name="method" required className={workspaceFormControl}>{methods.map(m => <option key={m.id} value={m.id}>{m.recipient_name}</option>)}</select></div>
+        </SearchableSelect></div>
+        {charge && <><div className="space-y-2"><Label htmlFor="cash-method">Penerima tunai</Label><SearchableSelect id="cash-method" name="method" required>{methods.map(m => <option key={m.id} value={m.id}>{m.recipient_name}</option>)}</SearchableSelect></div>
           <div className="space-y-2"><Label htmlFor="cash-amount">Nominal diterima (Rp)</Label><Input id="cash-amount" name="amount" type="number" min={1} max={1e12} step={1} required className={workspaceFormControl} /></div>
           <div className="space-y-2"><Label htmlFor="cash-reason">Catatan penerimaan</Label><Input id="cash-reason" name="reason" maxLength={1000} required className={workspaceFormControl} /></div>
           {!methods.length && <p className="text-sm text-[#615d59] sm:col-span-2">Metode tunai harus diaktifkan untuk event ini terlebih dahulu.</p>}
@@ -113,7 +114,7 @@ export function PaymentReviews({ token }: { token: string }) {
         {row.proof_url && <a className="underline" href={row.proof_url} target="_blank" rel="noreferrer">Lihat bukti pembayaran</a>}
         {['pending_verification','pending_review','expired'].includes(row.status) && <form onSubmit={e => review(e, row.id)} className="grid max-w-3xl gap-3 sm:grid-cols-2">
           <Label htmlFor={`reason-${row.id}`}>Catatan pemeriksaan</Label><Input id={`reason-${row.id}`} name="reason" required maxLength={1000} />
-          <Label htmlFor={`decision-${row.id}`}>Keputusan</Label><select id={`decision-${row.id}`} name="decision" className={workspaceFormControl}><option value="verified">Verifikasi penerimaan</option><option value="rejected">Tolak laporan</option></select>
+          <Label htmlFor={`decision-${row.id}`}>Keputusan</Label><SearchableSelect id={`decision-${row.id}`} name="decision"><option value="verified">Verifikasi penerimaan</option><option value="rejected">Tolak laporan</option></SearchableSelect>
           <Button disabled={busy} className={`${workspaceFormAction} w-full sm:col-span-2 sm:w-fit`}>Simpan review</Button>
         </form>}
       </li>)}</ul>

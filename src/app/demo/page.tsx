@@ -1,5 +1,6 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState } from 'react';
 import { ContributionPreview } from '@/components/contributions/contribution-preview';
 import { AlertTriangle, LoaderCircle, Share2, Users, WalletCards } from 'lucide-react';
@@ -101,7 +102,7 @@ function CreateActivity({ onCreate }: { onCreate: (form: FormData) => void }) {
       <Field label="Jadwal (WIB, UTC+7)" name="date" type="datetime-local" required />
       <Field label="Kapasitas termasuk host" name="capacity" type="number" min={2} max={100} defaultValue={6} required />
       <Field label="Biaya per orang (Rp)" name="cost" type="number" min={0} max={10000000} step={1000} defaultValue={50000} required />
-      <fieldset className="grid gap-2"><legend className="text-sm font-medium">Waktu pembayaran</legend><select name="timing" aria-label="Waktu pembayaran" className="min-h-11 rounded-lg border bg-background px-3"><option>Sebelum aktivitas</option><option>Sesudah aktivitas</option></select></fieldset>
+      <fieldset className="grid gap-2"><legend className="text-sm font-medium">Waktu pembayaran</legend><SearchableSelect name="timing" aria-label="Waktu pembayaran"><option>Sebelum aktivitas</option><option>Sesudah aktivitas</option></SearchableSelect></fieldset>
       <Button className="min-h-11 sm:col-span-2" type="submit">Buat aktivitas demo</Button>
     </form>
   </section>;

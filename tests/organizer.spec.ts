@@ -110,7 +110,12 @@ test('My Event mencari, mengurutkan, memilih kolom, dan memulihkan arsip', async
   await expect(page.getByRole('columnheader', { name: 'Event', exact: true })).toHaveAttribute('aria-sort', 'descending');
   await page.getByRole('button', { name: 'Event', exact: true }).click();
   await expect(rows.first().getByRole('link', { name: 'Lihat event' })).toHaveAttribute('href', `/event/?id=${workspaceId}`);
-  await page.getByRole('combobox', { name: 'Status', exact: true }).selectOption('recruiting');
+  const statusPicker = page.getByRole('combobox', { name: 'Status', exact: true });
+  await statusPicker.click();
+  await expect(page.getByText('Cari pilihan…', { exact: true })).toBeVisible();
+  await statusPicker.fill('Mencari');
+  await expect(page.getByRole('listbox').getByRole('option')).toHaveCount(1);
+  await page.getByRole('option', { name: 'Mencari peserta', exact: true }).click();
   await expect(rows).toHaveCount(1);
   await page.getByLabel('Cari event').fill('Tidak cocok');
   await expect(page.getByText('Tidak ada event yang cocok')).toBeVisible();
@@ -141,7 +146,8 @@ test('My Event membagi hasil sesuai ukuran halaman', async ({ page }) => {
   await expect(rows).toHaveCount(10);
   const pageSize = page.getByLabel('Event per halaman');
   for (const size of [5, 10, 15, 20]) {
-    await pageSize.selectOption(String(size));
+    await pageSize.click();
+    await page.getByRole('option', { name: String(size), exact: true }).click();
     await expect(rows).toHaveCount(size);
   }
   await page.getByRole('button', { name: 'Berikutnya' }).click();
@@ -235,7 +241,7 @@ test('form membuat event harga tetap setelah event',async({page})=>{
   await page.getByLabel('Nama event').fill('Badminton postpay');
   await page.getByLabel('Mulai').fill('2026-11-06T19:00');await page.getByLabel('Selesai').fill('2026-11-06T21:00');await page.getByLabel('Pendaftaran ditutup').fill('2026-11-05T19:00');
   await page.getByRole('radio', { name: 'Harga tetap, bayar setelah event', exact: true }).check();
-  await page.getByLabel('Harga per peserta (Rp)').fill('50000');await page.getByLabel('Rekening penerima').selectOption(bankMethodId);await page.getByLabel('Jatuh tempo pembayaran').fill('2026-11-07T21:00');
+  await page.getByLabel('Harga per peserta (Rp)').fill('50000');await page.getByLabel('Rekening penerima').click();await page.getByRole('option', { name: 'BCA Host', exact: true }).click();await page.getByLabel('Jatuh tempo pembayaran').fill('2026-11-07T21:00');
   await page.getByLabel('Nama tempat').fill('GOR Jakarta');await page.getByLabel('Alamat').fill('Jakarta Pusat');
   await page.getByRole('button',{name:'Buat event'}).click();await expect(page).toHaveURL(`/event/manage/?id=${eventId}`);
   expect(created).toMatchObject({billing_mode:'after_event',price_amount:50000,payment_due_at:'2026-11-07T21:00:00+07:00',payment_method_id:bankMethodId});
@@ -284,7 +290,6 @@ test('planning memperbarui snapshot venue lengkap', async ({page}) => {
   await page.getByLabel('Nama event').fill('Badminton Sabtu');
   await page.getByLabel('Kapasitas').fill('16');
   await page.getByLabel('Alamat').fill('Jakarta Pusat');
-  await page.getByText('Koordinat dan kode area', { exact: true }).click();
   await page.getByLabel('Latitude').fill('-6.2');
   await page.getByLabel('Longitude').fill('106.816666');
   await page.getByLabel('Petunjuk bertemu').fill('Masuk dari pintu timur.');

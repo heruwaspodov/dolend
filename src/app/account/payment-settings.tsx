@@ -1,4 +1,5 @@
 'use client';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -53,11 +54,11 @@ export function PaymentSettings({token}:{token:string}) {
           <h3 id="add-method-title" className="text-sm font-semibold sm:col-span-2">Tambah metode pembayaran</h3>
           <div className="grid gap-2">
             <Label htmlFor="payment-type">Metode</Label>
-            <select id="payment-type" value={type} onChange={e => setType(e.target.value)} className={workspaceFormControl}>
+            <SearchableSelect id="payment-type" value={type} onValueChange={e => setType(e)}>
               <option value="static_qris">QRIS statis</option>
               <option value="bank_transfer">Transfer bank</option>
               <option value="cash">Tunai</option>
-            </select>
+            </SearchableSelect>
           </div>
           <div className="grid gap-2">
             <Label htmlFor="payment-recipient">Nama penerima / merchant</Label>
@@ -94,10 +95,10 @@ export function PaymentSettings({token}:{token:string}) {
           <h3 id="saved-methods-title" className="text-base font-semibold">Metode tersimpan</h3>
           <div className="grid gap-2">
             <Label htmlFor="method-event">Gunakan metode pada event</Label>
-            <select id="method-event" value={eventId} onChange={e => setEventId(e.target.value)} className={workspaceFormControl}>
+            <SearchableSelect id="method-event" value={eventId} onValueChange={e => setEventId(e)}>
               <option value="">Pilih event</option>
               {events.map(event => <option key={event.id} value={event.id}>{event.title}</option>)}
-            </select>
+            </SearchableSelect>
           </div>
           {loading ? <p className="text-sm text-[#615d59]">Memuat metode pembayaran…</p> : !methods.length ? (
             <p className="text-sm text-[#615d59]">Belum ada metode pembayaran.</p>

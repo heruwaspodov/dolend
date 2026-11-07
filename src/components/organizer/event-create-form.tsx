@@ -1,5 +1,6 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useEffect, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { SlidersHorizontal } from 'lucide-react';
@@ -79,7 +80,7 @@ export function EventCreateForm() {
     {!loading && workspaces.length > 0 && <form className={workspaceFormDividers} onSubmit={submit}>
       <WorkspaceFormSection id="event-basics" title="Dasar event" description="Beri nama event dan tentukan siapa yang bisa membukanya.">
         <div className="grid gap-4 sm:grid-cols-2">
-          <div><Label htmlFor="workspace">Workspace</Label><select id="workspace" name="workspace_id" required className={field}>{workspaces.map((workspace) => <option key={workspace.id} value={workspace.id}>{workspace.name}</option>)}</select></div>
+          <div><Label htmlFor="workspace">Workspace</Label><SearchableSelect id="workspace" name="workspace_id" required className="mt-2">{workspaces.map((workspace) => <option key={workspace.id} value={workspace.id}>{workspace.name}</option>)}</SearchableSelect></div>
           <fieldset className="min-w-0 sm:col-span-2" aria-describedby="activity-hint">
             <legend className="text-sm font-medium">Pilih jenis kegiatan</legend>
             <p id="activity-hint" className="mt-1 text-sm text-[#615d59]">Jenis kegiatan menentukan tampilan header di halaman peserta.</p>
@@ -95,7 +96,7 @@ export function EventCreateForm() {
           </fieldset>
           <div className="sm:col-span-2"><Label htmlFor="title">Nama event</Label><Input id="title" name="title" required maxLength={200} className={field} placeholder="Badminton Jumat malam" /></div>
           <div className="sm:col-span-2"><Label htmlFor="description">Deskripsi <span className="font-normal text-[#615d59]">(opsional)</span></Label><textarea id="description" name="description" maxLength={10000} rows={4} className={`${field} h-auto resize-y py-2 placeholder:text-[#615d59]`} placeholder="Level permainan, perlengkapan, atau catatan lain" /></div>
-          <div className="sm:col-span-2"><Label htmlFor="visibility">Akses event</Label><select id="visibility" name="visibility" defaultValue="unlisted" className={field}><option value="unlisted">Hanya lewat undangan</option><option value="public">Publik</option></select><p className="mt-2 text-xs leading-relaxed text-slate-600">Event undangan tidak tampil di discovery dan hanya dapat dibuka lewat tautan aktif.</p></div>
+          <div className="sm:col-span-2"><Label htmlFor="visibility">Akses event</Label><SearchableSelect id="visibility" name="visibility" defaultValue="unlisted" className="mt-2"><option value="unlisted">Hanya lewat undangan</option><option value="public">Publik</option></SearchableSelect><p className="mt-2 text-xs leading-relaxed text-slate-600">Event undangan tidak tampil di discovery dan hanya dapat dibuka lewat tautan aktif.</p></div>
         </div>
       </WorkspaceFormSection>
       <WorkspaceFormSection id="event-time" title="Jadwal" description="Atur jadwal dan batas pendaftaran dalam zona waktu event.">
@@ -103,7 +104,7 @@ export function EventCreateForm() {
           <div><Label htmlFor="starts">Mulai</Label><Input id="starts" name="starts_at" type="datetime-local" required className={field} /></div>
           <div><Label htmlFor="ends">Selesai</Label><Input id="ends" name="ends_at" type="datetime-local" required className={field} /></div>
           <div><Label htmlFor="closes">Pendaftaran ditutup</Label><Input id="closes" name="registration_closes_at" type="datetime-local" required className={field} /></div>
-          <div><Label htmlFor="timezone">Zona waktu</Label><select id="timezone" name="timezone" value={timezone} onChange={(event) => setTimezone(event.target.value)} className={field}>{zones.map((zone) => <option key={zone.value} value={zone.value}>{zone.label}</option>)}</select></div>
+          <div><Label htmlFor="timezone">Zona waktu</Label><SearchableSelect id="timezone" name="timezone" value={timezone} onValueChange={event => setTimezone(event)} className="mt-2">{zones.map((zone) => <option key={zone.value} value={zone.value}>{zone.label}</option>)}</SearchableSelect></div>
         </div>
       </WorkspaceFormSection>
       <WorkspaceFormSection id="event-billing" title="Peserta dan biaya" description="Tentukan kapasitas dan cara peserta membayar.">
@@ -131,9 +132,9 @@ export function EventCreateForm() {
             ))}
           </fieldset>
           {billingMode==='dynamic'&&<><div><Label htmlFor="cost">Perkiraan biaya total (Rp)</Label><Input id="cost" name="estimated_total_cost" type="number" min={0} step={1000} defaultValue={0} required className={field} /></div>
-          <div><Label htmlFor="timing">Waktu pembayaran</Label><select id="timing" name="payment_timing" className={field}><option value="before_event">Sebelum event</option><option value="after_event">Setelah event</option></select></div></>}
+          <div><Label htmlFor="timing">Waktu pembayaran</Label><SearchableSelect id="timing" name="payment_timing" className="mt-2"><option value="before_event">Sebelum event</option><option value="after_event">Setelah event</option></SearchableSelect></div></>}
           {billingMode!=='dynamic'&&billingMode!=='free'&&<><div><Label htmlFor="price">Harga per peserta (Rp)</Label><Input id="price" name="price_amount" type="number" min={1} max={1e12} step={1} required className={field}/></div>
-          <div><Label htmlFor="payment-method">Rekening penerima</Label><select id="payment-method" name="payment_method_id" required className={field}><option value="">Pilih rekening</option>{paymentMethods.map(method=><option key={method.id} value={method.id}>{method.recipient_name}</option>)}</select>{paymentMethods.length===0&&<p className="mt-2 text-xs text-amber-800">Tambahkan rekening bank aktif di <a href="/account/" className="underline underline-offset-2">halaman akun</a>.</p>}</div></>}
+          <div><Label htmlFor="payment-method">Rekening penerima</Label><SearchableSelect id="payment-method" name="payment_method_id" required className="mt-2"><option value="">Pilih rekening</option>{paymentMethods.map(method=><option key={method.id} value={method.id}>{method.recipient_name}</option>)}</SearchableSelect>{paymentMethods.length===0&&<p className="mt-2 text-xs text-amber-800">Tambahkan rekening bank aktif di <a href="/account/" className="underline underline-offset-2">halaman akun</a>.</p>}</div></>}
           {billingMode==='before_event'&&<div><Label htmlFor="hold-minutes">Durasi tahan kursi (menit)</Label><Input id="hold-minutes" name="hold_minutes" type="number" min={1} max={1440} defaultValue={15} required className={field}/></div>}
           {billingMode==='after_event'&&<div><Label htmlFor="payment-due">Jatuh tempo pembayaran</Label><Input id="payment-due" name="payment_due_at" type="datetime-local" required className={field}/><p className="mt-2 text-xs text-slate-600">Harus setelah event selesai.</p></div>}
         </div>

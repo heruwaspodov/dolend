@@ -18,7 +18,7 @@ export function WorkspaceFormSection({ id, title, description, children }: {
   );
 }
 
-export const workspaceFormControl = 'workspace-form-control h-11 w-full min-w-0 rounded-lg border border-[#e6e3df] bg-white px-3 text-base outline-none focus-visible:border-[#0069c7] focus-visible:ring-2 focus-visible:ring-[#0069c7]/30 md:text-sm';
+export const workspaceFormControl = 'h-11 w-full min-w-0 rounded-lg border border-[#e6e3df] bg-white px-3 text-base outline-none focus-visible:border-[#0069c7] focus-visible:ring-2 focus-visible:ring-[#0069c7]/30 md:text-sm';
 export const workspaceFormAction = 'min-h-11 bg-[#0069c7] px-4 text-white hover:bg-[#0059aa] focus-visible:ring-[#0069c7]';
 
 export const workspaceFormWidth = 'mx-auto w-full max-w-4xl';
