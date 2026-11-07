@@ -244,7 +244,7 @@ Prefix `/v1` pada function Elysia. JSON response `{ data, meta?: { next_cursor }
 | POST `/events/:id/publish` | Organizer | Validasi field wajib, metode pembayaran, deadline |
 | POST `/events/:id/cancel` | Organizer | Release seats, void unpaid, refund review paid |
 | POST `/events/:id/complete` | Organizer/internal | Hanya setelah ends_at; tidak menghapus piutang |
-| POST/DELETE `/events/:id/invites` | Organizer | Create/revoke invite; token plaintext hanya saat dibuat |
+| GET `/events/:id/share-link`, POST `/events/:id/invites`, POST `/invites/:id/revoke` | Organizer | Baca atau buat satu tautan aktif, dan cabut undangan lewat API |
 | GET/POST `/venues` | Member untuk create | Search master aman; create validasi Maps/location |
 | POST `/events/:id/participants` | Member/verified guest | Join atomik, tagihan dan hold konsisten |
 | GET `/events/:id/participants` | Organizer | Roster private; public hanya projection terpisah |

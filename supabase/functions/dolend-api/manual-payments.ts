@@ -104,6 +104,18 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
     const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(token));
     return Array.from(new Uint8Array(digest),byte=>byte.toString(16).padStart(2,'0')).join('');
   }
+  async function shareToken(eventId: string, nonce: string) {
+    if (!rateLimitPepper || rateLimitPepper.length < 32) throw new FinanceError('STORAGE_UNAVAILABLE');
+    const encoder = new TextEncoder();
+    const key = await crypto.subtle.importKey('raw', encoder.encode(rateLimitPepper), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+    const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(`dolend:event-share:v1:${eventId}:${nonce}`));
+    return btoa(String.fromCharCode(...new Uint8Array(signature))).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
+  }
+  async function shareLinkDto(eventId: string, invite: { id: string; share_nonce: string; token_hash: string; expires_at: string; created_at: string }) {
+    const token = await shareToken(eventId, invite.share_nonce);
+    if (await tokenHash(token) !== invite.token_hash) throw new FinanceError('STORAGE_UNAVAILABLE');
+    return { id: invite.id, expires_at: invite.expires_at, created_at: invite.created_at, revoked_at: null, token };
+  }
   async function ownEvent(event: string, request: Request) {
     const id = await actor(request);
     await rpc('manual_event_access', { p_event: event, p_actor: id });
@@ -172,7 +184,7 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
     return {...participantDto(participant),invoice_id:invoice?.id??null};
   }
   async function eventDto(eventId: string, publicOnly: boolean) {
-    let query=client().from('events').select('id,title,description,starts_at,ends_at,registration_closes_at,timezone,capacity,price_amount,currency,status,visibility,venue_snapshot,venue_booking_status,estimated_total_cost,contributions_locked_at,contribution_mode,payment_mode,payment_due_at,payment_timing,hold_minutes,version,activity_types(slug)').eq('id',eventId);
+    let query=client().from('events').select('id,title,description,starts_at,ends_at,registration_closes_at,timezone,capacity,price_amount,currency,status,visibility,venue_snapshot,venue_booking_status,estimated_total_cost,contributions_locked_at,contribution_mode,payment_mode,payment_due_at,payment_timing,hold_minutes,version,activity_types(slug,name)').eq('id',eventId);
     if(publicOnly)query=query.in('status',['published','recruiting','confirmed','completed']);
     const {data:e,error}=await query.single();
     if(error)throw new FinanceError('FORBIDDEN');
@@ -180,7 +192,7 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
     const {count:chargeable}=await client().from('event_participants').select('id',{count:'exact',head:true}).eq('event_id',e.id).eq('chargeable',true).eq('status','confirmed');
     const {venue_snapshot,activity_types,...rest}=e;
     const activityType = Array.isArray(activity_types) ? activity_types[0] : activity_types;
-    return {...rest,activity_type_slug:activityType?.slug??null,participants_count:count??0,estimated_per_person:chargeable?Math.ceil(Number(e.estimated_total_cost)/chargeable):null,venue:{name:venue_snapshot?.name?.trim()||'Venue belum ditentukan',address:venue_snapshot?.address??'',maps_url:venue_snapshot?.maps_url??'',...(venue_snapshot?.latitude!==undefined?{latitude:Number(venue_snapshot.latitude),longitude:Number(venue_snapshot.longitude)}:{}),...(venue_snapshot?.meeting_instructions?{meeting_instructions:venue_snapshot.meeting_instructions}:{}),...(!publicOnly&&venue_snapshot?.coarse_region_code?{coarse_region_code:venue_snapshot.coarse_region_code}:{})}};
+    return {...rest,activity_type_slug:activityType?.slug??null,...(!publicOnly?{activity_type_name:activityType?.name??null}:{}),participants_count:count??0,estimated_per_person:chargeable?Math.ceil(Number(e.estimated_total_cost)/chargeable):null,venue:{name:venue_snapshot?.name?.trim()||'Venue belum ditentukan',address:venue_snapshot?.address??'',maps_url:venue_snapshot?.maps_url??'',...(venue_snapshot?.latitude!==undefined?{latitude:Number(venue_snapshot.latitude),longitude:Number(venue_snapshot.longitude)}:{}),...(venue_snapshot?.meeting_instructions?{meeting_instructions:venue_snapshot.meeting_instructions}:{}),...(!publicOnly&&venue_snapshot?.coarse_region_code?{coarse_region_code:venue_snapshot.coarse_region_code}:{})}};
   }
   return new Elysia({ aot: false })
     .onBeforeHandle(({set}) => {set.headers['cache-control']='no-store';})
@@ -247,7 +259,13 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
     })
     .get('/organizer/events/:id',async ({request,params})=>{
       await ownEvent(params.id,request);
-      return {data:await eventDto(params.id,false)};
+      const [event, { data, error }] = await Promise.all([
+        eventDto(params.id, false),
+        client().from('events').select('workspaces(name)').eq('id', params.id).single(),
+      ]);
+      if (error) throw new FinanceError('STORAGE_UNAVAILABLE');
+      const workspace = Array.isArray(data.workspaces) ? data.workspaces[0] : data.workspaces;
+      return { data: { ...event, workspace_name: workspace?.name ?? null } };
     },{params:t.Object({id:uuid})})
     .get('/events/:id',async ({params,request}) => {
       await publicEventAccess(params.id,request);
@@ -338,15 +356,27 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
       if(error)throw new FinanceError('STORAGE_UNAVAILABLE');
       return {data:data??[]};
     },{params:t.Object({id:uuid})})
-    .post('/events/:id/invites',async ({request,params,body,set})=>{
+    .get('/events/:id/share-link', async ({ request, params }) => {
+      await ownEvent(params.id, request);
+      const { data: invite, error } = await client().from('event_invites')
+        .select('id,share_nonce,token_hash,expires_at,created_at,events!inner(visibility,status)')
+        .eq('event_id', params.id).eq('events.visibility', 'unlisted')
+        .in('events.status', ['published', 'recruiting', 'confirmed', 'completed'])
+        .is('revoked_at', null).or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
+        .order('share_nonce', { ascending: true, nullsFirst: false }).limit(1).maybeSingle();
+      if (error) throw new FinanceError('STORAGE_UNAVAILABLE');
+      const link = invite?.share_nonce ? await shareLinkDto(params.id, invite) : null;
+      return { data: { link, legacy_active: Boolean(invite && !link) } };
+    }, { params: t.Object({ id: uuid }) })
+    .post('/events/:id/invites',async ({request,params,body})=>{
       const actorId=await ownEvent(params.id,request);
-      const bytes=crypto.getRandomValues(new Uint8Array(32));
-      const token=btoa(String.fromCharCode(...bytes)).replaceAll('+','-').replaceAll('/','_').replaceAll('=','');
-      const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(token));
-      const tokenHash=Array.from(new Uint8Array(digest),byte=>byte.toString(16).padStart(2,'0')).join('');
-      const invite=await rpc('create_event_invite',{p_event:params.id,p_actor:actorId,p_token_hash:tokenHash,p_expires_at:body.expires_at??null});
-      set.headers['cache-control']='no-store';
-      return {data:{id:invite.id,expires_at:invite.expires_at,revoked_at:invite.revoked_at,created_at:invite.created_at,token}};
+      const nonce = crypto.randomUUID();
+      const token = await shareToken(params.id, nonce);
+      const invite = await rpc('ensure_event_share_link', {
+        p_event: params.id, p_actor: actorId, p_share_nonce: nonce,
+        p_token_hash: await tokenHash(token), p_expires_at: body.expires_at ?? null,
+      });
+      return { data: await shareLinkDto(params.id, invite) };
     },{params:t.Object({id:uuid}),body:t.Object({expires_at:t.Optional(t.String({format:'date-time'}))},{additionalProperties:false})})
     .post('/invites/:id/revoke',async ({request,params})=>{
       const invite=await rpc('revoke_event_invite',{p_invite:params.id,p_actor:await actor(request)});

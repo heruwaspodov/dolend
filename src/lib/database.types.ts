@@ -1,4 +1,5 @@
 // Generated from the local Supabase public schema; regenerate after migrations.
+
 export type Json = string | number | boolean | null | {
   [key: string]: Json | undefined;
 } | Json[];
@@ -945,6 +946,7 @@ export type Database = {
           "expires_at": string | null;
           "id": string;
           "revoked_at": string | null;
+          "share_nonce": string | null;
           "token_hash": string;
           "updated_at": string;
         };
@@ -956,6 +958,7 @@ export type Database = {
           "expires_at"?: string | null;
           "id"?: string;
           "revoked_at"?: string | null;
+          "share_nonce"?: string | null;
           "token_hash": string;
           "updated_at"?: string;
         };
@@ -966,6 +969,7 @@ export type Database = {
           "expires_at"?: string | null;
           "id"?: string;
           "revoked_at"?: string | null;
+          "share_nonce"?: string | null;
           "token_hash"?: string;
           "updated_at"?: string;
         };
@@ -3268,6 +3272,7 @@ export type Database = {
           "expires_at": string | null;
           "id": string;
           "revoked_at": string | null;
+          "share_nonce": string | null;
           "token_hash": string;
           "updated_at": string;
         };
@@ -3385,6 +3390,32 @@ export type Database = {
           "p_visibility": string;
         };
         Returns: Json;
+      };
+      "ensure_event_share_link": {
+        Args: {
+          "p_actor": string;
+          "p_event": string;
+          "p_expires_at"?: string;
+          "p_share_nonce": string;
+          "p_token_hash": string;
+        };
+        Returns: {
+          "created_at": string;
+          "created_by": string;
+          "event_id": string;
+          "expires_at": string | null;
+          "id": string;
+          "revoked_at": string | null;
+          "share_nonce": string | null;
+          "token_hash": string;
+          "updated_at": string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "event_invites";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
       };
       "expire_holds": { Args: { "p_event_id": string }; Returns: number };
       "get_activity_feed": {
@@ -3782,6 +3813,7 @@ export type Database = {
           "expires_at": string | null;
           "id": string;
           "revoked_at": string | null;
+          "share_nonce": string | null;
           "token_hash": string;
           "updated_at": string;
         };
@@ -3845,11 +3877,7 @@ export type Database = {
         Returns: undefined;
       };
       "set_organizer_event_archive": {
-        Args: {
-          "p_actor": string;
-          "p_archived": boolean;
-          "p_event": string;
-        };
+        Args: { "p_actor": string; "p_archived": boolean; "p_event": string };
         Returns: string;
       };
       "set_recommendation_preferences": {
@@ -4205,7 +4233,8 @@ export type TablesInsert<
     | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals;
-  } ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]][
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]][
       "Tables"
     ]
     : never = never,
@@ -4230,7 +4259,8 @@ export type TablesUpdate<
     | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals;
-  } ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]][
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]][
       "Tables"
     ]
     : never = never,
@@ -4255,7 +4285,8 @@ export type Enums<
     | { schema: keyof DatabaseWithoutInternals },
   EnumName extends DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals;
-  } ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]][
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]][
       "Enums"
     ]
     : never = never,
@@ -4274,7 +4305,8 @@ export type CompositeTypes<
     | { schema: keyof DatabaseWithoutInternals },
   CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals;
-  } ? keyof DatabaseWithoutInternals[
+  }
+    ? keyof DatabaseWithoutInternals[
       PublicCompositeTypeNameOrOptions["schema"]
     ]["CompositeTypes"]
     : never = never,

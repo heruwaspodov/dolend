@@ -248,6 +248,46 @@ Deno.test('organizer roster reads participant users embedded as objects', async 
   }
 });
 
+Deno.test('event share link returns the same organizer-only token after creation', async () => {
+  const originalFetch = globalThis.fetch;
+  let stored: { id: string; share_nonce: string; token_hash: string; expires_at: string; created_at: string } | null = null;
+  globalThis.fetch = async (input, init) => {
+    const path = new URL(String(input)).pathname;
+    if (path === '/rest/v1/rpc/manual_event_access') return Response.json(null);
+    if (path === '/rest/v1/rpc/ensure_event_share_link') {
+      const body = JSON.parse(String(init?.body));
+      stored ??= {
+        id: identity.id,
+        share_nonce: body.p_share_nonce,
+        token_hash: body.p_token_hash,
+        expires_at: '2027-01-01T00:00:00Z',
+        created_at: '2026-11-07T00:00:00Z',
+      };
+      return Response.json(stored);
+    }
+    if (path === '/rest/v1/event_invites') return Response.json(stored ? [stored] : []);
+    throw new Error(`Unexpected share-link request: ${path}`);
+  };
+  try {
+    const routes = manualPaymentRoutes(accountMock(), 'http://supabase.test', 'test-key', 'fixture-pepper'.repeat(3));
+    const endpoint = `http://localhost/events/${identity.id}`;
+    const create = () => routes.handle(new Request(`${endpoint}/invites`, { method: 'POST', headers: authHeaders, body: '{}' }));
+    const created = await create();
+    assert(created.ok, `Expected share-link creation, got ${created.status}`);
+    const first = (await created.json()).data;
+    assert(/^[A-Za-z0-9_-]{43}$/.test(first.token), 'Invalid invite token format');
+    assert((await (await create()).json()).data?.token === first.token, 'Retry returned a different token');
+    const read = await routes.handle(new Request(`${endpoint}/share-link`, { headers: authHeaders }));
+    assert(read.ok && read.headers.get('cache-control') === 'no-store', 'Share link must be served without caching');
+    const { link } = (await read.json()).data;
+    assert(link?.token === first.token && !('token_hash' in link) && !('share_nonce' in link), 'Share-link response changed token or exposed internals');
+    const anonymous = await routes.handle(new Request(`${endpoint}/share-link`));
+    assert(!anonymous.ok, 'Anonymous request obtained a share link');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 Deno.test('venue links only accept HTTPS Google Maps destinations', async () => {
   const {isSafeMapsUrl,normalizeVenueSnapshot}=await import('./manual-payments.ts');
   assert(isSafeMapsUrl(''),'empty optional URL rejected');

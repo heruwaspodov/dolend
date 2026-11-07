@@ -12,6 +12,7 @@ import { organizerRequest, type ActivityType, type OrganizerWorkspace } from '@/
 import { useOrganizerSession } from '@/lib/use-organizer-session';
 import { venueSnapshotFromForm } from '@/lib/venue-form';
 import { SessionGate } from './session-gate';
+import { EventBasicsFields } from './event-basics-fields';
 
 import { WorkspaceFormHeader, WorkspaceFormSection, workspaceFormDividers, workspaceFormAction, workspaceFormChoice, workspaceFormControl, workspaceFormPanel, workspaceFormWidth } from './workspace-form';
 
@@ -79,25 +80,7 @@ export function EventCreateForm() {
     {!loading && workspaces.length === 0 && !error && <p className="px-5 py-6 sm:px-8 text-sm text-amber-950" role="alert">Akun ini belum punya akses organizer pada workspace mana pun.</p>}
     {!loading && workspaces.length > 0 && <form className={workspaceFormDividers} onSubmit={submit}>
       <WorkspaceFormSection id="event-basics" title="Dasar event" description="Beri nama event dan tentukan siapa yang bisa membukanya.">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div><Label htmlFor="workspace">Workspace</Label><SearchableSelect id="workspace" name="workspace_id" required className="mt-2">{workspaces.map((workspace) => <option key={workspace.id} value={workspace.id}>{workspace.name}</option>)}</SearchableSelect></div>
-          <fieldset className="min-w-0 sm:col-span-2" aria-describedby="activity-hint">
-            <legend className="text-sm font-medium">Pilih jenis kegiatan</legend>
-            <p id="activity-hint" className="mt-1 text-sm text-[#615d59]">Jenis kegiatan menentukan tampilan header di halaman peserta.</p>
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              {activities.map((activity, index) => (
-                <label key={activity.id} className={cn(workspaceFormChoice, 'flex cursor-pointer items-center gap-2 px-3 py-2 text-sm font-medium')}>
-                  <input type="radio" name="activity_type_id" value={activity.id} defaultChecked={index === 0} required className="size-4 shrink-0 accent-[#006bc9]" />
-                  <span className="min-w-0 break-words">{activity.name}</span>
-                </label>
-              ))}
-            </div>
-            {activities.length === 0 && <p className="mt-2 text-sm text-[#615d59]">Belum ada jenis kegiatan yang tersedia.</p>}
-          </fieldset>
-          <div className="sm:col-span-2"><Label htmlFor="title">Nama event</Label><Input id="title" name="title" required maxLength={200} className={field} placeholder="Badminton Jumat malam" /></div>
-          <div className="sm:col-span-2"><Label htmlFor="description">Deskripsi <span className="font-normal text-[#615d59]">(opsional)</span></Label><textarea id="description" name="description" maxLength={10000} rows={4} className={`${field} h-auto resize-y py-2 placeholder:text-[#615d59]`} placeholder="Level permainan, perlengkapan, atau catatan lain" /></div>
-          <div className="sm:col-span-2"><Label htmlFor="visibility">Akses event</Label><SearchableSelect id="visibility" name="visibility" defaultValue="unlisted" className="mt-2"><option value="unlisted">Hanya lewat undangan</option><option value="public">Publik</option></SearchableSelect><p className="mt-2 text-xs leading-relaxed text-slate-600">Event undangan tidak tampil di discovery dan hanya dapat dibuka lewat tautan aktif.</p></div>
-        </div>
+        <EventBasicsFields activities={activities} workspaces={workspaces} />
       </WorkspaceFormSection>
       <WorkspaceFormSection id="event-time" title="Jadwal" description="Atur jadwal dan batas pendaftaran dalam zona waktu event.">
         <div className="grid gap-4 sm:grid-cols-2">

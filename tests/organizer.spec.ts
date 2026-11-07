@@ -18,7 +18,8 @@ test.beforeEach(async({page})=>{
     {flag_key:'phase3Challenges',enabled:false},
     {flag_key:'phase3Stats',enabled:false},
   ])}));
-  await page.route(`**/dolend-api/v1/events/${eventId}/invites`,route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:[]})}));
+  await page.route(`**/dolend-api/v1/events/${eventId}/share-link`, route => route.fulfill({ json: { data: { link: null, legacy_active: false } } }));
+  await page.route('**/dolend-api/v1/activity-types', route => route.fulfill({ json: { data: [{ id: activityId, slug: 'badminton', name: 'Badminton' }] } }));
   await page.route('**/dolend-api/v1/payment-settings',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:[{id:bankMethodId,type:'bank_transfer',recipient_name:'BCA Host',is_active:true}]})}));
 });
 
@@ -184,27 +185,32 @@ test('form membuat recruiting event tanpa venue wajib', async ({ page }) => {
   expect(created?.visibility).toBe('unlisted');
 });
 
-test('organizer membuat, membagikan, dan mencabut undangan event',async({page,context})=>{
+test('organizer membuat satu tautan dan menyalinnya setelah reload',async({page,context})=>{
   await context.grantPermissions(['clipboard-read','clipboard-write']);
   await withSession(page);
   const inviteId='99999999-9999-4999-8999-999999999999';
   const inviteToken='i'.repeat(43);
   const expiresAt = new Date(Date.now() + 86_400_000).toISOString();
-  let revoked=false;
+  let creates = 0;
+  const link = { id: inviteId, token: inviteToken, expires_at: expiresAt };
   await page.route(`**/dolend-api/v1/organizer/events/${eventId}`,route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:publicEvent})}));
   await page.route(`**/dolend-api/v1/events/${eventId}/roster`,route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:{estimated_total_cost:240000,contributions_locked_at:null,payment_timing:'before_event',estimated_per_person:null,summary:{charged:0,received:0,refunded:0,adjustments:0,outstanding:0,credit:0},participants:[]}})}));
-  await page.route(`**/dolend-api/v1/events/${eventId}/invites`,route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:route.request().method()==='POST'?{id:inviteId,token:inviteToken,created_at:'2026-11-03T10:00:00Z',expires_at:expiresAt,revoked_at:null}:[]})}));
-  await page.route(`**/dolend-api/v1/invites/${inviteId}/revoke`,route=>{revoked=true;return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:{id:inviteId,created_at:'2026-11-03T10:00:00Z',expires_at:expiresAt,revoked_at:'2026-11-03T11:00:00Z'}})});});
+  await page.route(`**/dolend-api/v1/events/${eventId}/invites`, route => {
+    creates++;
+    return route.fulfill({ json: { data: link } });
+  });
+  await page.route(`**/dolend-api/v1/events/${eventId}/share-link`, route => route.fulfill({ json: { data: { link: creates ? link : null, legacy_active: !creates } } }));
   await page.goto(`/event/manage/?id=${eventId}`);
-  await page.getByRole('button',{name:'Buat tautan undangan'}).click();
+  await page.getByRole('button',{name:'Buat tautan pengganti'}).click();
   const expected=`${page.url().split('/event/manage/')[0]}/event/?id=${eventId}#invite=${inviteToken}`;
   await expect(page.getByLabel('Tautan yang dibagikan')).toHaveValue(expected);
-  await expect(page.getByRole('link',{name:'Bagikan via WhatsApp'})).toHaveAttribute('href',new RegExp('^https://wa.me/\\?text='));
+  await page.reload();
+  await expect(page.getByLabel('Tautan yang dibagikan')).toHaveValue(expected);
+  await expect(page.getByRole('button', { name: /Buat tautan/ })).toHaveCount(0);
+  await expect(page.getByText('Riwayat undangan')).toHaveCount(0);
+  expect(creates).toBe(1);
   await page.getByRole('button',{name:'Salin tautan'}).click();
   expect(await page.evaluate(()=>navigator.clipboard.readText())).toBe(expected);
-  await page.getByRole('button',{name:'Cabut undangan'}).click();
-  expect(revoked).toBeTruthy();
-  await expect(page.getByText('Undangan dicabut dan tidak dapat dipakai lagi.')).toBeVisible();
 });
 
 test('form venue mengirim koordinat dan petunjuk bertemu', async ({ page }) => {
@@ -282,10 +288,18 @@ test('ruang kelola memuat roster dan membuat tautan guest satu kali', async ({ p
 test('planning memperbarui snapshot venue lengkap', async ({page}) => {
   await withSession(page);
   let planning:Record<string,unknown>|undefined;
-  await page.route(`**/dolend-api/v1/organizer/events/${eventId}`,route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:publicEvent})}));
+  await page.route(`**/dolend-api/v1/organizer/events/${eventId}`, route => route.fulfill({ json: { data: { ...publicEvent, workspace_name: 'Workspace organizer', activity_type_slug: 'badminton' } } }));
   await page.route(`**/dolend-api/v1/events/${eventId}/roster`,route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:{estimated_total_cost:240000,contributions_locked_at:null,payment_timing:'before_event',estimated_per_person:null,summary:{charged:0,received:0,refunded:0,adjustments:0,outstanding:0,credit:0},participants:[]}})}));
   await page.route(`**/dolend-api/v1/events/${eventId}/planning`,async route=>{planning=route.request().postDataJSON();await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:{id:eventId}})});});
   await page.goto(`/event/manage/?id=${eventId}`);
+  const basics = page.getByRole('region', { name: 'Dasar event' });
+  await expect(basics.getByLabel('Workspace')).toHaveValue('Workspace organizer');
+  await expect(basics.getByLabel('Workspace')).toHaveAttribute('readonly', '');
+  await expect(basics.getByRole('radio', { name: 'Badminton' })).toBeChecked();
+  await expect(basics.getByRole('radio', { name: 'Badminton' })).toBeDisabled();
+  await expect(basics.getByLabel('Akses event')).toBeDisabled();
+  await expect(basics.getByText('Hanya lewat undangan')).toBeVisible();
+  await expect(basics.getByLabel('Deskripsi')).toHaveValue(publicEvent.description);
   await page.getByLabel('Nama venue').fill('GOR Jakarta');
   await page.getByLabel('Nama event').fill('Badminton Sabtu');
   await page.getByLabel('Kapasitas').fill('16');
@@ -299,6 +313,9 @@ test('planning memperbarui snapshot venue lengkap', async ({page}) => {
   expect(planning?.expected_version).toBe(3);
   expect(planning?.title).toBe('Badminton Sabtu');
   expect(planning?.capacity).toBe(16);
+  expect(planning).not.toHaveProperty('workspace_id');
+  expect(planning).not.toHaveProperty('activity_type_id');
+  expect(planning).not.toHaveProperty('visibility');
 });
 
 test('planning memuat ulang event saat versi sudah berubah', async ({page}) => {
