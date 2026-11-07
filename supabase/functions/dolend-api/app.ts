@@ -82,7 +82,7 @@ export function createApp({ allowedOrigins, pocMode = false, accountService, gue
       if (error instanceof FinanceError) {
         const kind=error.message;
         set.status=kind==='UNAUTHORIZED'?401:kind==='FORBIDDEN'?403:kind==='CONFLICT'||kind==='VERSION_CONFLICT'?409:kind==='STORAGE_UNAVAILABLE'?503:422;
-        return {error:{code:kind,message:'Permintaan belum dapat diproses.'}};
+        return {error:{code:kind,message:kind==='EVENT_NOT_CONFIRMED'?'Konfirmasi event terlebih dahulu agar bisa dibagikan.':'Permintaan belum dapat diproses.'}};
       }
       const request_id = crypto.randomUUID();
       if (code === 'VALIDATION' || code === 'PARSE') {

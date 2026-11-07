@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { SessionGate } from '@/components/organizer/session-gate';
 import { WorkspaceFormHeader, workspaceFormAction, workspaceFormControl, workspaceFormPanel } from '@/components/organizer/workspace-form';
+import { canShareEvent, eventShareSectionId } from '@/lib/event-share';
 import { organizerRequest, type OrganizerEvent } from '@/lib/organizer-client';
 import { useOrganizerEvents } from '@/lib/use-organizer-events';
 import { useOrganizerSession } from '@/lib/use-organizer-session';
@@ -106,7 +107,7 @@ function ManagedEvents() {
   const [pageSize, setPageSize] = useState(10);
   const [sort, setSort] = useState<{ field: SortField; direction: Direction }>({ field: 'date', direction: 'descending' });
   const [visible, setVisible] = useState({ status: false, venue: false, cost: false });
-  const [pending, setPending] = useState<string | null>(null);
+  const [pending, setPending] = useState<{ id: string; action: 'archive' | 'confirm' } | null>(null);
   const [notice, setNotice] = useState<{ text: string; error?: boolean } | null>(null);
 
   if (!session) return <SessionGate ready={ready} />;
@@ -126,7 +127,7 @@ function ManagedEvents() {
   const pageRows = filtered.slice(firstRow, firstRow + pageSize);
 
   async function changeArchive(event: OrganizerEvent, token: string) {
-    setPending(event.id);
+    setPending({ id: event.id, action: 'archive' });
     setNotice(null);
     try {
       await organizerRequest(`/organizer/events/${event.id}/archive`, token, {
@@ -136,6 +137,32 @@ function ManagedEvents() {
       reload();
     } catch {
       setNotice({ text: 'Arsip belum bisa diperbarui. Coba lagi.', error: true });
+    } finally {
+      setPending(null);
+    }
+  }
+
+  async function confirmEvent(eventId: string, token: string) {
+    setPending({ id: eventId, action: 'confirm' });
+    setNotice(null);
+    try {
+      const event = await organizerRequest<{ status: string; version: number }>(`/organizer/events/${eventId}`, token);
+      if (event.status === 'recruiting') {
+        await organizerRequest(`/events/${eventId}/planning`, token, {
+          method: 'PATCH', body: JSON.stringify({ expected_version: event.version, status: 'confirmed' }),
+        });
+        setNotice({ text: 'Event sudah dikonfirmasi dan bisa dibagikan.' });
+      } else {
+        setNotice({ text: 'Status event sudah berubah. Daftar dimuat ulang.' });
+      }
+      reload();
+    } catch (reason) {
+      if (reason instanceof Error && 'code' in reason && reason.code === 'VERSION_CONFLICT') {
+        setNotice({ text: 'Event berubah di tab lain. Periksa status terbaru sebelum mengonfirmasi.', error: true });
+        reload();
+      } else {
+        setNotice({ text: 'Event belum bisa dikonfirmasi. Coba lagi.', error: true });
+      }
     } finally {
       setPending(null);
     }
@@ -217,7 +244,8 @@ function ManagedEvents() {
                 <tbody className="divide-y">
                   {pageRows.map(event => {
                     const manageHref = `/event/manage/?id=${event.id}`;
-                    const publicHref = event.visibility === 'public' && ['published', 'recruiting', 'confirmed', 'completed'].includes(event.status)
+                    const shareAllowed = canShareEvent(event.status);
+                    const publicHref = event.visibility === 'public' && shareAllowed
                       ? `/event/?id=${event.id}` : manageHref;
                     return (
                       <tr key={event.id} className="align-top hover:bg-[#faf9f8] sm:align-middle">
@@ -230,13 +258,18 @@ function ManagedEvents() {
                         {visible.venue && <td className={`${cell} whitespace-nowrap text-muted-foreground`}>{venueLabel(event)}</td>}
                         {visible.cost && <td className={`${cell} whitespace-nowrap tabular-nums text-muted-foreground`}>{rupiah.format(event.estimated_total_cost)}</td>}
                         <td className={cell}>
-                          <div className="flex flex-col items-start gap-1 whitespace-nowrap lg:flex-row">
+                          <div className="flex flex-col items-start gap-1 whitespace-nowrap lg:flex-row lg:flex-wrap">
                             <Button asChild variant="outline" className="min-h-11"><Link href={publicHref}><Eye aria-hidden="true" />Lihat event</Link></Button>
                             {publicHref !== manageHref && <Button asChild variant="ghost" className="min-h-11"><Link href={manageHref}>Kelola</Link></Button>}
+                            {!archived && event.status === 'recruiting' && <Button type="button" variant="outline" className="min-h-11" disabled={pending !== null}
+                              onClick={() => void confirmEvent(event.id, session.access_token)}>
+                              {pending?.id === event.id && pending.action === 'confirm' ? 'Mengonfirmasi…' : 'Konfirmasi event'}
+                            </Button>}
+                            {!archived && shareAllowed && <Button asChild variant="outline" className="min-h-11"><Link href={`${manageHref}#${eventShareSectionId}`}>Bagikan event</Link></Button>}
                             <Button variant="ghost" className="min-h-11 text-muted-foreground" disabled={pending !== null}
                               onClick={() => void changeArchive(event, session.access_token)}>
                               {archived ? <RotateCcw aria-hidden="true" /> : <Archive aria-hidden="true" />}
-                              {pending === event.id ? 'Memproses…' : archived ? 'Pulihkan' : 'Arsipkan'}
+                              {pending?.id === event.id && pending.action === 'archive' ? 'Memproses…' : archived ? 'Pulihkan' : 'Arsipkan'}
                             </Button>
                           </div>
                         </td>

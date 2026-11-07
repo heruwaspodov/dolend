@@ -361,7 +361,7 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
       const { data: invite, error } = await client().from('event_invites')
         .select('id,share_nonce,token_hash,expires_at,created_at,events!inner(visibility,status)')
         .eq('event_id', params.id).eq('events.visibility', 'unlisted')
-        .in('events.status', ['published', 'recruiting', 'confirmed', 'completed'])
+        .in('events.status', ['published', 'confirmed', 'completed'])
         .is('revoked_at', null).or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
         .order('share_nonce', { ascending: true, nullsFirst: false }).limit(1).maybeSingle();
       if (error) throw new FinanceError('STORAGE_UNAVAILABLE');
@@ -370,6 +370,9 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
     }, { params: t.Object({ id: uuid }) })
     .post('/events/:id/invites',async ({request,params,body})=>{
       const actorId=await ownEvent(params.id,request);
+      const { data: event, error } = await client().from('events').select('status').eq('id', params.id).single();
+      if (error) throw new FinanceError('STORAGE_UNAVAILABLE');
+      if (event.status !== 'confirmed' && event.status !== 'published') throw new FinanceError('EVENT_NOT_CONFIRMED');
       const nonce = crypto.randomUUID();
       const token = await shareToken(params.id, nonce);
       const invite = await rpc('ensure_event_share_link', {

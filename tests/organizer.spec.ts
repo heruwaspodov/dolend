@@ -192,8 +192,15 @@ test('organizer membuat satu tautan dan menyalinnya setelah reload',async({page,
   const inviteToken='i'.repeat(43);
   const expiresAt = new Date(Date.now() + 86_400_000).toISOString();
   let creates = 0;
+  let status = 'recruiting';
   const link = { id: inviteId, token: inviteToken, expires_at: expiresAt };
-  await page.route(`**/dolend-api/v1/organizer/events/${eventId}`,route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:publicEvent})}));
+  await page.route('**/dolend-api/v1/organizer/events?view=active', route => route.fulfill({ json: { data: [{ ...publicEvent, status }] } }));
+  await page.route(`**/dolend-api/v1/organizer/events/${eventId}`, route => route.fulfill({ json: { data: { ...publicEvent, status } } }));
+  await page.route(`**/dolend-api/v1/events/${eventId}/planning`, route => {
+    expect(route.request().postDataJSON()).toEqual({ expected_version: publicEvent.version, status: 'confirmed' });
+    status = 'confirmed';
+    return route.fulfill({ json: { data: { ...publicEvent, status } } });
+  });
   await page.route(`**/dolend-api/v1/events/${eventId}/roster`,route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:{estimated_total_cost:240000,contributions_locked_at:null,payment_timing:'before_event',estimated_per_person:null,summary:{charged:0,received:0,refunded:0,adjustments:0,outstanding:0,credit:0},participants:[]}})}));
   await page.route(`**/dolend-api/v1/events/${eventId}/invites`, route => {
     creates++;
@@ -201,6 +208,18 @@ test('organizer membuat satu tautan dan menyalinnya setelah reload',async({page,
   });
   await page.route(`**/dolend-api/v1/events/${eventId}/share-link`, route => route.fulfill({ json: { data: { link: creates ? link : null, legacy_active: !creates } } }));
   await page.goto(`/event/manage/?id=${eventId}`);
+  await expect(page.getByText('Konfirmasi event terlebih dahulu agar bisa dibagikan.')).toBeVisible();
+  const stage = page.getByRole('region', { name: 'Tahap event' });
+  await expect(stage.getByRole('button', { name: 'Konfirmasi event' })).toBeVisible();
+  await expect(stage.getByRole('button', { name: 'Tandai selesai' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /Buat tautan/ })).toHaveCount(0);
+  await page.goto('/dashboard/events/');
+  const eventRow = page.getByRole('row', { name: /Badminton Jumat/ });
+  await expect(eventRow.getByRole('link', { name: 'Bagikan event' })).toHaveCount(0);
+  await eventRow.getByRole('button', { name: 'Konfirmasi event' }).click();
+  await eventRow.getByRole('link', { name: 'Bagikan event' }).click();
+  await expect(page).toHaveURL(`/event/manage/?id=${eventId}#share-event-title`);
+  await expect(stage.getByRole('button', { name: 'Tandai selesai' })).toBeVisible();
   await page.getByRole('button',{name:'Buat tautan pengganti'}).click();
   const expected=`${page.url().split('/event/manage/')[0]}/event/?id=${eventId}#invite=${inviteToken}`;
   await expect(page.getByLabel('Tautan yang dibagikan')).toHaveValue(expected);
@@ -259,19 +278,37 @@ test('ruang kelola memuat roster dan membuat tautan guest satu kali', async ({ p
   const token = 'a'.repeat(43);
   let cancellation: Record<string, unknown> | undefined;
   let eventStatus = 'recruiting';
+  const guestId = '77777777-7777-4777-8777-777777777777';
+  const replacementToken = 'r'.repeat(43);
+  const participants = [
+    { id: guestId, status: 'confirmed', chargeable: true, is_guest: true, users: { display_name: 'Rani' }, participant_charges: [] },
+    ...Array.from({ length: 10 }, (_, index) => ({ id: `fixture-${index}`, status: 'confirmed', chargeable: true, is_guest: false, users: { display_name: `Anggota ${index + 1}` }, participant_charges: [] })),
+  ];
   await page.route(`**/dolend-api/v1/organizer/events/${eventId}`, route => route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:{...publicEvent,status:eventStatus}})}));
-  await page.route(`**/dolend-api/v1/events/${eventId}/roster`, route => route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:{estimated_total_cost:240000,contributions_locked_at:null,payment_timing:'before_event',estimated_per_person:240000,summary:{charged:0,received:0,refunded:0,adjustments:0,outstanding:0,credit:0},participants:[{id:'77777777-7777-4777-8777-777777777777',status:'confirmed',chargeable:true,is_guest:true,users:{display_name:'Rani'},participant_charges:[]}]}})}));
+  await page.route(`**/dolend-api/v1/events/${eventId}/roster`, route => route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:{estimated_total_cost:240000,contributions_locked_at:null,payment_timing:'before_event',estimated_per_person:240000,summary:{charged:0,received:0,refunded:0,adjustments:0,outstanding:0,credit:0},participants}})}));
+  await page.route(`**/dolend-api/v1/participants/${guestId}/guest-token`, route => route.fulfill({ json: { data: { booking_token: replacementToken } } }));
   await page.route(`**/dolend-api/v1/events/${eventId}/participants`, route => route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:{participant_id:'88888888-8888-4888-8888-888888888888',booking_token:token}})}));
   await page.route('**/dolend-api/v1/participants/77777777-7777-4777-8777-777777777777/cancel', async route => { cancellation=route.request().postDataJSON(); await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:{ok:true}})}); });
   await page.route(`**/dolend-api/v1/events/${eventId}/cancel`, async route => { eventStatus='cancelled'; await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:null})}); });
   await page.goto(`/event/manage/?id=${eventId}`);
   await expect(page.getByRole('heading', { name:'Daftar peserta' })).toBeVisible();
-  await expect(page.getByText('Rani', { exact:true })).toBeVisible();
+  const table = page.getByRole('table', { name: 'Daftar peserta' });
+  await expect(table.getByRole('columnheader', { name: 'Tagihan' })).toBeVisible();
+  await expect(table.getByRole('row', { name: /Rani/ }).getByText('Belum ada tagihan')).toBeVisible();
+  await expect(table.getByRole('row')).toHaveCount(11);
+  await page.getByRole('button', { name: 'Halaman peserta berikutnya' }).click();
+  await expect(table.getByRole('rowheader', { name: /Anggota 10/ })).toBeVisible();
+  await page.getByRole('button', { name: 'Halaman peserta sebelumnya' }).click();
+  await expect(table.getByRole('rowheader', { name: /Rani/ })).toBeVisible();
   await page.getByLabel('Nama peserta').fill('Budi');
   await page.getByLabel('Nomor WhatsApp').fill('081234567890');
   await page.getByRole('button', { name:'Tambahkan peserta' }).click();
   await expect(page.getByText(new RegExp(`#booking=${token}`))).toBeVisible();
-  await page.getByText('Tindakan peserta').click();
+  await expect(table.getByRole('button', { name: 'Buat tautan pengganti' })).toHaveCount(0);
+  await table.getByRole('button', { name: 'Tindakan peserta: Rani' }).click();
+  await expect(table.getByText(/menonaktifkan tautan lama/)).toBeVisible();
+  await table.getByRole('button', { name: 'Buat tautan pengganti' }).click();
+  await expect(table.getByLabel('Tautan booking pengganti')).toHaveValue(new RegExp(`#booking=${replacementToken}$`));
   await page.getByRole('textbox', { name:'Alasan', exact:true }).fill('Berhalangan hadir');
   await page.getByRole('button', { name:'Batalkan peserta' }).click();
   await expect(page.getByText('Peserta dibatalkan sesuai kebijakan yang dipilih.')).toBeVisible();
@@ -281,7 +318,7 @@ test('ruang kelola memuat roster dan membuat tautan guest satu kali', async ({ p
   await page.getByLabel('Alasan pembatalan').fill('Venue tidak tersedia');
   await page.getByRole('button', { name:'Batalkan event' }).click();
   await expect(page.getByText('Event dibatalkan. Riwayat peserta dan transaksi tetap tersimpan.')).toBeVisible();
-  await expect(page.getByText(/dibatalkan$/)).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Tahap event' }).getByText('dibatalkan', { exact: true })).toBeVisible();
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 });
 
@@ -302,7 +339,7 @@ test('planning memperbarui snapshot venue lengkap', async ({page}) => {
   await expect(basics.getByLabel('Deskripsi')).toHaveValue(publicEvent.description);
   await page.getByLabel('Nama venue').fill('GOR Jakarta');
   await page.getByLabel('Nama event').fill('Badminton Sabtu');
-  await page.getByLabel('Kapasitas').fill('16');
+  await page.getByRole('spinbutton', { name: 'Kapasitas (orang)' }).fill('16');
   await page.getByLabel('Alamat').fill('Jakarta Pusat');
   await page.getByLabel('Latitude').fill('-6.2');
   await page.getByLabel('Longitude').fill('106.816666');
@@ -337,9 +374,12 @@ test('event selesai menampilkan outstanding dari ledger', async ({ page }) => {
   await page.route(`**/dolend-api/v1/organizer/events/${eventId}`, route => route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:{...publicEvent,status:'completed',contributions_locked_at:'2026-11-06T21:00:00+07:00'}})}));
   await page.route(`**/dolend-api/v1/events/${eventId}/roster`, route => route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:{estimated_total_cost:240000,contributions_locked_at:'2026-11-06T21:00:00+07:00',payment_timing:'after_event',estimated_per_person:240000,summary:{charged:240000,received:100000,refunded:0,adjustments:0,outstanding:140000,credit:0},participants:[{id:'77777777-7777-4777-8777-777777777777',status:'confirmed',chargeable:true,is_guest:false,users:{display_name:'Rani'},participant_charges:[{id:'88888888-8888-4888-8888-888888888888',amount:240000,balance:140000}]}]}})}));
   await page.goto(`/event/manage/?id=${eventId}`);
-  await expect(page.getByRole('heading', { name:'Ringkasan iuran' })).toBeVisible();
-  await expect(page.getByText('Outstanding').locator('..').getByText(/140\.000/)).toBeVisible();
-  await expect(page.getByText('Event selesai. Periksa outstanding dan refund sebelum menutup administrasi.')).toBeVisible();
+  const costs = page.getByRole('region', { name: 'Peserta dan biaya' });
+  await expect(costs.getByText('Sisa tagihan', { exact: true }).locator('..').getByText(/140\.000/)).toBeVisible();
+  const participant = costs.getByRole('table', { name: 'Daftar peserta' }).getByRole('row', { name: /Rani/ });
+  await expect(participant.getByText(/Rp\s*240\.000/)).toBeVisible();
+  await expect(participant.getByText(/Sisa Rp\s*140\.000/)).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Tahap event' }).getByText('Periksa sisa tagihan dan pengembalian dana.')).toBeVisible();
   await expect(page.getByRole('button', { name:'Tambahkan peserta' })).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
 });

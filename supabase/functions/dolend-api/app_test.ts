@@ -250,10 +250,13 @@ Deno.test('organizer roster reads participant users embedded as objects', async 
 
 Deno.test('event share link returns the same organizer-only token after creation', async () => {
   const originalFetch = globalThis.fetch;
+  let status = 'recruiting';
   let stored: { id: string; share_nonce: string; token_hash: string; expires_at: string; created_at: string } | null = null;
   globalThis.fetch = async (input, init) => {
-    const path = new URL(String(input)).pathname;
+    const url = new URL(String(input));
+    const path = url.pathname;
     if (path === '/rest/v1/rpc/manual_event_access') return Response.json(null);
+    if (path === '/rest/v1/events') return Response.json({ status });
     if (path === '/rest/v1/rpc/ensure_event_share_link') {
       const body = JSON.parse(String(init?.body));
       stored ??= {
@@ -265,13 +268,19 @@ Deno.test('event share link returns the same organizer-only token after creation
       };
       return Response.json(stored);
     }
-    if (path === '/rest/v1/event_invites') return Response.json(stored ? [stored] : []);
+    if (path === '/rest/v1/event_invites') {
+      assert(url.searchParams.get('events.status') === 'in.(published,confirmed,completed)', 'Share-link lookup must filter event status');
+      return Response.json(stored ? [stored] : []);
+    }
     throw new Error(`Unexpected share-link request: ${path}`);
   };
   try {
     const routes = manualPaymentRoutes(accountMock(), 'http://supabase.test', 'test-key', 'fixture-pepper'.repeat(3));
     const endpoint = `http://localhost/events/${identity.id}`;
     const create = () => routes.handle(new Request(`${endpoint}/invites`, { method: 'POST', headers: authHeaders, body: '{}' }));
+    const blocked = await create();
+    assert(!blocked.ok && stored === null, 'Unconfirmed event created an invite');
+    status = 'confirmed';
     const created = await create();
     assert(created.ok, `Expected share-link creation, got ${created.status}`);
     const first = (await created.json()).data;

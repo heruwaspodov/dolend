@@ -1,3 +1,9 @@
+export const eventShareSectionId = 'share-event-title';
+
+export function canShareEvent(status: string) {
+  return status === 'confirmed' || status === 'published' || status === 'completed';
+}
+
 export function canonicalEventUrl(origin:string,eventId:string,inviteToken?:string) {
   const url=new URL('/event/',origin);
   url.searchParams.set('id',eventId);
