@@ -1,5 +1,6 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { LoaderCircle, MessageCircleWarning, RefreshCw, Send, Trash2 } from 'lucide-react';
@@ -83,9 +84,9 @@ export function ActivityFeed() {
       <textarea id="activity-body" value={body} onChange={(event) => setBody(event.target.value)} maxLength={2000} required rows={4} placeholder="Apa yang sedang kamu lakukan?" className="mt-3 min-h-28 w-full resize-y rounded-lg border border-slate-300 bg-white px-3 py-3 text-sm outline-none focus-visible:border-emerald-700 focus-visible:ring-3 focus-visible:ring-emerald-700/20" />
       <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <label className="text-sm font-medium" htmlFor="activity-visibility">Siapa yang bisa melihat?</label>
-        <select id="activity-visibility" value={visibility} onChange={(event) => setVisibility(event.target.value as ActivityInput['visibility'])} className="min-h-11 rounded-lg border border-slate-300 bg-white px-3 text-sm focus-visible:outline-2 focus-visible:outline-emerald-700">
+        <SearchableSelect id="activity-visibility" value={visibility} onValueChange={event => setVisibility(event as ActivityInput['visibility'])}>
           {(['public', 'followers', 'private'] as const).map((value) => <option key={value} value={value}>{visibilityLabel[value]}</option>)}
-        </select>
+        </SearchableSelect>
       </div>
       <div className="mt-4 flex flex-wrap gap-2"><Button type="submit" disabled={busy === 'submit' || !body.trim()} className="min-h-11 bg-emerald-700 text-white hover:bg-emerald-800">{busy === 'submit' ? <LoaderCircle className="animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <Send aria-hidden="true" />}{busy === 'submit' ? 'Menyimpan…' : editing ? 'Simpan perubahan' : 'Bagikan'}</Button>{editing && <Button type="button" variant="outline" className="min-h-11" onClick={() => { setEditing(null); setBody(''); }}>Batal</Button>}</div>
     </form>

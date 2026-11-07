@@ -172,14 +172,15 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
     return {...participantDto(participant),invoice_id:invoice?.id??null};
   }
   async function eventDto(eventId: string, publicOnly: boolean) {
-    let query=client().from('events').select('id,title,description,starts_at,ends_at,registration_closes_at,timezone,capacity,price_amount,currency,status,visibility,venue_snapshot,venue_booking_status,estimated_total_cost,contributions_locked_at,contribution_mode,payment_mode,payment_due_at,payment_timing,hold_minutes,version').eq('id',eventId);
+    let query=client().from('events').select('id,title,description,starts_at,ends_at,registration_closes_at,timezone,capacity,price_amount,currency,status,visibility,venue_snapshot,venue_booking_status,estimated_total_cost,contributions_locked_at,contribution_mode,payment_mode,payment_due_at,payment_timing,hold_minutes,version,activity_types(slug)').eq('id',eventId);
     if(publicOnly)query=query.in('status',['published','recruiting','confirmed','completed']);
     const {data:e,error}=await query.single();
     if(error)throw new FinanceError('FORBIDDEN');
     const {count}=await client().from('event_participants').select('id',{count:'exact',head:true}).eq('event_id',e.id).in('status',['confirmed','attended','no_show']);
     const {count:chargeable}=await client().from('event_participants').select('id',{count:'exact',head:true}).eq('event_id',e.id).eq('chargeable',true).eq('status','confirmed');
-    const {venue_snapshot,...rest}=e;
-    return {...rest,participants_count:count??0,estimated_per_person:chargeable?Math.ceil(Number(e.estimated_total_cost)/chargeable):null,venue:{name:venue_snapshot?.name?.trim()||'Venue belum ditentukan',address:venue_snapshot?.address??'',maps_url:venue_snapshot?.maps_url??'',...(venue_snapshot?.latitude!==undefined?{latitude:Number(venue_snapshot.latitude),longitude:Number(venue_snapshot.longitude)}:{}),...(venue_snapshot?.meeting_instructions?{meeting_instructions:venue_snapshot.meeting_instructions}:{}),...(!publicOnly&&venue_snapshot?.coarse_region_code?{coarse_region_code:venue_snapshot.coarse_region_code}:{})}};
+    const {venue_snapshot,activity_types,...rest}=e;
+    const activityType = Array.isArray(activity_types) ? activity_types[0] : activity_types;
+    return {...rest,activity_type_slug:activityType?.slug??null,participants_count:count??0,estimated_per_person:chargeable?Math.ceil(Number(e.estimated_total_cost)/chargeable):null,venue:{name:venue_snapshot?.name?.trim()||'Venue belum ditentukan',address:venue_snapshot?.address??'',maps_url:venue_snapshot?.maps_url??'',...(venue_snapshot?.latitude!==undefined?{latitude:Number(venue_snapshot.latitude),longitude:Number(venue_snapshot.longitude)}:{}),...(venue_snapshot?.meeting_instructions?{meeting_instructions:venue_snapshot.meeting_instructions}:{}),...(!publicOnly&&venue_snapshot?.coarse_region_code?{coarse_region_code:venue_snapshot.coarse_region_code}:{})}};
   }
   return new Elysia({ aot: false })
     .onBeforeHandle(({set}) => {set.headers['cache-control']='no-store';})

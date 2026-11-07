@@ -1,5 +1,6 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,7 +24,7 @@ export function ContributionPreview() {
     <p className="text-sm text-muted-foreground">Prototipe alur baru · recruiting. Data hanya di halaman ini, hilang saat refresh. Belum membuat event atau menerima pembayaran.</p>
     <div className="grid gap-4 sm:grid-cols-2">
       <div className="space-y-2"><Label htmlFor="contribution-cost">Estimasi total biaya (Rp)</Label><Input id="contribution-cost" inputMode="numeric" value={cost} onChange={e => setCost(e.target.value)} aria-invalid={!valid} /></div>
-      <div className="space-y-2"><Label htmlFor="venue-booking">Status booking venue</Label><select id="venue-booking" className="min-h-11 w-full rounded-md border bg-background px-3" value={booking} onChange={e => setBooking(e.target.value)}><option value="not_booked">Belum dipesan</option><option value="pending">Menunggu konfirmasi</option><option value="booked">Sudah dipesan</option><option value="cancelled">Booking dibatalkan</option></select></div>
+      <div className="space-y-2"><Label htmlFor="venue-booking">Status booking venue</Label><SearchableSelect id="venue-booking" value={booking} onValueChange={e => setBooking(e)}><option value="not_booked">Belum dipesan</option><option value="pending">Menunggu konfirmasi</option><option value="booked">Sudah dipesan</option><option value="cancelled">Booking dibatalkan</option></SearchableSelect></div>
     </div>
     <p aria-live="polite">{locked ? 'Iuran dikunci. Perubahan estimasi biaya tidak mengubah tagihan.' : `Estimasi belum final: ${estimate === null ? 'belum tersedia' : money(estimate)} / orang.`}</p>
     <p className="text-sm text-muted-foreground">Pembagi: peserta aktif yang dikenai iuran, termasuk organizer bila ikut. Dibulatkan ke atas ke rupiah penuh. Status venue tidak menentukan status pembayaran.</p>
