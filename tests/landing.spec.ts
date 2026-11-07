@@ -5,8 +5,8 @@ test('landing renders reference sections, local assets and clear demo status', a
   page.on('pageerror', error => errors.push(error.message));
   page.on('requestfailed', request => failures.push(request.url()));
   await page.goto('/');
-  await expect(page.getByRole('heading', { level: 1, name: /Main bareng seru/ })).toBeVisible();
-  await expect(page.getByText('Pendaftaran dan pembayaran belum dibuka.', { exact: false })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Atur jadwal main bareng.' })).toBeVisible();
+  await expect(page.getByText('Simulator bisa dicoba tanpa akun.', { exact: false })).toBeVisible();
   for (const id of ['kategori', 'simulasi', 'cara-kerja', 'faq']) await expect(page.locator(`#${id}`)).toHaveCount(1);
   for (const image of await page.locator('img').all()) { await image.scrollIntoViewIfNeeded(); await expect.poll(() => image.evaluate(element => (element as HTMLImageElement).complete && (element as HTMLImageElement).naturalWidth > 0)).toBe(true); }
   await expect.poll(() => page.locator('img').evaluateAll(images => images.every(image => (image as HTMLImageElement).complete && (image as HTMLImageElement).naturalWidth > 0))).toBe(true);
@@ -121,5 +121,14 @@ test('navigation works with desktop links and mobile menu', async ({ page }, inf
     await page.getByRole('navigation', { name: 'Navigasi utama' }).getByRole('link', { name: 'FAQ', exact: true }).click();
   }
   await expect(page).toHaveURL(/#faq$/);
-  await expect(page.getByRole('heading', { name: 'Frequently Asked Questions' })).toBeInViewport();
+  await expect(page.getByRole('heading', { name: 'Pertanyaan umum' })).toBeInViewport();
+});
+
+test('landing links to the existing account sign-in', async ({ page }) => {
+  await page.goto('/');
+  const signIn = page.getByRole('link', { name: 'Masuk', exact: true });
+  await expect(signIn).toBeInViewport();
+  await signIn.focus();
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(/\/account\/$/);
 });

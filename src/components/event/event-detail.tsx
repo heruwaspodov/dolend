@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { CalendarDays, MapPin, Users } from 'lucide-react';
@@ -43,11 +44,14 @@ export function EventDetail() {
     <Button className="mt-5 min-h-11" onClick={() => { setResult(null); setAttempt((value) => value + 1); }}>Coba lagi</Button>
   </State>;
   const event = result.event;
+  const cover = event.activity_type_slug === 'badminton' ? '/images/landing/badminton.jpg'
+    : event.activity_type_slug === 'football' ? '/images/landing/soccer-hero.jpg' : null;
   const mapsUrl = safeMapsUrl(event.venue.maps_url);
   const date = new Intl.DateTimeFormat('id-ID', { dateStyle: 'full', timeStyle: 'short', timeZone: event.timezone });
   const seats = event.capacity - event.participants_count;
   return <article className="space-y-6">
     {isEventPreview && <Badge variant="outline">Contoh pratinjau · bukan pendaftaran aktif</Badge>}
+    {cover && <div className="relative aspect-[2/1] overflow-hidden rounded-xl border border-[#e6e3df]"><Image src={cover} alt="" fill sizes="(max-width: 768px) 100vw, 768px" className="object-cover" /></div>}
     <div><h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">{event.title}</h1><p className="mt-4 whitespace-pre-line leading-relaxed text-muted-foreground">{event.description}</p></div>
     <Card><CardHeader><CardTitle>Rencana aktivitas</CardTitle></CardHeader><CardContent>
       <dl className="space-y-5">

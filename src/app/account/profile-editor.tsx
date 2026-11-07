@@ -57,21 +57,21 @@ export function ProfileEditor({ session }: { session: Session }) {
   return (
     <WorkspaceFormSection id="profile-title" title="Profil" description="Atur bio dan zona waktu yang kamu gunakan.">
       {loading ? (
-        <p className="flex items-center gap-2 text-sm text-muted-foreground" role="status">
+        <p className="flex items-center gap-2 text-sm text-[#615d59]" role="status">
           <LoaderCircle className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />
           Memuat profil milikmu…
         </p>
       ) : !profile ? (
-        <p className="text-sm text-muted-foreground">{error || 'Profil akan dibuat setelah verifikasi identitas selesai.'}</p>
+        <p className="text-sm text-[#615d59]">{error || 'Profil akan dibuat setelah verifikasi identitas selesai.'}</p>
       ) : (
         <form className="grid gap-4" onSubmit={save}>
           <div className="flex items-center gap-3">
-            <span className="grid size-11 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground">
+            <span className="grid size-11 shrink-0 place-items-center rounded-full bg-muted text-[#615d59]">
               <UserRound className="size-5" aria-hidden="true" />
             </span>
             <div className="min-w-0">
               <h3 className="break-words text-base font-semibold">{profile.display_name}</h3>
-              <p className="break-words text-xs text-muted-foreground">{profile.email} · hanya terlihat olehmu</p>
+              <p className="break-words text-xs text-[#615d59]">{profile.email} · hanya terlihat olehmu</p>
             </div>
           </div>
           <div className="grid max-w-56 gap-2">
@@ -83,14 +83,14 @@ export function ProfileEditor({ session }: { session: Session }) {
             <Label htmlFor="profile-bio">Tentang kamu</Label>
             <textarea
               id="profile-bio"
-              className={`${workspaceFormControl} h-auto min-h-24 resize-y py-2 placeholder:text-muted-foreground`}
+              className={`${workspaceFormControl} h-auto min-h-24 resize-y py-2 placeholder:text-[#615d59]`}
               aria-describedby="profile-bio-count"
               maxLength={1000}
               value={bio}
               onChange={(event) => setBio(event.target.value)}
               placeholder="Contoh: Suka badminton dan lari pagi"
             />
-            <p id="profile-bio-count" className="text-right text-xs tabular-nums text-muted-foreground">{bio.length}/1000 karakter</p>
+            <p id="profile-bio-count" className="text-right text-xs tabular-nums text-[#615d59]">{bio.length}/1000 karakter</p>
           </div>
 
           <Button type="submit" className={`${workspaceFormAction} w-full sm:w-fit`} disabled={saving}>

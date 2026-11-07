@@ -1,4 +1,5 @@
 'use client';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -53,11 +54,11 @@ export function PaymentSettings({token}:{token:string}) {
           <h3 id="add-method-title" className="text-sm font-semibold sm:col-span-2">Tambah metode pembayaran</h3>
           <div className="grid gap-2">
             <Label htmlFor="payment-type">Metode</Label>
-            <select id="payment-type" value={type} onChange={e => setType(e.target.value)} className={workspaceFormControl}>
+            <SearchableSelect id="payment-type" value={type} onValueChange={e => setType(e)}>
               <option value="static_qris">QRIS statis</option>
               <option value="bank_transfer">Transfer bank</option>
               <option value="cash">Tunai</option>
-            </select>
+            </SearchableSelect>
           </div>
           <div className="grid gap-2">
             <Label htmlFor="payment-recipient">Nama penerima / merchant</Label>
@@ -67,7 +68,7 @@ export function PaymentSettings({token}:{token:string}) {
             <div className="grid gap-2 sm:col-span-2">
               <Label htmlFor="payment-qris">Gambar QRIS</Label>
               <Input id="payment-qris" name="qris" type="file" accept="image/png,image/jpeg" required aria-describedby="payment-qris-hint" className={`${workspaceFormControl} py-2 file:me-3`} />
-              <p id="payment-qris-hint" className="text-sm leading-5 text-muted-foreground">
+              <p id="payment-qris-hint" className="text-sm leading-5 text-[#615d59]">
                 PNG atau JPG, maksimal 2 MB. Untuk mengganti QRIS, tambahkan gambar baru lalu nonaktifkan metode lama. Riwayat tetap disimpan. Gambar QRIS tidak menjadi konfirmasi pembayaran.
               </p>
             </div>
@@ -94,20 +95,20 @@ export function PaymentSettings({token}:{token:string}) {
           <h3 id="saved-methods-title" className="text-base font-semibold">Metode tersimpan</h3>
           <div className="grid gap-2">
             <Label htmlFor="method-event">Gunakan metode pada event</Label>
-            <select id="method-event" value={eventId} onChange={e => setEventId(e.target.value)} className={workspaceFormControl}>
+            <SearchableSelect id="method-event" value={eventId} onValueChange={e => setEventId(e)}>
               <option value="">Pilih event</option>
               {events.map(event => <option key={event.id} value={event.id}>{event.title}</option>)}
-            </select>
+            </SearchableSelect>
           </div>
-          {loading ? <p className="text-sm text-muted-foreground">Memuat metode pembayaran…</p> : !methods.length ? (
-            <p className="text-sm text-muted-foreground">Belum ada metode pembayaran.</p>
+          {loading ? <p className="text-sm text-[#615d59]">Memuat metode pembayaran…</p> : !methods.length ? (
+            <p className="text-sm text-[#615d59]">Belum ada metode pembayaran.</p>
           ) : (
             <ul className="divide-y">
               {methods.map(method => (
                 <li key={method.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 py-3">
                   <div className="min-w-0 flex-1 basis-full sm:basis-auto">
                     <p className="break-words text-sm font-medium">{method.recipient_name}</p>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-sm text-[#615d59]">
                       {method.type === 'static_qris' ? 'QRIS' : method.type === 'cash' ? 'Tunai' : 'Transfer'} · {method.is_active ? 'Aktif' : 'Nonaktif'}
                     </p>
                   </div>

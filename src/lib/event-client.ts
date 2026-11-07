@@ -1,6 +1,7 @@
 export type PublicEvent = {
   id: string;
   title: string;
+  activity_type_slug?: string | null;
   description: string;
   starts_at: string;
   ends_at: string;
