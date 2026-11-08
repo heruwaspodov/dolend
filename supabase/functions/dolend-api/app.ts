@@ -12,6 +12,7 @@ import { activityPhotoRoutes } from './activity-photos.ts';
 import { challengeRoutes } from './challenge-routes.ts';
 import { statsRoutes } from './stats.ts';
 import { recommendationRoutes } from './recommendations.ts';
+import { venueRoutes } from './venues.ts';
 
 type Options = { allowedOrigins: string[]; pocMode?: boolean; accountService?: AccountService | null; guestBookingService?: GuestBookingService | null; objectStorage?: ObjectStorageRouter | null; eventInviteService?: EventInviteService | null; privateUploadService?:PrivateUploadService|null; storageCleanupKey?:string; maintenanceKey?:string };
 export function createApp({ allowedOrigins, pocMode = false, accountService, guestBookingService, objectStorage, eventInviteService, privateUploadService, storageCleanupKey, maintenanceKey }: Options) {
@@ -104,6 +105,7 @@ export function createApp({ allowedOrigins, pocMode = false, accountService, gue
     .use(challengeRoutes(accounts ?? null, url, serviceRoleKey, undefined, maintenanceKey ?? Deno.env.get('INTERNAL_JOB_KEY')))
     .use(statsRoutes(accounts ?? null, url, serviceRoleKey))
     .use(recommendationRoutes(accounts ?? null, url, serviceRoleKey))
+    .use(venueRoutes(accounts ?? null, url, serviceRoleKey, Deno.env.get('GEOAPIFY_API_KEY')))
     .get('/health', ({ requestId }) => ({ data: { status: 'ok', service: 'dolend-api' }, request_id: requestId }))
     .get('/me', async ({ request, set, requestId }) => {
       if (!tokenFrom(request)) {

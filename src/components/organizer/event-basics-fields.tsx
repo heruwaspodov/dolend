@@ -16,10 +16,11 @@ type SavedBasics = {
   activity_type_name?: string | null;
 };
 
-export function EventBasicsFields({ activities, workspaces = [], event }: {
+export function EventBasicsFields({ activities, workspaces = [], event, onWorkspaceChange }: {
   activities: ActivityType[];
   workspaces?: OrganizerWorkspace[];
   event?: SavedBasics;
+  onWorkspaceChange?: (workspace: string) => void;
 }) {
   const savedActivity = event?.activity_type_slug;
   const activityChoices = savedActivity && event.activity_type_name && !activities.some(({ slug }) => slug === savedActivity)
@@ -31,7 +32,7 @@ export function EventBasicsFields({ activities, workspaces = [], event }: {
       <Label htmlFor="workspace">Workspace</Label>
       {event
         ? <Input id="workspace" value={event.workspace_name ?? 'Nama workspace belum tersedia'} readOnly className={`${field} bg-[#f6f5f4]`} />
-        : <SearchableSelect id="workspace" name="workspace_id" required className="mt-2">{workspaces.map(({ id, name }) => <option key={id} value={id}>{name}</option>)}</SearchableSelect>}
+        : <SearchableSelect id="workspace" name="workspace_id" onValueChange={onWorkspaceChange} required className="mt-2">{workspaces.map(({ id, name }) => <option key={id} value={id}>{name}</option>)}</SearchableSelect>}
     </div>
     <fieldset disabled={Boolean(event)} className="min-w-0 sm:col-span-2" aria-describedby="activity-hint">
       <legend className="text-sm font-medium">Pilih jenis kegiatan</legend>

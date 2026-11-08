@@ -26,6 +26,7 @@ npm run env:check
 | `S3_BUCKET`, `S3_REGION` | Adapter Amazon/S3-compatible | Wajib saat provider `s3` |
 | `S3_ENDPOINT`, `S3_FORCE_PATH_STYLE` | Adapter S3-compatible | Opsional untuk AWS; endpoint diperlukan untuk MinIO/R2/provider kompatibel |
 | `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_SESSION_TOKEN` | Adapter S3 | Secret server-only; session token opsional |
+| `GEOAPIFY_API_KEY` | Pencarian venue eksternal Elysia | Secret server-only opsional, konfigurasi lokal dan Edge Function hosted |
 | `RATE_LIMIT_PEPPER` | HMAC bucket throttle guest | Secret server-only minimal 32 karakter, berbeda per environment |
 | `ALLOWED_ORIGINS` | CORS Elysia | Public config |
 | `POC_MODE` | Route eksperimen | Harus `false` |

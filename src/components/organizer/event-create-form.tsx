@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { organizerRequest, type ActivityType, type OrganizerWorkspace } from '@/lib/organizer-client';
 import { useOrganizerSession } from '@/lib/use-organizer-session';
 import { venueSnapshotFromForm } from '@/lib/venue-form';
+import { VenuePicker } from './venue-picker';
 import { SessionGate } from './session-gate';
 import { EventBasicsFields } from './event-basics-fields';
 
@@ -29,6 +30,7 @@ type PaymentMethod={id:string;type:'static_qris'|'bank_transfer'|'cash';recipien
 export function EventCreateForm() {
   const { session, ready } = useOrganizerSession();
   const router = useRouter();
+  const [selectedWorkspace, setSelectedWorkspace] = useState<string>();
   const [workspaces, setWorkspaces] = useState<OrganizerWorkspace[]>([]);
   const [activities, setActivities] = useState<ActivityType[]>([]);
   const [loading, setLoading] = useState(true);
@@ -74,13 +76,14 @@ export function EventCreateForm() {
   }
 
   if (!session) return <SessionGate ready={ready} />;
+  const workspace = selectedWorkspace ?? workspaces[0]?.id;
   return <div className={cn(workspaceFormWidth, workspaceFormPanel)}>
     <WorkspaceFormHeader icon={SlidersHorizontal} title="Buat event" description="Isi detail kegiatan, jadwal, dan biaya sebelum mengajak peserta." />
     {loading && <p className="px-5 py-6 sm:px-8 text-sm text-slate-600" role="status">Menyiapkan form…</p>}
     {!loading && workspaces.length === 0 && !error && <p className="px-5 py-6 sm:px-8 text-sm text-amber-950" role="alert">Akun ini belum punya akses organizer pada workspace mana pun.</p>}
     {!loading && workspaces.length > 0 && <form className={workspaceFormDividers} onSubmit={submit}>
       <WorkspaceFormSection id="event-basics" title="Dasar event" description="Beri nama event dan tentukan siapa yang bisa membukanya.">
-        <EventBasicsFields activities={activities} workspaces={workspaces} />
+        <EventBasicsFields activities={activities} workspaces={workspaces} onWorkspaceChange={setSelectedWorkspace} />
       </WorkspaceFormSection>
       <WorkspaceFormSection id="event-time" title="Jadwal" description="Atur jadwal dan batas pendaftaran dalam zona waktu event.">
         <div className="grid gap-4 sm:grid-cols-2">
@@ -124,6 +127,7 @@ export function EventCreateForm() {
       </WorkspaceFormSection>
       <WorkspaceFormSection id="event-venue" title="Lokasi" description={billingMode === 'dynamic' ? 'Opsional. Kosongkan jika tempat masih dibicarakan.' : 'Nama dan alamat tempat wajib diisi untuk model biaya ini.'}>
         <div className="grid gap-4 sm:grid-cols-2">
+          <VenuePicker key={workspace} workspace={workspace} token={session.access_token} />
           <div><Label htmlFor="venue-name">Nama tempat</Label><Input id="venue-name" name="venue_name" maxLength={200} required={billingMode!=='dynamic'} className={field} /></div>
           <div><Label htmlFor="venue-address">Alamat</Label><Input id="venue-address" name="venue_address" maxLength={1000} required={billingMode!=='dynamic'} className={field} /></div>
           <div className="sm:col-span-2"><Label htmlFor="maps">Tautan Google Maps <span className="font-normal text-[#615d59]">(opsional jika koordinat diisi)</span></Label><Input id="maps" name="maps_url" type="url" maxLength={2000} className={field} placeholder="https://www.google.com/maps/…" /></div>

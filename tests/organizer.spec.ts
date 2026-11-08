@@ -253,6 +253,91 @@ test('organizer membuat satu tautan dan menyalinnya setelah reload',async({page,
   expect(await page.evaluate(()=>navigator.clipboard.readText())).toBe(expected);
 });
 
+test('venue workspace tetap bisa dipakai saat pencarian luar mencapai batas', async ({ page }) => {
+  await withSession(page);
+  const venue = {
+    id: '77777777-7777-4777-8777-777777777777', name: 'GOR Uji', address: 'Jalan Uji',
+    city: 'Jakarta', maps_url: '', latitude: -6.2, longitude: 106.8,
+    source: 'geoapify', place_id: 'fixture-place', source_attribution: '© OpenStreetMap contributors',
+  };
+  let saved = false;
+  let requests = 0;
+  await page.route('https://tiles.openfreemap.org/styles/liberty', route => route.fulfill({
+    headers: { 'access-control-allow-origin': '*' },
+    json: { version: 8, sources: {}, layers: [{ id: 'background', type: 'background', paint: { 'background-color': '#e8f3fd' } }] },
+  }));
+  await page.route('**/dolend-api/v1/organizer/workspaces', route => route.fulfill({ json: { data: [{ id: workspaceId, name: 'Workspace Host', role: 'owner' }] } }));
+  await page.route(`**/dolend-api/v1/organizer/workspaces/${workspaceId}/venues**`, route => {
+    if (route.request().method() === 'POST') {
+      expect(route.request().postDataJSON()).toMatchObject({ name: 'GOR Uji', latitude: -6.2, longitude: 106.8, place_id: 'fixture-place' });
+      saved = true;
+      return route.fulfill({ json: { data: { saved: true } } });
+    }
+    return route.fulfill({ json: { data: saved ? [venue] : [] } });
+  });
+  await page.route(`**/dolend-api/v1/organizer/workspaces/${workspaceId}/venue-suggestions?*`, route => {
+    requests++;
+    return route.fulfill({ json: { data: saved ? { status: 'limited', venues: [] } : { status: 'ok', venues: [venue] } } });
+  });
+  await page.goto('/event/create/');
+  const search = page.getByRole('searchbox', { name: 'Cari venue' });
+  await search.fill('GOR Uji');
+  await expect(page.getByText('Belum ada venue yang cocok di workspace.')).toBeVisible();
+  expect(requests).toBe(0);
+  await page.getByRole('button', { name: 'Cari di peta', exact: true }).click();
+  await page.getByRole('button', { name: /GOR Uji/ }).click();
+  await expect(page.getByLabel('Nama tempat')).toHaveValue('GOR Uji');
+  await expect(page.getByLabel('Latitude')).toHaveValue('-6.2');
+  await page.getByRole('button', { name: 'Simpan ke venue workspace' }).click();
+  await expect(page.getByText('Venue tersimpan di workspace dan bisa dipakai lagi.')).toBeVisible();
+  await page.reload();
+  await search.fill('GOR Uji');
+  await expect(page.getByText('Venue di workspace', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Cari di peta', exact: true }).click();
+  await expect(page.getByText(/Batas pencarian di luar area peta tercapai/)).toBeVisible();
+  await page.getByRole('button', { name: /GOR Uji/ }).click();
+  await expect(page.getByLabel('Alamat')).toHaveValue('Jalan Uji');
+  await page.getByRole('button', { name: 'Pin titik kumpul' }).click();
+  await expect(page.getByText(/Titik kumpul dipilih/)).toBeVisible();
+  await expect(page.getByLabel('Latitude')).toHaveValue('-6.2');
+  await expect(page.getByLabel('Longitude')).toHaveValue('106.8');
+});
+
+test('Buat Event memakai pencarian peta dari tampilan lebar ketika API venue gagal', async ({ page, context }) => {
+  await withSession(page);
+  await context.grantPermissions(['geolocation']);
+  await context.setGeolocation({ latitude: -7.922, longitude: 112.653 });
+  await page.route('**/dolend-api/v1/organizer/workspaces', route => route.fulfill({
+    json: { data: [{ id: workspaceId, name: 'Workspace Host', role: 'owner' }] },
+  }));
+  await page.route(`**/dolend-api/v1/organizer/workspaces/${workspaceId}/venues?*`, route => route.fulfill({ status: 404, json: {} }));
+  await page.route(`**/dolend-api/v1/organizer/workspaces/${workspaceId}/venue-suggestions?*`, route => route.fulfill({ status: 404, json: {} }));
+  await page.route(`**/dolend-api/v1/organizer/workspaces/${workspaceId}/venue-address?*`, route => route.fulfill({
+    json: { data: { status: 'unavailable', venues: [] } },
+  }));
+  await page.route('https://tiles.openfreemap.org/styles/liberty', route => route.fulfill({
+    headers: { 'access-control-allow-origin': '*' },
+    json: { version: 8, sources: { fixtures: { type: 'geojson', data: {
+      type: 'Feature', properties: { name: 'Unggul Sports Center' },
+      geometry: { type: 'Point', coordinates: [112.655268, -7.918495] },
+    } } }, layers: [{ id: 'poi_fixture', type: 'circle', minzoom: 14, source: 'fixtures', paint: { 'circle-radius': 8 } }] },
+  }));
+
+  await page.goto('/event/create/');
+  const location = page.getByRole('region', { name: 'Lokasi', exact: true });
+  const search = location.getByRole('searchbox', { name: 'Cari venue' });
+  await search.fill('Unggul Sport Center');
+  await expect(location.getByText('Venue workspace belum bisa dimuat.')).toBeVisible();
+  await location.getByRole('button', { name: 'Cari di peta', exact: true }).click();
+  await expect(location.getByRole('searchbox')).toHaveCount(1);
+  await expect(location.getByRole('button', { name: 'Cari di luar Dolend' })).toHaveCount(0);
+  await expect(location.getByText(/Pencarian di luar area peta belum tersedia/)).toBeVisible();
+  await location.getByRole('button', { name: 'Unggul Sports Center', exact: true }).click();
+  await expect(location.getByLabel('Nama tempat')).toHaveValue('Unggul Sports Center');
+  await expect.poll(async () => Number(await location.getByLabel('Latitude').inputValue())).toBeCloseTo(-7.918495, 4);
+  await expect.poll(async () => Number(await location.getByLabel('Longitude').inputValue())).toBeCloseTo(112.655268, 4);
+});
+
 test('form venue mengirim koordinat dan petunjuk bertemu', async ({ page }) => {
   await withSession(page);
   let created: Record<string, unknown> | undefined;
@@ -343,8 +428,17 @@ test('ruang kelola memuat roster dan membuat tautan guest satu kali', async ({ p
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 });
 
-test('planning memperbarui snapshot venue lengkap', async ({page}) => {
+test('planning memperbarui snapshot venue lengkap', async ({page, context}) => {
   await withSession(page);
+  await context.grantPermissions(['geolocation']);
+  await context.setGeolocation({ latitude: -7.92, longitude: 112.65 });
+  await page.route('https://tiles.openfreemap.org/styles/liberty', route => route.fulfill({
+    headers: { 'access-control-allow-origin': '*' },
+    json: { version: 8, sources: { fixtures: { type: 'geojson', data: {
+      type: 'Feature', properties: { name: 'Unggul Sports Center' },
+      geometry: { type: 'Point', coordinates: [112.65, -7.92] },
+    } } }, layers: [{ id: 'poi_fixture', type: 'circle', source: 'fixtures', paint: { 'circle-radius': 8 } }] },
+  }));
   let planning:Record<string,unknown>|undefined;
   await page.route(`**/dolend-api/v1/organizer/events/${eventId}`, route => route.fulfill({ json: { data: { ...publicEvent, workspace_name: 'Workspace organizer', activity_type_slug: 'badminton' } } }));
   await page.route(`**/dolend-api/v1/events/${eventId}/roster`,route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:{estimated_total_cost:240000,contributions_locked_at:null,payment_timing:'before_event',estimated_per_person:null,summary:{charged:0,received:0,refunded:0,adjustments:0,outstanding:0,credit:0},participants:[]}})}));
@@ -358,6 +452,15 @@ test('planning memperbarui snapshot venue lengkap', async ({page}) => {
   await expect(basics.getByLabel('Akses event')).toBeDisabled();
   await expect(basics.getByText('Hanya lewat undangan')).toBeVisible();
   await expect(basics.getByLabel('Deskripsi')).toHaveValue(publicEvent.description);
+  const location = page.getByRole('region', { name: 'Lokasi', exact: true });
+  await expect(location.getByText(/Pencarian workspace belum tersedia/)).toBeVisible();
+  await location.getByRole('button', { name: 'Pilih titik di peta' }).click();
+  await location.getByRole('searchbox', { name: 'Cari di area peta' }).fill('Unggul Sport Center');
+  await location.getByRole('button', { name: 'Unggul Sports Center' }).click();
+  await expect(location.getByLabel('Nama venue')).toHaveValue('Unggul Sports Center');
+  await expect.poll(async () => Number(await location.getByLabel('Latitude').inputValue())).toBeCloseTo(-7.92, 4);
+  await expect.poll(async () => Number(await location.getByLabel('Longitude').inputValue())).toBeCloseTo(112.65, 4);
+  await location.getByRole('button', { name: 'Tutup peta' }).click();
   await page.getByLabel('Nama venue').fill('GOR Jakarta');
   await page.getByLabel('Nama event').fill('Badminton Sabtu');
   await page.getByRole('spinbutton', { name: 'Kapasitas (orang)' }).fill('16');
@@ -374,6 +477,78 @@ test('planning memperbarui snapshot venue lengkap', async ({page}) => {
   expect(planning).not.toHaveProperty('workspace_id');
   expect(planning).not.toHaveProperty('activity_type_id');
   expect(planning).not.toHaveProperty('visibility');
+});
+
+test('peta Kelola Event memakai lokasi perangkat atau Malang saat koordinat kosong', async ({ page, context }) => {
+  await withSession(page);
+  await context.grantPermissions(['geolocation']);
+  await context.setGeolocation({ latitude: -6.2, longitude: 106.8 });
+  await page.route(`**/dolend-api/v1/organizer/events/${eventId}`, route => route.fulfill({
+    json: { data: { ...publicEvent, workspace_id: workspaceId } },
+  }));
+  await page.route(`**/dolend-api/v1/events/${eventId}/roster`, route => route.fulfill({
+    json: { data: { estimated_total_cost: 240000, payment_timing: 'before_event', estimated_per_person: null,
+      summary: { charged: 0, received: 0, refunded: 0, adjustments: 0, outstanding: 0, credit: 0 }, participants: [] } },
+  }));
+  await page.route('https://tiles.openfreemap.org/styles/liberty', route => route.fulfill({
+    headers: { 'access-control-allow-origin': '*' },
+    json: { version: 8, sources: {}, layers: [{ id: 'background', type: 'background', paint: { 'background-color': '#e8f3fd' } }] },
+  }));
+
+  let reverseRequests = 0;
+  await page.route(`**/dolend-api/v1/organizer/workspaces/${workspaceId}/venue-address?*`, route => {
+    reverseRequests++;
+    const query = new URL(route.request().url()).searchParams;
+    return route.fulfill({ json: { data: { status: 'ok', venues: [{
+      name: 'Lapangan Peta', address: `Alamat hasil ${reverseRequests}`, city: 'Malang',
+      latitude: Number(query.get('latitude')), longitude: Number(query.get('longitude')), maps_url: '',
+      source: 'geoapify', place_id: null, source_attribution: '© OpenStreetMap contributors',
+    }] } } });
+  });
+
+  const manageUrl = `/event/manage/?id=${eventId}`;
+  const location = page.getByRole('region', { name: 'Lokasi', exact: true });
+  const latitude = location.getByLabel('Latitude');
+  const longitude = location.getByLabel('Longitude');
+  async function usePoint() {
+    const beforeOpen = reverseRequests;
+    await location.getByRole('button', { name: 'Pilih titik di peta' }).click();
+    const pin = location.getByRole('button', { name: 'Pin titik kumpul' });
+    await expect(pin).toBeVisible();
+    await expect(latitude).toHaveValue('');
+    await expect(longitude).toHaveValue('');
+    expect(reverseRequests).toBe(beforeOpen);
+    await pin.press('Enter');
+  }
+
+  await page.goto(manageUrl);
+  await expect(location.getByRole('searchbox', { name: 'Cari venue' })).toBeVisible();
+  await usePoint();
+  await expect(latitude).toHaveValue('-6.2');
+  await expect(longitude).toHaveValue('106.8');
+  await expect(location.getByLabel('Nama venue')).toHaveValue('Lapangan Peta');
+  await expect(location.getByLabel('Alamat')).toHaveValue('Alamat hasil 1');
+  await location.getByLabel('Nama venue').fill('Nama pilihan organizer');
+
+  const pin = location.getByRole('button', { name: 'Pin titik kumpul' });
+  const map = location.getByLabel('Peta titik kumpul');
+  await pin.dragTo(map, { targetPosition: { x: 170, y: 160 } });
+  await expect(latitude).not.toHaveValue('-6.2');
+  await expect(longitude).not.toHaveValue('106.8');
+  await expect(pin).toBeVisible();
+  await expect(location.getByLabel('Nama venue')).toHaveValue('Nama pilihan organizer');
+  await expect(location.getByLabel('Alamat')).toHaveValue('Alamat hasil 2');
+
+  await page.addInitScript(() => {
+    navigator.geolocation.getCurrentPosition = (_success, error) => {
+      error?.({ code: 1, message: 'Permission denied', PERMISSION_DENIED: 1, POSITION_UNAVAILABLE: 2, TIMEOUT: 3 });
+    };
+  });
+  await page.reload();
+  await usePoint();
+  await expect(latitude).toHaveValue('-7.98');
+  await expect(longitude).toHaveValue('112.63');
+  await expect(location.getByLabel('Alamat')).toHaveValue('Alamat hasil 3');
 });
 
 test('planning memuat ulang event saat versi sudah berubah', async ({page}) => {

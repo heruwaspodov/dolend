@@ -11,6 +11,7 @@ import { organizerRequest, type ActivityType, type EventRoster } from '@/lib/org
 import { isUuid, type PublicEvent } from '@/lib/event-client';
 import { useOrganizerSession } from '@/lib/use-organizer-session';
 import { venueSnapshotFromForm } from '@/lib/venue-form';
+import { VenuePicker } from './venue-picker';
 import { canShareEvent, canonicalEventUrl, eventShareSectionId } from '@/lib/event-share';
 import { SessionGate } from './session-gate';
 import { EventBasicsFields } from './event-basics-fields';
@@ -25,7 +26,7 @@ const zoneOffsets:Record<string,string>={'Asia/Jakarta':'+07:00','Asia/Makassar'
 type Notice = { kind: 'success' | 'error'; text: string } | null;
 type ManagedEvent = Omit<PublicEvent, 'venue'> & { venue: PublicEvent['venue'] & { coarse_region_code?: string }; status: 'published'|'recruiting' | 'confirmed' | 'completed' | 'cancelled'; visibility:'public'|'unlisted'; venue_booking_status: string; version: number; registration_closes_at:string; payment_timing:'before_event'|'after_event';payment_mode?:'free'|'before_event'|'after_event' };
 type EventShare = { link: { token: string; expires_at: string } | null; legacy_active: boolean };
-type OrganizerEventBasics = { workspace_name?: string | null; activity_type_name?: string | null };
+type OrganizerEventBasics = { workspace_id?: string | null; workspace_name?: string | null; activity_type_name?: string | null };
 
 function localDateTime(value:string,timeZone:string) {
   const parts=Object.fromEntries(new Intl.DateTimeFormat('sv-SE',{timeZone,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date(value)).map(part=>[part.type,part.value]));
@@ -237,6 +238,7 @@ export function EventManager() {
       <WorkspaceFormSection id="manage-location-title" title="Lokasi" description="Perbarui tempat, status pemesanan, dan petunjuk bertemu.">
         <div className={sectionFields}>
           <div className="sm:col-span-2"><Label htmlFor="venue-status">Status venue</Label><SearchableSelect id="venue-status" name="venue_booking_status" defaultValue={event.venue_booking_status ?? 'not_booked'} className="mt-2"><option value="not_booked">Belum dipesan</option><option value="pending">Sedang diproses</option><option value="booked">Sudah dipesan</option><option value="cancelled">Dibatalkan</option></SearchableSelect></div>
+          <VenuePicker workspace={event.workspace_id} token={session.access_token} />
           <div><Label htmlFor="manage-venue">Nama venue</Label><Input id="manage-venue" name="venue_name" defaultValue={event.venue.name === 'Venue belum ditentukan' ? '' : event.venue.name} maxLength={200} className={field} /></div><div><Label htmlFor="manage-address">Alamat</Label><Input id="manage-address" name="venue_address" defaultValue={event.venue.address} maxLength={1000} className={field} /></div>
           <div><Label htmlFor="manage-latitude">Latitude</Label><Input id="manage-latitude" name="latitude" type="number" inputMode="decimal" min={-90} max={90} step="any" defaultValue={event.venue.latitude} className={field} /></div><div><Label htmlFor="manage-longitude">Longitude</Label><Input id="manage-longitude" name="longitude" type="number" inputMode="decimal" min={-180} max={180} step="any" defaultValue={event.venue.longitude} className={field} /></div>
           <div className="sm:col-span-2"><Label htmlFor="manage-maps">Tautan Google Maps <span className="font-normal text-slate-500">(opsional jika koordinat diisi)</span></Label><Input id="manage-maps" name="maps_url" type="url" defaultValue={event.venue.maps_url} maxLength={2000} className={field} /></div>

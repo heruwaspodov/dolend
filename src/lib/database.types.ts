@@ -2540,7 +2540,11 @@ export type Database = {
           "maps_url": string;
           "name": string;
           "place_id": string | null;
+          "reuse_key": string | null;
+          "source": string;
+          "source_attribution": string | null;
           "updated_at": string;
+          "workspace_id": string | null;
         };
         ComputedFields: never;
         Insert: {
@@ -2554,7 +2558,11 @@ export type Database = {
           "maps_url": string;
           "name": string;
           "place_id"?: string | null;
+          "reuse_key"?: string | null;
+          "source"?: string;
+          "source_attribution"?: string | null;
           "updated_at"?: string;
+          "workspace_id"?: string | null;
         };
         Update: {
           "address"?: string;
@@ -2567,7 +2575,11 @@ export type Database = {
           "maps_url"?: string;
           "name"?: string;
           "place_id"?: string | null;
+          "reuse_key"?: string | null;
+          "source"?: string;
+          "source_attribution"?: string | null;
           "updated_at"?: string;
+          "workspace_id"?: string | null;
         };
         Relationships: [
           {
@@ -2575,6 +2587,13 @@ export type Database = {
             columns: ["created_by"];
             isOneToOne: false;
             referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "venues_workspace_id_fkey";
+            columns: ["workspace_id"];
+            isOneToOne: false;
+            referencedRelation: "workspaces";
             referencedColumns: ["id"];
           },
         ];
@@ -3758,6 +3777,13 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      "reserve_venue_search": {
+        Args: { "p_actor": string; "p_workspace": string };
+        Returns: {
+          "allowed": boolean;
+          "retry_after_seconds": number;
+        }[];
+      };
       "respond_community_invite": {
         Args: { "p_accept": boolean; "p_actor": string; "p_community": string };
         Returns: undefined;
@@ -3865,6 +3891,25 @@ export type Database = {
         Returns: {
           "events_processed": number;
           "participants_expired": number;
+        }[];
+      };
+      "save_workspace_venue": {
+        Args: { "p_actor": string; "p_venue": Json; "p_workspace": string };
+        Returns: undefined;
+      };
+      "search_workspace_venues": {
+        Args: { "p_actor": string; "p_query": string; "p_workspace": string };
+        Returns: {
+          "address": string;
+          "city": string;
+          "id": string;
+          "latitude": number;
+          "longitude": number;
+          "maps_url": string;
+          "name": string;
+          "place_id": string;
+          "source": string;
+          "source_attribution": string;
         }[];
       };
       "set_community_role": {

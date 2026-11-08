@@ -42,6 +42,19 @@ try {
   checks+=5;
   await db.query(`insert into public.workspaces(name,created_by_profile_id) values('Ruang fixture',$1),('Ruang member',$2)`,[organizer,other]);
   await db.query(`insert into public.workspace_members(workspace_id,profile_id,role) select id,created_by_profile_id,'owner' from public.workspaces`,[]);
+  const [{id:venueWorkspace}]=await query('select id from public.workspaces where created_by_profile_id=$1',[organizer]);
+  const savedVenue={name:'GOR Uji',address:'Jalan Uji',city:'Jakarta',maps_url:'https://www.google.com/maps/search/?api=1&query=GOR%20Uji',latitude:-6.2,longitude:106.8,source:'manual',reuse_key:'fixture'};
+  await query('select public.save_workspace_venue($1,$2,$3)',[organizer,venueWorkspace,savedVenue]);
+  await query('select public.save_workspace_venue($1,$2,$3)',[organizer,venueWorkspace,savedVenue]);
+  assert.equal((await query('select * from public.search_workspace_venues($1,$2,$3)',[organizer,venueWorkspace,'gor uji'])).length,1); checks++;
+  await expectFailure('select * from public.search_workspace_venues($1,$2,$3)',[other,venueWorkspace,'gor uji'],/FORBIDDEN/);
+  await expectFailure('select public.save_workspace_venue($1,$2,$3)',[other,venueWorkspace,savedVenue],/FORBIDDEN/);
+  await expectFailure('select * from public.reserve_venue_search($1,$2)',[other,venueWorkspace],/FORBIDDEN/);
+  await db.exec(`insert into public.rate_limit_counters(bucket_key,window_start,count,expires_at)
+    values('venue-search:daily',date_trunc('day',now(),'UTC'),2499,now()+interval '1 day')`);
+  assert.equal((await query('select allowed from public.reserve_venue_search($1,$2)',[organizer,venueWorkspace]))[0].allowed,true); checks++;
+  assert.equal((await query('select allowed from public.reserve_venue_search($1,$2)',[organizer,venueWorkspace]))[0].allowed,false); checks++;
+
   const event=async(mode='free',capacity=2,visibility='public')=>{
     const [{id}]=await query(`insert into public.events(organizer_profile_id,workspace_id,activity_type_id,title,venue_snapshot,starts_at,ends_at,registration_closes_at,capacity,visibility,payment_mode,price_amount,payment_due_at)
     values($1,(select id from public.workspaces where created_by_profile_id=$1),(select id from public.activity_types limit 1),'Fixture event','{"name":"Venue fixture","address":"Jakarta","maps_url":"https://www.google.com/maps/search/?api=1&query=Jakarta","private_note":"not public"}',now()+interval '1 day',now()+interval '1 day 1 hour',now()+interval '23 hours',$2,$3,$4,$5,now()+interval '2 days') returning id`,[organizer,capacity,visibility,mode,mode==='free'?0:10000]);

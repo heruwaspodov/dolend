@@ -368,6 +368,33 @@ Setiap task adalah pekerjaan yang dapat ditinjau. Dependencies menyebut ID task 
 - **Dependencies:** T04, T07, T08.
 - **Acceptance criteria:** link membuka Maps untuk venue yang dimaksud pada mobile/desktop; koordinat invalid dan host berbahaya ditolak; perubahan master venue tidak mengubah event lama; tanpa API Maps berbayar tetap dapat dipakai.
 
+#### Rencana lanjutan T09 — Cari venue dan pilih titik di peta
+
+**Status: Implementasi lokal terverifikasi, 8 November 2026.** Berlaku untuk form Buat Event dan Kelola Event. Migration, API, dan Playwright lulus lokal. Peta OpenFreeMap dirender dengan data peta nyata di desktop dan layar 360 px, sedangkan respons Geoapify memakai fixture. Uji pencarian Geoapify nyata dan rollout hosted masih terbuka. Bergantung pada T08 untuk akses workspace serta T09/T10 untuk validasi venue dan penyimpanan event. Gate T20/T21 tetap berlaku untuk MVP.
+
+**Alur organizer**
+
+1. Ketik nama atau alamat untuk mencari venue yang sudah tersimpan di workspace. Pencarian lokal tetap tersedia setiap saat.
+2. Pilih **Cari di peta** untuk membuka hasil di area peta dan mengambil saran nama tempat atau alamat di Indonesia dari Geoapify jika tersedia.
+3. Pilih hasil dan sesuaikan titik kumpul di peta MapLibre + OpenFreeMap, atau masukkan koordinat secara manual. Jika koordinat kosong, gunakan lokasi perangkat saat diizinkan browser dan Malang saat lokasi tidak tersedia. Setelah pin dipilih atau digeser, isi alamat kosong dari Geoapify dan isi nama hanya jika ada tempat bernama di dekat pin. Pertahankan isian organizer. Tampilkan atribusi penyedia dan sumber data sesuai ketentuan. Tautan Google Maps tetap tersedia untuk navigasi peserta.
+4. Pilih **Simpan ke venue workspace** untuk penggunaan berikutnya. Simpan hanya venue yang dikonfirmasi organizer, dengan sumber dan ID penyedia jika tersedia. Event tetap menyimpan snapshot lokasi saat disimpan.
+
+**Urutan implementasi**
+
+1. Tambah migration untuk scope workspace dan asal data pada master `venues`. Tabel saat ini memakai `created_by` dan kebijakan akses per pemilik. Tentukan penanganan venue lama berdasarkan relasi yang terverifikasi dan pertahankan akses per pemilik bila workspace belum diketahui. Verifikasi JWT, membership, role dan RLS pada pencarian serta penyimpanan. Tambah pencarian nama/alamat dan deduplikasi per workspace untuk ID penyedia. Regenerasi tipe database.
+2. Tambah operasi pencarian eksternal melalui Elysia/Supabase Edge Functions. Simpan `GEOAPIFY_API_KEY` hanya sebagai secret backend. Reservasi anggaran kredit secara atomik sebelum request, dengan batas bersama untuk autocomplete dan pencarian alamat dari pin sebesar 2.500 per hari UTC dan 12 permintaan per menit per organizer. Sisakan kuota paket untuk penggunaan lain yang berbagi akun. Saat key belum tersedia, anggaran habis, penyedia memberi 429, atau koneksi gagal, tampilkan status dan pertahankan hasil lokal serta pemilihan titik manual.
+3. Pakai ulang picker pada kedua form. Isi nama, alamat, dan koordinat dari hasil yang dipilih, izinkan koreksi sebelum simpan, dan pertahankan validasi pasangan koordinat, Maps URL, serta perubahan versi event. Simpan master venue secara idempoten dan salin lokasi yang dipilih ke snapshot event. Pembaruan master venue tidak mengubah event lama.
+
+**Persiapan**
+
+- Satu akun/proyek Geoapify dan API key untuk uji nyata. Paket Free mencantumkan 3.000 kredit per hari dengan atribusi. Mulai pengembangan dengan respons tiruan. OpenFreeMap publik dapat dimuat tanpa key.
+- Sampel nama dan alamat venue publik dari kota target, termasuk venue kecil dan venue bernama sama. Pakai sampel untuk menilai kualitas pencarian nama dan ketepatan pin.
+- Uji database dan Edge Function lokal, dengan akses pengaturan secret Supabase diperlukan saat rollout hosted disetujui.
+
+**Acceptance criteria:** pencarian lokal dan pemilihan pin berfungsi di desktop dan layar 360 px, termasuk saat penyedia tidak tersedia. Query lokal tidak menggunakan kredit eksternal. Akses lintas workspace ditolak dan simpan ulang hasil yang sama tidak membuat duplikat. Event lama mempertahankan snapshot dan tautan navigasinya. Verifikasi dengan `npm run db:test`, `npm run api:check`, `npm run api:test`, lint, build static normal, typecheck, dan Playwright organizer untuk pilih titik, simpan, gunakan ulang, dan fallback.
+
+Referensi: [Geoapify Autocomplete](https://apidocs.geoapify.com/docs/geocoding/address-autocomplete/), [harga dan atribusi Geoapify](https://www.geoapify.com/pricing/), [ketentuan Geoapify](https://www.geoapify.com/terms-and-conditions/), [OpenFreeMap](https://openfreemap.org/quick_start/).
+
 ### T10 — Create, publish, edit, cancel, complete event
 
 **Status: Selesai untuk scope MVP, 3 November 2026.** `/dashboard/`, `/event/create/`, dan `/event/manage/` terhubung ke API organizer. Form manage mengubah judul/deskripsi, jadwal, kapasitas, timing/estimasi biaya, venue, dan status melalui RPC service-only yang mengunci event serta mewajibkan `expected_version`. Stale edit mendapat 409 lalu UI memuat ulang data; organizer lain, kapasitas di bawah okupansi, transisi invalid, edit event final, dan complete sebelum waktunya ditolak. Audit menyimpan field yang berubah, versi, dan transisi status tanpa menyalin deskripsi/venue privat. Create, roster, guest recovery, lock/late charge, cancel, completed/outstanding tetap terhubung. Replay 17 migration, 64 assertion database, 20 API test, browser desktop/mobile, dan hosted E2E conflict/audit/ownership/cleanup lulus pada API v19.

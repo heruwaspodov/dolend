@@ -1,4 +1,5 @@
 import { createApp } from './app.ts';
+import { reverseGeoapify, searchGeoapify } from './venues.ts';
 import { manualPaymentReviewDto, manualPaymentRoutes, organizerPaymentMethodDto } from './manual-payments.ts';
 import { AccountServiceError, type AccountIdentity, type AccountService, type Profile, type ProfilePatch } from './account.ts';
 import { GuestBookingError, type GuestBookingService } from './guest-booking.ts';
@@ -356,4 +357,35 @@ Deno.test('payment images reject spoofed content and oversized streams', async (
 Deno.test('empty declared JSON is rejected before parsing',async()=>{
  const response=await app.handle(new Request(`${base}/profile/bootstrap`,{method:'POST',headers:{'content-type':'application/json'}}));
  assert(response.status===400,'empty JSON must return a safe validation error');
+});
+
+Deno.test('venue suggestions use Indonesia filter and return only usable fields', async () => {
+  const request: typeof fetch = async (input) => {
+    const url = new URL(String(input));
+    assert(url.hostname === 'api.geoapify.com' && url.searchParams.get('filter') === 'countrycode:id', 'expected Indonesia search');
+    return Response.json({ results: [
+      { name: 'GOR Uji', formatted: 'Jalan Uji', lat: -6.2, lon: 106.8, place_id: 'mock-place', ignored: 'mock' },
+      { name: 'Invalid', lat: 120, lon: 106.8 },
+    ] });
+  };
+  const places = await searchGeoapify('GOR Uji', 'fixture', request);
+  assert(places?.length === 1 && places[0].place_id === 'mock-place' && !('ignored' in places[0]), 'expected allowlisted venue');
+  const limited = await searchGeoapify('GOR Uji', 'fixture', async () => new Response(null, { status: 429 }));
+  assert(limited === null, 'provider throttling must activate fallback');
+});
+
+Deno.test('reverse venue lookup keeps the pin and accepts a name only for a nearby named place', async () => {
+  const mock = (result_type: string, distance: number): typeof fetch => async input => {
+    const url = new URL(String(input));
+    assert(url.pathname === '/v1/geocode/reverse' && url.searchParams.get('lat') === '-7.98', 'expected reverse lookup at pin');
+    return Response.json({ results: [{
+      name: 'GOR Uji', formatted: 'Jalan Uji, Malang', result_type, distance, lat: -8, lon: 112.6,
+    }] });
+  };
+  const named = (await reverseGeoapify(-7.98, 112.63, 'fixture', mock('amenity', 20)))?.[0];
+  assert(named?.name === 'GOR Uji' && named.latitude === -7.98 && named.longitude === 112.63, 'named nearby result must preserve pin');
+  const street = (await reverseGeoapify(-7.98, 112.63, 'fixture', mock('street', 20)))?.[0];
+  assert(street?.name === '' && street.address === 'Jalan Uji, Malang', 'a street is an address, not a venue name');
+  const distant = await reverseGeoapify(-7.98, 112.63, 'fixture', mock('amenity', 300));
+  assert(distant?.length === 0, 'distant matches must not fill the form');
 });

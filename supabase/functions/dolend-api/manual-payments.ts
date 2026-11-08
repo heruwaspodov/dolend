@@ -261,11 +261,11 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
       await ownEvent(params.id,request);
       const [event, { data, error }] = await Promise.all([
         eventDto(params.id, false),
-        client().from('events').select('workspaces(name)').eq('id', params.id).single(),
+        client().from('events').select('workspace_id,workspaces(name)').eq('id', params.id).single(),
       ]);
       if (error) throw new FinanceError('STORAGE_UNAVAILABLE');
       const workspace = Array.isArray(data.workspaces) ? data.workspaces[0] : data.workspaces;
-      return { data: { ...event, workspace_name: workspace?.name ?? null } };
+      return { data: { ...event, workspace_id: data.workspace_id, workspace_name: workspace?.name ?? null } };
     },{params:t.Object({id:uuid})})
     .get('/events/:id',async ({params,request}) => {
       await publicEventAccess(params.id,request);
