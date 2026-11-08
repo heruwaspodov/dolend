@@ -51,9 +51,18 @@ test('dashboard menampilkan tiga menu utama dan daftar event berbentuk tabel', a
   await expect(page.getByRole('heading', { name:'My Event' })).toBeVisible();
   await expect(page.getByRole('table', { name:'Daftar event yang kamu kelola' }).getByRole('row', { name:/Badminton Jumat/ })).toBeVisible();
   await expect(page.getByRole('link', { name:'Buat event', exact:true })).toHaveAttribute('href', '/event/create/');
-  await expect(page.getByRole('link', { name:'Lihat event' })).toHaveAttribute('href', `/event/manage/?id=${eventId}`);
+  await expect(page.getByRole('link', { name:/^Badminton Jumat/ })).toHaveAttribute('href', `/event/manage/?id=${eventId}`);
+  const schedule = page.getByText('19.00–21.00', { exact: true });
+  await expect(schedule).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Aksi untuk Badminton Jumat' })).toHaveText('Aksi');
+  const tableRegion = page.getByRole('region', { name: 'Tabel event' });
+  expect(await tableRegion.evaluate(region => region.scrollWidth <= region.clientWidth)).toBeTruthy();
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
+  await page.route(`**/dolend-api/v1/organizer/events/${eventId}`, route => route.fulfill({ json: { data: publicEvent } }));
+  // The row link overlays the schedule, so click its coordinates to verify the row hit area.
+  await schedule.click({ force: true });
+  await expect(page).toHaveURL(`/event/manage/?id=${eventId}`);
 });
 
 test('My Event memisahkan pendaftaran dan arsip organizer', async ({ page }) => {
@@ -87,7 +96,7 @@ test('My Event memisahkan pendaftaran dan arsip organizer', async ({ page }) => 
 
 test('My Event mencari, mengurutkan, memilih kolom, dan memulihkan arsip', async ({ page }) => {
   await withSession(page);
-  const second = { ...publicEvent, id: workspaceId, title: 'Aerobik Sabtu', visibility: 'public', status: 'completed' };
+  const second = { ...publicEvent, id: workspaceId, title: 'Aerobik Sabtu', visibility: 'public', status: 'completed', ends_at: '2026-11-07T01:00:00+07:00' };
   let archived = false;
   await page.route('**/dolend-api/v1/organizer/events?view=*', route => {
     const view = new URL(route.request().url()).searchParams.get('view');
@@ -106,11 +115,17 @@ test('My Event mencari, mengurutkan, memilih kolom, dan memulihkan arsip', async
   await page.getByRole('button', { name: 'Event', exact: true }).click();
   const rows = page.getByRole('table').locator('tbody tr');
   await expect(rows.first()).toContainText('Aerobik Sabtu');
+  await expect(rows.first()).toContainText('s.d. 7 Nov 2026, 01.00');
   await page.getByRole('button', { name: 'Event', exact: true }).click();
   await expect(rows.first()).toContainText('Badminton Jumat');
   await expect(page.getByRole('columnheader', { name: 'Event', exact: true })).toHaveAttribute('aria-sort', 'descending');
   await page.getByRole('button', { name: 'Event', exact: true }).click();
-  await expect(rows.first().getByRole('link', { name: 'Lihat event' })).toHaveAttribute('href', `/event/?id=${workspaceId}`);
+  await expect(rows.first().getByRole('link', { name: /^Aerobik Sabtu/ })).toHaveAttribute('href', `/event/manage/?id=${workspaceId}`);
+  const aerobikActions = rows.first().getByRole('button', { name: 'Aksi untuk Aerobik Sabtu' });
+  await aerobikActions.press('Enter');
+  await expect(page.getByRole('menuitem', { name: 'Lihat event' })).toHaveAttribute('href', `/event/?id=${workspaceId}`);
+  await page.keyboard.press('Escape');
+  await expect(aerobikActions).toBeFocused();
   const statusPicker = page.getByRole('combobox', { name: 'Status', exact: true });
   await statusPicker.click();
   await expect(page.getByText('Cari pilihan…', { exact: true })).toBeVisible();
@@ -125,11 +140,13 @@ test('My Event mencari, mengurutkan, memilih kolom, dan memulihkan arsip', async
   await page.getByRole('checkbox', { name: 'Venue' }).check();
   await expect(page.getByRole('columnheader', { name: 'Venue' })).toBeVisible();
   await page.getByText('Kolom', { exact: true }).click();
-  await page.getByRole('button', { name: 'Arsipkan' }).click();
+  await rows.first().getByRole('button', { name: 'Aksi untuk Badminton Jumat' }).click();
+  await page.getByRole('menuitem', { name: 'Arsipkan' }).click();
   await expect(page.getByText('Event dipindahkan ke arsip.')).toBeVisible();
   await page.getByRole('button', { name: 'Arsip', exact: true }).click();
   await expect(rows).toHaveCount(1);
-  await page.getByRole('button', { name: 'Pulihkan' }).click();
+  await rows.first().getByRole('button', { name: 'Aksi untuk Badminton Jumat' }).click();
+  await page.getByRole('menuitem', { name: 'Pulihkan' }).click();
   await expect(page.getByText('Arsip masih kosong')).toBeVisible();
   await page.getByRole('button', { name: 'Daftar utama' }).click();
   await expect(rows.first()).toContainText('Badminton Jumat');
@@ -215,9 +232,13 @@ test('organizer membuat satu tautan dan menyalinnya setelah reload',async({page,
   await expect(page.getByRole('button', { name: /Buat tautan/ })).toHaveCount(0);
   await page.goto('/dashboard/events/');
   const eventRow = page.getByRole('row', { name: /Badminton Jumat/ });
-  await expect(eventRow.getByRole('link', { name: 'Bagikan event' })).toHaveCount(0);
-  await eventRow.getByRole('button', { name: 'Konfirmasi event' }).click();
-  await eventRow.getByRole('link', { name: 'Bagikan event' }).click();
+  const eventActions = eventRow.getByRole('button', { name: 'Aksi untuk Badminton Jumat' });
+  await eventActions.click();
+  await expect(page.getByRole('menuitem', { name: 'Bagikan event' })).toHaveCount(0);
+  await page.getByRole('menuitem', { name: 'Konfirmasi event' }).click();
+  await expect(eventRow.getByText('Terkonfirmasi')).toBeVisible();
+  await eventActions.click();
+  await page.getByRole('menuitem', { name: 'Bagikan event' }).click();
   await expect(page).toHaveURL(`/event/manage/?id=${eventId}#share-event-title`);
   await expect(stage.getByRole('button', { name: 'Tandai selesai' })).toBeVisible();
   await page.getByRole('button',{name:'Buat tautan pengganti'}).click();

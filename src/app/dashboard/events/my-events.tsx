@@ -3,7 +3,8 @@
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import Link from 'next/link';
 import { useState } from 'react';
-import { Archive, ArrowDown, ArrowDownUp, ArrowUp, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Columns3, Eye, List, Plus, UserCheck, RotateCcw, Search } from 'lucide-react';
+import { DropdownMenu } from 'radix-ui';
+import { Archive, ArrowDown, ArrowDownUp, ArrowUp, CalendarDays, CalendarCheck, ChevronDown, ChevronLeft, ChevronRight, Columns3, Eye, List, LoaderCircle, MoreHorizontal, Plus, UserCheck, RotateCcw, Search, Share2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { SessionGate } from '@/components/organizer/session-gate';
@@ -36,7 +37,9 @@ function EventStatusBadge({ status }: { status: string }) {
 }
 
 const columns = { status: 'Status', venue: 'Venue', cost: 'Perkiraan biaya' };
-const cell = 'px-4 py-3 sm:px-5';
+const cell = 'px-3 py-2.5 sm:px-5';
+const actionCell = 'px-2 py-2.5 sm:px-5';
+const rowAction = 'flex min-h-11 cursor-default items-center gap-2.5 rounded-md px-2.5 text-sm outline-none data-highlighted:bg-muted data-disabled:opacity-50 sm:pointer-fine:min-h-9 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-muted-foreground';
 
 type SortField = 'title' | 'date' | keyof typeof columns;
 type Direction = 'ascending' | 'descending';
@@ -62,10 +65,33 @@ function SortHeader({ label, direction, onSort, className = '' }: {
   );
 }
 
-function schedule(event: OrganizerEvent) {
-  return new Intl.DateTimeFormat('id-ID', {
-    dateStyle: 'medium', timeStyle: 'short', timeZone: event.timezone,
-  }).format(new Date(event.starts_at));
+function EventSchedule({ event }: { event: OrganizerEvent }) {
+  const start = new Date(event.starts_at);
+  const end = new Date(event.ends_at);
+  const date = new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeZone: event.timezone });
+  const time = new Intl.DateTimeFormat('id-ID', { timeStyle: 'short', timeZone: event.timezone });
+  const startDate = date.format(start);
+  const endDate = date.format(end);
+
+  if (startDate !== endDate) {
+    return (
+      <div className="space-y-1 text-xs tabular-nums">
+        <time dateTime={event.starts_at} className="block">{startDate}, {time.format(start)}</time>
+        <time dateTime={event.ends_at} className="block text-muted-foreground">s.d. {endDate}, {time.format(end)}</time>
+      </div>
+    );
+  }
+
+  return (
+    <div className="tabular-nums">
+      <span className="block whitespace-nowrap font-medium">{startDate}</span>
+      <span className="block whitespace-nowrap text-xs text-muted-foreground">
+        <time dateTime={event.starts_at}>{time.format(start)}</time>
+        {'–'}
+        <time dateTime={event.ends_at}>{time.format(end)}</time>
+      </span>
+    </div>
+  );
 }
 
 export function MyEvents() {
@@ -231,47 +257,70 @@ function ManagedEvents() {
                 <thead className="border-b bg-[#faf9f8] text-xs text-muted-foreground">
                   <tr>
                     {([
-                      ['title', 'Event', ''],
+                      ['title', 'Event', 'w-1/2'],
                       ['date', 'Jadwal', ''],
                       ...Object.entries(columns).filter(([field]) => visible[field as keyof typeof columns]),
                     ] as [SortField, string, string?][]).map(([field, label, className]) => (
                       <SortHeader key={field} label={label} className={className}
                         direction={sort.field === field ? sort.direction : undefined} onSort={() => sortBy(field)} />
                     ))}
-                    <th scope="col" className={cell}>Aksi</th>
+                    <th scope="col" className={`${actionCell} w-px text-center`}>Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
                   {pageRows.map(event => {
                     const manageHref = `/event/manage/?id=${event.id}`;
                     const shareAllowed = canShareEvent(event.status);
-                    const publicHref = event.visibility === 'public' && shareAllowed
-                      ? `/event/?id=${event.id}` : manageHref;
+                    const isPublic = event.visibility === 'public' && shareAllowed;
+                    const isPending = pending?.id === event.id;
                     return (
-                      <tr key={event.id} className="align-top hover:bg-[#faf9f8] sm:align-middle">
-                        <th scope="row" className={`${cell} w-full font-normal`}>
-                          <p className="break-words font-semibold [overflow-wrap:anywhere]">{event.title}</p>
-                          {!visible.status && <div className="mt-1"><EventStatusBadge status={event.status} /></div>}
+                      <tr key={event.id} className="relative isolate align-middle hover:bg-[#faf9f8] focus-within:bg-[#faf9f8]">
+                        <th scope="row" className={`${cell} font-normal`}>
+                          <Link href={manageHref} className="group inline-flex min-h-11 max-w-full flex-col items-start justify-center outline-none after:absolute after:inset-0 focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-ring">
+                            <span className="font-semibold underline-offset-4 [overflow-wrap:anywhere] group-hover:text-[#005bab] group-hover:underline group-focus-visible:underline">{event.title}</span>
+                            {!visible.status && <span className="mt-1"><EventStatusBadge status={event.status} /></span>}
+                          </Link>
                         </th>
-                        <td className={`${cell} tabular-nums text-muted-foreground sm:whitespace-nowrap`}>{schedule(event)}</td>
+                        <td className={cell}><EventSchedule event={event} /></td>
                         {visible.status && <td className={cell}><EventStatusBadge status={event.status} /></td>}
                         {visible.venue && <td className={`${cell} whitespace-nowrap text-muted-foreground`}>{venueLabel(event)}</td>}
                         {visible.cost && <td className={`${cell} whitespace-nowrap tabular-nums text-muted-foreground`}>{rupiah.format(event.estimated_total_cost)}</td>}
-                        <td className={cell}>
-                          <div className="flex flex-col items-start gap-1 whitespace-nowrap lg:flex-row lg:flex-wrap">
-                            <Button asChild variant="outline" className="min-h-11"><Link href={publicHref}><Eye aria-hidden="true" />Lihat event</Link></Button>
-                            {publicHref !== manageHref && <Button asChild variant="ghost" className="min-h-11"><Link href={manageHref}>Kelola</Link></Button>}
-                            {!archived && event.status === 'recruiting' && <Button type="button" variant="outline" className="min-h-11" disabled={pending !== null}
-                              onClick={() => void confirmEvent(event.id, session.access_token)}>
-                              {pending?.id === event.id && pending.action === 'confirm' ? 'Mengonfirmasi…' : 'Konfirmasi event'}
-                            </Button>}
-                            {!archived && shareAllowed && <Button asChild variant="outline" className="min-h-11"><Link href={`${manageHref}#${eventShareSectionId}`}>Bagikan event</Link></Button>}
-                            <Button variant="ghost" className="min-h-11 text-muted-foreground" disabled={pending !== null}
-                              onClick={() => void changeArchive(event, session.access_token)}>
-                              {archived ? <RotateCcw aria-hidden="true" /> : <Archive aria-hidden="true" />}
-                              {pending?.id === event.id && pending.action === 'archive' ? 'Memproses…' : archived ? 'Pulihkan' : 'Arsipkan'}
-                            </Button>
-                          </div>
+                        <td className={`${actionCell} text-right`}>
+                          <DropdownMenu.Root>
+                            <DropdownMenu.Trigger asChild>
+                              <Button type="button" variant="outline" className="relative z-10 min-h-11 bg-card px-2.5 sm:pointer-fine:min-h-9"
+                                aria-label={`Aksi untuk ${event.title}`} aria-busy={isPending}>
+                                Aksi
+                                {isPending ? <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" /> : <MoreHorizontal aria-hidden="true" className="text-muted-foreground" />}
+                              </Button>
+                            </DropdownMenu.Trigger>
+                            <DropdownMenu.Portal>
+                              <DropdownMenu.Content align="end" sideOffset={6} collisionPadding={12}
+                                className="z-50 min-w-40 rounded-lg border bg-popover p-1 text-popover-foreground shadow-sm">
+                                {isPublic && (
+                                  <DropdownMenu.Item asChild className={rowAction}>
+                                    <Link href={`/event/?id=${event.id}`}><Eye aria-hidden="true" />Lihat event</Link>
+                                  </DropdownMenu.Item>
+                                )}
+                                {!archived && event.status === 'recruiting' && (
+                                  <DropdownMenu.Item className={rowAction} disabled={pending !== null}
+                                    onSelect={() => void confirmEvent(event.id, session.access_token)}>
+                                    <CalendarCheck aria-hidden="true" />Konfirmasi event
+                                  </DropdownMenu.Item>
+                                )}
+                                {!archived && shareAllowed && (
+                                  <DropdownMenu.Item asChild className={rowAction}>
+                                    <Link href={`${manageHref}#${eventShareSectionId}`}><Share2 aria-hidden="true" />Bagikan event</Link>
+                                  </DropdownMenu.Item>
+                                )}
+                                <DropdownMenu.Item className={rowAction} disabled={pending !== null}
+                                  onSelect={() => void changeArchive(event, session.access_token)}>
+                                  {archived ? <RotateCcw aria-hidden="true" /> : <Archive aria-hidden="true" />}
+                                  {archived ? 'Pulihkan' : 'Arsipkan'}
+                                </DropdownMenu.Item>
+                              </DropdownMenu.Content>
+                            </DropdownMenu.Portal>
+                          </DropdownMenu.Root>
                         </td>
                       </tr>
                     );
