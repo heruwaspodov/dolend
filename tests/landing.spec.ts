@@ -5,8 +5,10 @@ test('landing renders reference sections, local assets and clear demo status', a
   page.on('pageerror', error => errors.push(error.message));
   page.on('requestfailed', request => failures.push(request.url()));
   await page.goto('/');
-  await expect(page.getByRole('heading', { level: 1, name: 'Bikin undangan main bareng.' })).toBeVisible();
-  await expect(page.getByText('Simulator bisa dicoba tanpa akun.', { exact: false })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Main bareng, tinggal kirim undangan.' })).toBeVisible();
+  const invitation = page.getByRole('article', { name: 'Badminton Sabtu pagi' });
+  await expect(invitation.getByText('Contoh undangan')).toBeVisible();
+  await expect(invitation.getByText('Kuota contoh, 5 dari 8 terisi')).toHaveCount(1);
   await expect(page.getByRole('link', { name: 'Buat event', exact: true })).toHaveAttribute('href', '/event/create/');
   await expect(page.getByRole('link', { name: 'Coba simulator', exact: true })).toHaveAttribute('href', '#simulasi');
   await page.getByRole('link', { name: 'Coba simulator', exact: true }).focus();
@@ -16,11 +18,21 @@ test('landing renders reference sections, local assets and clear demo status', a
   await expect(cost).toBeInViewport();
   await expect(cost).toHaveCSS('outline-style', 'solid');
   for (const id of ['kategori', 'simulasi', 'cara-kerja', 'faq']) await expect(page.locator(`#${id}`)).toHaveCount(1);
-  for (const image of await page.locator('img').all()) { await image.scrollIntoViewIfNeeded(); await expect.poll(() => image.evaluate(element => (element as HTMLImageElement).complete && (element as HTMLImageElement).naturalWidth > 0)).toBe(true); }
-  await expect.poll(() => page.locator('img').evaluateAll(images => images.every(image => (image as HTMLImageElement).complete && (image as HTMLImageElement).naturalWidth > 0))).toBe(true);
+  for (const image of await page.locator('img:visible').all()) {
+    await image.scrollIntoViewIfNeeded();
+    await expect.poll(() => image.evaluate(element => (element as HTMLImageElement).complete && (element as HTMLImageElement).naturalWidth > 0)).toBe(true);
+  }
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await expect(page.getByText(/400\+ Komunitas|Dipercaya Oleh Ratusan Organizer/)).toHaveCount(0);
   expect(errors).toEqual([]); expect(failures).toEqual([]);
+});
+
+test('example quota starts at its final value when reduced motion is enabled', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('/');
+  const invitation = page.getByRole('article', { name: 'Badminton Sabtu pagi' });
+  await expect(invitation.getByText('5', { exact: true })).toHaveCSS('opacity', '1');
+  await expect(invitation.getByText('4', { exact: true })).toHaveCSS('opacity', '0');
 });
 
 test('calculator updates venue, schedule, rounded costs and DP balance', async ({ page }) => {

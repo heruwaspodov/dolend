@@ -130,7 +130,7 @@
 
 @layer base {
   html { scroll-behavior: smooth; scroll-padding-top: 6rem; }
-  html:has(#atas:focus-within) { scroll-behavior: auto; }
+  html:has(#atas:focus-within, #simulasi:target) { scroll-behavior: auto; }
   a:focus-visible, summary:focus-visible { outline: 2px solid var(--ring); outline-offset: 4px; border-radius: 0.25rem; }
   summary::-webkit-details-marker { display: none; }
   @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }

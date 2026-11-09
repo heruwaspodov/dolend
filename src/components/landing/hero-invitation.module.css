@@ -1,0 +1,118 @@
+.stage {
+  position: relative;
+  isolation: isolate;
+  width: min(100%, 35rem);
+  margin-inline: auto;
+}
+
+.sender,
+.player {
+  display: none;
+  position: absolute;
+  height: auto;
+  pointer-events: none;
+}
+
+@media (width < 48rem) {
+  .stage::before {
+    content: '';
+    display: block;
+    width: min(76%, 14rem);
+    aspect-ratio: 480 / 216;
+    margin-inline: auto;
+    background: url('/images/landing/badminton-mobile.webp') center / contain no-repeat;
+  }
+}
+
+.count {
+  display: inline-grid;
+}
+
+.before,
+.after {
+  grid-area: 1 / 1;
+}
+
+.before {
+  opacity: 0;
+}
+
+.fill {
+  width: 62.5%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--primary);
+  transform-origin: left;
+}
+
+@media (min-width: 48rem) {
+  .stage {
+    width: min(58%, 35rem);
+  }
+
+  .sender {
+    display: block;
+    width: clamp(7rem, 13vw, 10rem);
+    inset: auto calc(100% + 0.25rem) 2rem auto;
+  }
+
+  .player {
+    display: block;
+    width: clamp(8rem, 14vw, 11rem);
+    bottom: 3rem;
+    left: calc(100% - 0.65rem);
+    transform-origin: 30% 95%;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @media (width < 48rem) {
+    .stage[data-arrived]::before {
+      transform-origin: center bottom;
+      animation: peek-above-card 1.5s ease-in-out 3;
+    }
+  }
+
+  .stage[data-arrived] .player {
+    animation: peek-beside-card 1.5s ease-in-out 3;
+  }
+
+  .stage[data-arrived] .before {
+    animation: count-initial 560ms step-end;
+  }
+
+  .stage[data-arrived] .after {
+    animation: count-final 560ms step-end;
+  }
+
+  .stage[data-arrived] .fill {
+    animation: fill-quota 390ms cubic-bezier(0.16, 1, 0.3, 1) 560ms both;
+  }
+}
+
+@keyframes peek-above-card {
+  0%, 48%, 100% { transform: none; }
+  18% { transform: translateY(1.625rem) rotate(-3deg); }
+  35% { transform: translateY(-0.25rem) rotate(1deg); }
+}
+
+@keyframes peek-beside-card {
+  0%, 48%, 100% { transform: none; }
+  18% { transform: translateX(-28%) rotate(-11deg); }
+  35% { transform: rotate(3deg); }
+}
+
+@keyframes count-initial {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes count-final {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fill-quota {
+  from { transform: scaleX(0.8); }
+  to { transform: scaleX(1); }
+}
