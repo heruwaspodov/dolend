@@ -51,7 +51,7 @@ jobs:
       - run: pnpm run build
       - run: pnpm run typecheck
       - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm run test:landing && pnpm run test:demo && pnpm run test:account && pnpm run test:participation
+      - run: pnpm run test:landing && pnpm run test:account && pnpm run test:participation
       - run: pnpm run ci:stamp && pnpm run ci:verify-export
       - name: Retain the verified static build
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

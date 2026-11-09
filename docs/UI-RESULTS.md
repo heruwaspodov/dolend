@@ -1,6 +1,6 @@
 # T07 — UI dasar dan alur mobile
 
-27 Oktober 2026 • **Selesai untuk UI baseline** • Route live: **https://dolend.web.app/demo/**.
+27 Oktober 2026 • **Bukti historis UI baseline**. Rute playground `/demo/` sudah dihapus dari kode aplikasi.
 
 ## Cakupan
 

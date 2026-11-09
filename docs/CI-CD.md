@@ -8,7 +8,7 @@ Status: **baseline CI/CD frontend selesai**. [Run pertama 40465855465](https://g
 
 Pull request menjalankan checks tanpa kredensial deploy. Push ke `main` atau workflow_dispatch pada `main` menjalankan checks, lalu deploy jika semuanya sukses. Branch lain tidak boleh deploy. Node LTS 24 dipin melalui `.node-version`, pnpm melalui field `packageManager`, dan dependency melalui `pnpm-lock.yaml`; action pihak ketiga dipin ke commit SHA yang terverifikasi.
 
-Job checks: `pnpm install --frozen-lockfile` → lint → Deno API/probe tests → test schema/RLS/transaksi/restore lokal → normal static build → TypeScript → browser tests landing/demo/account/participation dengan Chromium → stamp release → verifikasi export → upload artefak `out/`.
+Job checks: `pnpm install --frozen-lockfile` → lint → Deno API/probe tests → test schema/RLS/transaksi/restore lokal → normal static build → TypeScript → browser tests landing/account/participation dengan Chromium → stamp release → verifikasi export → upload artefak `out/`.
 
 Job `deploy-api` berjalan setelah checks. Job ini meninjau lalu menerapkan migrasi database yang tertunda, menerbitkan Edge Function `dolend-api` ke Supabase, dan memeriksa endpoint `/health`. Job Hosting berjalan setelah API lulus. Hosting mengambil artefak yang sama, memverifikasi commit dan target, memperoleh kredensial OIDC sementara, lalu menerbitkan `hosting:web` pada project `dolend-apps`/site `dolend`. `/release.json` menunjukkan commit/run/build yang terbit. Job memverifikasi commit live cocok dengan commit workflow. Metadata release memakai Cache-Control no-store.
 

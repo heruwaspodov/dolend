@@ -35,7 +35,6 @@
     "ci:verify-live": "node scripts/ci/verify-live.mjs",
     "env:check": "node --env-file=.env.local scripts/check-env.mjs",
     "env:check:ci": "node scripts/check-env.mjs",
-    "test:demo": "playwright test tests/demo.spec.ts",
     "test:account": "playwright test tests/account.spec.ts",
     "test:organizer": "playwright test tests/organizer.spec.ts",
     "test:participation": "playwright test tests/event-booking.spec.ts tests/event-participation.spec.ts",
