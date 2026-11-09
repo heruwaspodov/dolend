@@ -13,7 +13,12 @@ try {
     create table auth.users(id uuid primary key,phone text,phone_confirmed_at timestamptz,email text default 'fixture@example.com',email_confirmed_at timestamptz default now(),raw_app_meta_data jsonb default '{"provider":"google","providers":["google"]}',raw_user_meta_data jsonb default '{}',deleted_at timestamptz,banned_until timestamptz);
     create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
     grant execute on function auth.uid() to public;`);
-  for (const file of (await readdir('supabase/migrations')).filter(f=>f.endsWith('.sql')).sort()) {
+  const migrations = (await readdir('supabase/migrations')).filter(file => file.endsWith('.sql')).sort();
+  const migrationVersions = new Set();
+  for (const file of migrations) {
+    const version = file.split('_', 1)[0];
+    assert.ok(!migrationVersions.has(version), `Duplicate Supabase migration version ${version}: ${file}`);
+    migrationVersions.add(version);
     await db.exec(await readFile(`supabase/migrations/${file}`,'utf8'));
   }
   console.log('PASS migration replay on empty PostgreSQL-compatible database'); checks++;
