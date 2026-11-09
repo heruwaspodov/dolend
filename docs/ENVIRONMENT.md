@@ -57,7 +57,7 @@ Lifecycle upload tidak bergantung pada provider. Row staging dibuat sebelum obje
 
 ## Firebase dan CI
 
-Firebase Hosting memakai `.firebaserc` dan `firebase.json`, bukan Firebase client SDK sehingga tidak memerlukan Firebase web env. GitHub Actions memakai OIDC untuk deploy. Konfigurasi Supabase yang public disimpan sebagai repository Actions variables dan dimasukkan saat static build; tidak ada database password atau service-role key di GitHub Actions.
+Firebase Hosting memakai `.firebaserc` dan `firebase.json` dengan OIDC untuk deploy. Konfigurasi publik Supabase disimpan sebagai repository Actions variables dan dimasukkan saat static build. URI database untuk migrasi dan token deploy API disimpan sebagai environment secrets di `production`. Service-role key tetap dikelola di Supabase. Lihat [alur rilis](CI-CD.md#backend-dan-migration-ordering).
 
 ## Origin API live (31 Oktober 2026)
 

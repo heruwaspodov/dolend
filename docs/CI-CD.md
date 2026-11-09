@@ -10,7 +10,7 @@ Pull request menjalankan checks tanpa kredensial deploy. Push ke `main` atau wor
 
 Job checks: npm ci → lint → Deno API/probe tests → test schema/RLS/transaksi/restore lokal → normal static build → TypeScript → browser tests landing/demo/account/participation dengan Chromium → stamp release → verifikasi export → upload artefak `out/`.
 
-Job `deploy-api` berjalan setelah checks, menerbitkan Edge Function `dolend-api` ke Supabase, lalu memeriksa endpoint `/health`. Job Hosting berjalan setelah API lulus. Hosting mengambil artefak yang sama, memverifikasi commit dan target, memperoleh kredensial OIDC sementara, lalu menerbitkan `hosting:web` pada project `dolend-apps`/site `dolend`. `/release.json` menunjukkan commit/run/build yang terbit. Job memverifikasi commit live cocok dengan commit workflow. Metadata release memakai Cache-Control no-store.
+Job `deploy-api` berjalan setelah checks. Job ini meninjau lalu menerapkan migrasi database yang tertunda, menerbitkan Edge Function `dolend-api` ke Supabase, dan memeriksa endpoint `/health`. Job Hosting berjalan setelah API lulus. Hosting mengambil artefak yang sama, memverifikasi commit dan target, memperoleh kredensial OIDC sementara, lalu menerbitkan `hosting:web` pada project `dolend-apps`/site `dolend`. `/release.json` menunjukkan commit/run/build yang terbit. Job memverifikasi commit live cocok dengan commit workflow. Metadata release memakai Cache-Control no-store.
 
 Run untuk ref yang sama diurutkan agar deploy aktif tidak dipotong run berikutnya. Artefak build disimpan 14 hari; diagnostik browser yang gagal 7 hari. Tidak ada secret di artefak; autentikasi baru dilakukan di job deploy, setelah build/test selesai.
 
@@ -30,18 +30,18 @@ CI sengaja hanya menjalankan test database lokal, bukan fixture hosted yang meng
 
 ## Backend dan migration ordering
 
-Sebelum push workflow, tambahkan `SUPABASE_ACCESS_TOKEN` sebagai environment secret di **Settings → Environments → production** pada GitHub. Token harus punya izin deploy Edge Functions pada project Dolend. Workflow memakai project dari `NEXT_PUBLIC_SUPABASE_URL` yang sudah divalidasi oleh checks. Jika token belum ada, rilis berhenti sebelum Hosting.
+Sebelum push workflow, siapkan dua environment secret di **Settings → Environments → production** pada GitHub.
 
-Deploy otomatis hanya menerbitkan `dolend-api`. Function probe, migration database, dan secrets runtime Supabase dikelola terpisah. Untuk rilis yang membutuhkan perubahan schema:
+- `SUPABASE_ACCESS_TOKEN` punya izin deploy Edge Functions pada project Dolend.
+- `SUPABASE_DB_URL` adalah URI PostgreSQL dari **Connect → Session pooler → URI** di project Dolend. Isi placeholder dengan password database yang sudah di-encode untuk URL. Gunakan port 5432.
 
-1. Jalankan test migration, tinjau dry-run, siapkan backup jika sudah ada data bisnis, lalu terapkan migration additive yang kompatibel dengan API lama.
-2. Push perubahan yang kompatibel ke main. Pipeline menjalankan checks, menerbitkan API, memeriksa health, lalu menerbitkan static build.
+Workflow mencocokkan target database dengan project dari `NEXT_PUBLIC_SUPABASE_URL`. Setelah dry-run lulus, Supabase CLI menerapkan migrasi yang belum tercatat. Seed dan function probe tetap di luar rilis. Buat migrasi additive yang kompatibel dengan API lama yang masih aktif saat migrasi berjalan. Tinjau perubahan schema dan siapkan backup bila rilis memerlukannya.
 
-Simpan token deploy hanya sebagai secret GitHub. Service-role key dan konfigurasi runtime seperti `GEOAPIFY_API_KEY` tetap dikelola di Supabase.
+Simpan kedua kredensial rilis hanya sebagai secret GitHub. Service-role key dan konfigurasi runtime seperti `GEOAPIFY_API_KEY` tetap dikelola di Supabase.
 
 ## Rollback dan diagnosis
 
-- Jika checks atau deploy API gagal, job Hosting tidak berjalan. Jika health check gagal setelah deploy API, periksa log Supabase karena versi API baru mungkin sudah aktif.
+- Jika checks, migrasi, atau deploy API gagal, job Hosting tidak berjalan. Jika deploy API gagal setelah migrasi lulus, migrasi yang sudah diterapkan tetap tercatat. Jika health check gagal setelah deploy API, periksa log Supabase karena versi API baru mungkin sudah aktif.
 - Jika authentication/deploy gagal, lihat job dan resource OIDC yang dirujuk, bukan menambahkan kredensial ke source. Pastikan ref/repository/workflow_ref cocok.
 - Jika post-deploy verification gagal, deploy mungkin sudah terjadi; bandingkan `/release.json` dan log rilis Firebase sebelum mengambil tindakan.
 - Untuk rollback cepat, gunakan riwayat release Hosting di Firebase Console. Untuk perbaikan permanen, revert kode frontend lewat commit baru dan biarkan checks/deploy berjalan. Database/ledger tidak di-reset atau di-rollback oleh pipeline ini.

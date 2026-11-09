@@ -68,7 +68,7 @@ jobs:
           overwrite: true
 
   deploy-api:
-    name: Deploy Supabase Edge Function
+    name: Migrate database and deploy Supabase API
     needs: checks
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
@@ -81,6 +81,41 @@ jobs:
       - uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2.1.1
         with:
           version: '2.122.0'
+      - name: Apply pending Supabase migrations
+        shell: bash
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_API_READY: ${{ secrets.SUPABASE_ACCESS_TOKEN != '' }}
+          PGSSLMODE: require
+        run: |
+          if [[ "$SUPABASE_API_READY" != true || -z "$SUPABASE_DB_URL" ]]; then
+            echo "::error::Set SUPABASE_ACCESS_TOKEN and SUPABASE_DB_URL in the GitHub production environment."
+            exit 1
+          fi
+          python3 - <<'PY'
+          import os
+          from urllib.parse import urlsplit
+
+          project_ref = urlsplit(os.environ["NEXT_PUBLIC_SUPABASE_URL"]).hostname.split(".")[0]
+          try:
+              db = urlsplit(os.environ["SUPABASE_DB_URL"])
+              valid = (
+                  db.scheme in ("postgres", "postgresql")
+                  and (db.hostname or "").endswith(".pooler.supabase.com")
+                  and db.port == 5432
+                  and db.username == f"postgres.{project_ref}"
+                  and db.password not in (None, "", "[YOUR-PASSWORD]", "%5BYOUR-PASSWORD%5D")
+                  and db.path == "/postgres"
+                  and db.query in ("", "sslmode=require")
+                  and not db.fragment
+              )
+          except ValueError:
+              valid = False
+          if not valid:
+              raise SystemExit("::error::SUPABASE_DB_URL must be the production project's Session pooler URI.")
+          PY
+          supabase db push --db-url "$SUPABASE_DB_URL" --dry-run --yes
+          supabase db push --db-url "$SUPABASE_DB_URL" --yes
       - name: Deploy dolend-api
         shell: bash
         env:
