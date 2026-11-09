@@ -9,9 +9,11 @@ test('landing renders reference sections, local assets and clear demo status', a
   const invitation = page.getByRole('article', { name: 'Badminton Sabtu pagi' });
   await expect(invitation.getByText('Contoh undangan')).toBeVisible();
   await expect(invitation.getByText('Kuota contoh, 5 dari 8 terisi')).toHaveCount(1);
-  await expect(page.getByRole('link', { name: 'Buat event', exact: true })).toHaveAttribute('href', '/event/create/');
-  await expect(page.getByRole('link', { name: 'Coba simulator', exact: true })).toHaveAttribute('href', '#simulasi');
-  await page.getByRole('link', { name: 'Coba simulator', exact: true }).focus();
+  const hero = page.getByRole('region', { name: 'Main bareng, tinggal kirim undangan.' });
+  await expect(hero.getByRole('link', { name: 'Buat undangan', exact: true })).toHaveAttribute('href', '/event/create/');
+  const simulatorLink = hero.getByRole('link', { name: 'Hitung patungan', exact: true });
+  await expect(simulatorLink).toHaveAttribute('href', '#simulasi');
+  await simulatorLink.focus();
   await page.keyboard.press('Tab');
   const cost = page.getByLabel('Total biaya (Rp)', { exact: true });
   await expect(cost).toBeFocused();
@@ -60,6 +62,8 @@ test('sample payment statuses change capacity without exceeding the selected lim
   await expect(page.getByTestId('demo-quota')).toHaveText('1 / 12 terisi');
   await page.getByText('Sesuaikan contoh undangan', { exact: true }).click();
   await page.getByRole('radio', { name: /Catat Bayar di Lokasi/ }).check();
+  await expect(page.getByText('Ubah status pembayaran. Peserta tetap dihitung dalam kuota.')).toBeVisible();
+  await page.getByRole('button', { name: 'Ubah status Teman 1', exact: true }).click();
   await expect(page.getByTestId('demo-quota')).toHaveText('3 / 12 terisi');
   await page.getByLabel('Kuota peserta', { exact: true }).fill('2');
   await expect(page.getByTestId('demo-quota')).toHaveText('2 / 2 terisi');
@@ -70,7 +74,7 @@ test('invalid numeric inputs show validation instead of NaN or Infinity', async 
   await page.goto('/#simulasi');
   await page.getByLabel('Kuota peserta', { exact: true }).fill('0');
   await expect(page.locator('#simulasi').getByRole('alert')).toContainText('kuota antara 2–30');
-  await expect(page.getByRole('button', { name: 'Salin Link', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Salin tautan', exact: true })).toBeDisabled();
   await expect(page.getByTestId('demo-per-person')).toHaveText('—');
   await page.getByLabel('Kuota peserta', { exact: true }).fill('12');
   await page.getByLabel('Total biaya (Rp)', { exact: true }).fill('-5');
@@ -87,11 +91,11 @@ test('category changes local preview imagery and FAQ explains manual payments', 
   await page.getByRole('button', { name: 'Studio Musik', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Studio Musik', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('#simulasi img')).toHaveAttribute('src', '/images/landing/music.jpg');
-  const question = page.locator('summary').filter({ hasText: 'Metode pembayaran apa saja yang didukung?' });
+  const question = page.locator('summary').filter({ hasText: 'Bayarnya ke siapa?' });
   await question.click();
-  await expect(page.getByText('Penyelenggara bisa mencatat pembayaran lewat transfer, QRIS statis, atau tunai.', { exact: false })).toBeVisible();
+  await expect(page.getByText('Bayar langsung ke penyelenggara lewat transfer, QRIS statis, atau tunai', { exact: false })).toBeVisible();
   await question.press('Space');
-  await expect(page.getByText('Penyelenggara bisa mencatat pembayaran lewat transfer, QRIS statis, atau tunai.', { exact: false })).not.toBeVisible();
+  await expect(page.getByText('Bayar langsung ke penyelenggara lewat transfer, QRIS statis, atau tunai', { exact: false })).not.toBeVisible();
 });
 
 test('copy creates a restorable demo link and WhatsApp stays an explicit share link', async ({ page, context }) => {
@@ -103,7 +107,7 @@ test('copy creates a restorable demo link and WhatsApp stays an explicit share l
   await page.getByLabel('Nama tempat', { exact: true }).fill('Studio Sore');
   await page.getByRole('button', { name: 'Studio Musik', exact: true }).click();
   await page.getByRole('radio', { name: /DP 50% di Awal/ }).check();
-  await page.getByRole('button', { name: 'Salin Link', exact: true }).click();
+  await page.getByRole('button', { name: 'Salin tautan', exact: true }).click();
   await expect(page.getByRole('status')).toContainText('Tautan simulasi berhasil disalin.');
   const link = await page.evaluate(() => navigator.clipboard.readText());
   expect(link).toMatch(/^https:\/\/dolend\.web\.app\/#simulasi\?demo=/);
@@ -127,7 +131,10 @@ test('copy creates a restorable demo link and WhatsApp stays an explicit share l
 test('copy failure offers manual selection without claiming success', async ({ page }) => {
   await page.addInitScript(() => Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async () => { throw new Error('denied'); } } }));
   await page.goto('/#simulasi');
-  await page.getByRole('button', { name: 'Salin Link', exact: true }).click();
+  const manualLink = page.getByRole('textbox', { name: 'Tautan simulasi', exact: true });
+  await expect(manualLink).toBeHidden();
+  await page.getByRole('button', { name: 'Salin tautan', exact: true }).click();
+  await expect(manualLink).toBeFocused();
   await expect(page.getByRole('status')).toContainText('Penyalinan otomatis tidak tersedia.');
   await expect(page.getByRole('status')).not.toContainText('berhasil disalin');
 });

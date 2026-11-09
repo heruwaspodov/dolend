@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { ArrowRight, ChevronDown } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Simulator } from '@/components/landing/simulator';
 import { MobileNav } from '@/components/landing/mobile-nav';
@@ -10,16 +10,16 @@ export const metadata: Metadata = {
 };
 
 const steps = [
-  { title: 'Buat rencana', description: 'Isi jadwal, tempat, kuota, dan biaya kalau perlu patungan.' },
-  { title: 'Kirim undangan', description: 'Bagikan satu tautan ke grup. Teman bisa ikut lewat browser tanpa bikin akun.' },
-  { title: 'Cek siapa yang ikut', description: 'Lihat siapa yang sudah daftar dan catat pembayaran di halaman event.' },
+  { title: 'Isi detail kegiatan', description: 'Isi jadwal, tempat, kuota, dan biaya kalau perlu patungan.' },
+  { title: 'Bagikan undangan', description: 'Kirim tautannya ke grup. Teman bisa daftar lewat browser tanpa akun.' },
+  { title: 'Cek peserta dan pembayaran', description: 'Lihat siapa yang sudah daftar, lalu catat pembayarannya.' },
 ];
 
 const faqs = [
-  { question: 'Apakah teman saya harus mengunduh aplikasi Dolend?', answer: 'Tidak perlu. Mereka bisa membuka undangan dari browser dan mendaftar sebagai tamu.' },
-  { question: 'Metode pembayaran apa saja yang didukung?', answer: 'Penyelenggara bisa mencatat pembayaran lewat transfer, QRIS statis, atau tunai. Uang dibayarkan langsung ke penyelenggara, yang kemudian memverifikasinya di Dolend.' },
-  { question: 'Bagaimana jika ada peserta yang membatalkan kedatangan?', answer: 'Peserta bisa membatalkan dari tautan booking atau akun mereka. Kalau sudah ada tagihan atau pembayaran, hubungi penyelenggara untuk menyesuaikannya.' },
-  { question: 'Apa bedanya simulator dan event?', answer: 'Simulator bisa dicoba tanpa akun untuk menghitung contoh patungan. Untuk membuat undangan yang bisa dipakai teman mendaftar, pilih Buat event dan masuk dengan Google.' },
+  { question: 'Bisa ikut tanpa akun?', answer: 'Bisa. Teman cukup buka tautan undangan di browser dan daftar sebagai tamu.' },
+  { question: 'Bayarnya ke siapa?', answer: 'Bayar langsung ke penyelenggara lewat transfer, QRIS statis, atau tunai, sesuai petunjuk di undangan. Penyelenggara memeriksa pembayaran di Dolend.' },
+  { question: 'Bagaimana cara batal ikut?', answer: 'Batalkan lewat tautan pendaftaran atau akunmu. Kalau sudah ada tagihan atau pembayaran, hubungi penyelenggara.' },
+  { question: 'Apa bedanya simulasi dan undangan?', answer: 'Simulasi bisa dicoba tanpa akun untuk menghitung patungan. Untuk mengundang teman mendaftar, pilih Buat undangan dan masuk dengan Google.' },
 ];
 
 const contentWidth = 'mx-auto w-[calc(100%-2.5rem)] max-w-7xl sm:w-[calc(100%-4rem)]';
@@ -33,7 +33,7 @@ export default function Home() {
           <a href="#atas" className="flex min-h-11 items-center text-2xl font-bold tracking-tight" aria-label="Dolend, kembali ke atas">dolend.</a>
           <nav aria-label="Navigasi utama" className="hidden items-center gap-7 text-sm text-[#514e4a] lg:flex">
             <a className="py-3 underline-offset-4 hover:text-black hover:underline" href="#cara-kerja">Cara kerja</a>
-            <a className="py-3 underline-offset-4 hover:text-black hover:underline" href="#simulasi">Simulator</a>
+            <a className="py-3 underline-offset-4 hover:text-black hover:underline" href="#simulasi">Hitung patungan</a>
             <a className="py-3 underline-offset-4 hover:text-black hover:underline" href="#faq">FAQ</a>
           </nav>
           <div className="flex items-center gap-1">
@@ -49,10 +49,10 @@ export default function Home() {
             <p className="mx-auto mt-4 max-w-[48ch] text-base leading-relaxed text-[#514e4a] sm:text-xl">Atur jadwal, kuota, dan patungan dalam satu tautan.</p>
             <div className="mx-auto mt-6 grid max-w-sm gap-2.5 min-[400px]:flex min-[400px]:max-w-none min-[400px]:justify-center">
               <Button asChild className="min-h-12 rounded-2xl px-7 text-base font-bold hover:bg-[#005bab] motion-safe:hover:-translate-y-px">
-                <a href="/event/create/">Buat event</a>
+                <a href="/event/create/">Buat undangan</a>
               </Button>
               <Button asChild variant="outline" className="min-h-12 rounded-2xl border-[#171615] bg-transparent px-7 text-base font-bold hover:bg-[#efebe4] motion-safe:hover:-translate-y-px">
-                <a href="#simulasi">Coba simulator</a>
+                <a href="#simulasi">Hitung patungan</a>
               </Button>
             </div>
             <div className="mt-5 sm:mt-9">
@@ -61,22 +61,22 @@ export default function Home() {
           </div>
         </section>
 
-        <section id="cara-kerja" aria-labelledby="how-title" className="scroll-mt-16 py-8 sm:py-10">
+        <section id="cara-kerja" aria-labelledby="how-title" className="scroll-mt-16 py-8 sm:py-12">
           <div className={contentWidth}>
             <h2 id="how-title" className="text-2xl font-bold tracking-tight sm:text-3xl">Cara kerja Dolend</h2>
-            <ol className="mt-4 grid divide-y divide-[#e6e3df] sm:mt-5 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-              {steps.map((step, index) => <li key={step.title} className="flex items-start gap-3 py-3 first:pt-0 last:pb-0 sm:px-6 sm:py-0 sm:first:pl-0 sm:last:pr-0">
-                <span aria-hidden="true" className="mt-0.5 text-sm font-semibold text-[#005bab] tabular-nums">0{index + 1}</span>
-                <div><h3 className="font-semibold">{step.title}</h3><p className="mt-1 text-sm leading-relaxed text-[#514e4a]">{step.description}</p></div>
+            <ol className="mt-4 grid divide-y divide-[#e6e3df] sm:mt-6 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+              {steps.map((step, index) => <li key={step.title} className="flex items-start gap-3 py-4 first:pt-0 last:pb-0 sm:px-6 sm:py-0 sm:first:pl-0 sm:last:pr-0">
+                <span aria-hidden="true" className="mt-0.5 text-sm font-semibold text-[#615d59] tabular-nums">0{index + 1}</span>
+                <div><h3 className="font-semibold">{step.title}</h3><p className="mt-1 max-w-[42ch] text-[0.9375rem] leading-relaxed text-[#514e4a]">{step.description}</p></div>
               </li>)}
             </ol>
           </div>
         </section>
 
-        <Simulator />
+        <Simulator contentWidth={contentWidth} />
 
         <section id="faq" aria-labelledby="faq-title" className="scroll-mt-16 bg-white">
-          <div className={`${contentWidth} grid gap-5 py-12 sm:py-16 lg:grid-cols-2 lg:gap-6`}>
+          <div className={`${contentWidth} grid items-start gap-5 py-10 sm:py-14 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] lg:gap-10`}>
             <h2 id="faq-title" className="text-2xl font-bold tracking-tight sm:text-3xl">Pertanyaan umum</h2>
             <div>
               <div className="divide-y divide-[#e6e3df] border-y border-[#e6e3df]">
@@ -85,12 +85,12 @@ export default function Home() {
                     <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-4 py-3 text-sm font-semibold marker:hidden">
                       {faq.question}<ChevronDown className="size-4 shrink-0 motion-safe:transition-transform group-open:rotate-180" aria-hidden="true" />
                     </summary>
-                    <p className="pb-4 text-sm leading-relaxed text-[#514e4a]">{faq.answer}</p>
+                    <p className="max-w-[65ch] pb-4 text-[0.9375rem] leading-relaxed text-[#514e4a]">{faq.answer}</p>
                   </details>
                 ))}
               </div>
-              <a href="/event/create/" className="mt-3 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[#005bab] underline-offset-4 hover:underline">
-                Mulai buat event <ArrowRight className="size-4" aria-hidden="true" />
+              <a href="/event/create/" className="mt-4 inline-flex min-h-11 items-center text-sm font-semibold text-[#005bab] underline-offset-4 hover:underline">
+                Buat undangan
               </a>
             </div>
           </div>

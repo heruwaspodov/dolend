@@ -10,7 +10,7 @@ Bantu penyelenggara memahami dalam satu layar bahwa Dolend bisa membuat dan memb
 
 - Judul di tengah. “Main bareng, tinggal kirim undangan.”
 - Teks pendukung. “Atur jadwal, kuota, dan patungan dalam satu tautan.”
-- Aksi utama **Buat event**, diikuti **Coba simulator**. Contoh undangan tampil lebar tepat di bawah kedua tombol.
+- Aksi utama **Buat undangan**, diikuti **Hitung patungan**. Contoh undangan tampil lebar tepat di bawah kedua tombol.
 - Gunakan kanvas putih hangat, teks tinta hitam, garis tipis, dan biru Dolend untuk aksi utama serta bar kuota. Jaga tinggi hero mengikuti isi.
 - Pertahankan Plus Jakarta Sans. Gunakan bobot tebal pada judul agar seimbang dengan garis tinta ilustrasi. Bayangan tipis pada kartu memberi kesan kartu berada di depan kedua karakter.
 - Kartu memuat nama kegiatan, jadwal, titik kumpul, kuota, dan biaya jika ada. Labeli kartu sebagai **Contoh undangan**. Bila biaya dibagi berdasarkan kapasitas, jelaskan bahwa nominal per orang berlaku saat kuota penuh.
