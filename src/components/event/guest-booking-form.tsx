@@ -1,9 +1,8 @@
 'use client';
 
 import { useEffect, useState, type FormEvent } from 'react';
-import { CheckCircle2, Copy, LoaderCircle } from 'lucide-react';
+import { Copy, LoaderCircle, LockKeyhole } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { createGuestBooking, getGuestBooking } from '@/lib/guest-booking-client';
@@ -18,7 +17,7 @@ const statusLabel: Record<string,string> = {
   cancelled: 'Booking sudah dibatalkan.',
 };
 
-export function GuestBookingForm({ eventId,inviteToken,bookingToken }: { eventId: string; inviteToken?:string;bookingToken?:string }) {
+export function GuestBookingForm({ eventId,inviteToken,bookingToken,canBook = true,onParticipationChange }: { eventId: string; inviteToken?:string;bookingToken?:string;canBook?:boolean;onParticipationChange:()=>void }) {
   const [displayName, setDisplayName] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
   const [status, setStatus] = useState('');
@@ -65,6 +64,7 @@ export function GuestBookingForm({ eventId,inviteToken,bookingToken }: { eventId
       setIssuedBookingToken(booking.booking_token);
       setInvoiceId(booking.invoice_id ?? null);
       setBookingUrl(window.location.href);
+      onParticipationChange();
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'Booking belum dapat dibuat.');
     } finally {
@@ -84,31 +84,40 @@ export function GuestBookingForm({ eventId,inviteToken,bookingToken }: { eventId
   async function cancelBooking(formEvent:FormEvent<HTMLFormElement>) {
     formEvent.preventDefault();const token=bookingToken??issuedBookingToken;if(!token)return;setSubmitting(true);setError('');
     const reason=String(new FormData(formEvent.currentTarget).get('reason')??'').trim();
-    try{const participation=await cancelGuestParticipation(eventId,token,reason);setStatus(participation.status);}
+    try{const participation=await cancelGuestParticipation(eventId,token,reason);setStatus(participation.status);onParticipationChange();}
     catch(requestError){setError(requestError instanceof Error?requestError.message:'Booking belum dapat dibatalkan.');}
     finally{setSubmitting(false);}
   }
 
-  if (loadingStatus) return <Card aria-busy="true"><CardContent className="pt-6"><p className="flex items-center gap-2 text-sm text-muted-foreground"><LoaderCircle className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />Memeriksa tautan booking…</p></CardContent></Card>;
+  if (loadingStatus) return <div aria-busy="true"><p className="flex items-center gap-2 text-sm text-muted-foreground"><LoaderCircle className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />Memeriksa tautan booking…</p></div>;
 
-  if (status && bookingUrl) return <Card><CardHeader><CardTitle role="heading" aria-level={2} className="flex items-center gap-2"><CheckCircle2 className="size-5 text-emerald-700" aria-hidden="true" />Status booking</CardTitle></CardHeader><CardContent>
-    <p className="text-sm leading-relaxed">{statusLabel[status] ?? 'Booking tersedia.'}</p>
-    <div className="mt-5 space-y-2"><Label htmlFor="booking-link">Tautan booking rahasia</Label><Input id="booking-link" readOnly value={bookingUrl} className="min-h-11" /></div>
-    <Button type="button" variant="outline" className="mt-3 min-h-11" onClick={copyBookingLink}><Copy aria-hidden="true" />{copied ? 'Tautan tersalin' : 'Salin tautan booking'}</Button>
+  if (status && bookingUrl) return <section aria-labelledby="guest-booking-status">
+    <h2 id="guest-booking-status" className="font-semibold">Status booking</h2>
+    <p className="mt-2 rounded-lg border border-[#e6e3df] bg-[#f6f5f4] px-3 py-2.5 text-sm leading-relaxed">{statusLabel[status] ?? 'Booking tersedia.'}</p>
+    <div className="mt-4 space-y-2">
+      <Label htmlFor="booking-link"><LockKeyhole className="size-4" aria-hidden="true" />Tautan booking rahasia</Label>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <Input id="booking-link" readOnly value={bookingUrl} className="min-h-11 min-w-0 bg-[#f6f5f4] sm:flex-1" />
+        <Button type="button" className="min-h-11" onClick={copyBookingLink}><Copy aria-hidden="true" />{copied ? 'Tautan tersalin' : 'Salin tautan booking'}</Button>
+      </div>
+    </div>
     {chargeId && <Button asChild className="mt-3 min-h-11"><a href={`/payment/?charge=${chargeId}${new URL(bookingUrl).hash}`}>Lihat tagihan dan pembayaran</a></Button>}
     {invoiceId && <Button asChild className="mt-3 min-h-11"><a href={`/payment/?invoice=${invoiceId}${new URL(bookingUrl).hash}`}>Lihat invoice</a></Button>}
     {!['attended','no_show','cancelled'].includes(status)&&<details className="mt-5 border-t pt-4"><summary className="min-h-11 cursor-pointer py-3 text-sm font-medium">Batalkan booking</summary><form className="pt-3" onSubmit={cancelBooking}><Label htmlFor="guest-cancel-reason">Alasan</Label><Input id="guest-cancel-reason" name="reason" required maxLength={1000} className="mt-2 min-h-11"/><p className="mt-2 text-xs leading-relaxed text-muted-foreground">Jika iuran sudah dikunci, pembatalan tidak otomatis menghapus tagihan. Hubungi organizer untuk penyesuaian.</p><Button type="submit" variant="destructive" disabled={submitting} className="mt-3 min-h-11">{submitting?'Membatalkan…':'Batalkan booking'}</Button></form></details>}
     <p className="mt-3 text-xs leading-relaxed text-muted-foreground">Siapa pun yang memiliki tautan ini dapat melihat status booking. Jangan bagikan ke orang lain.</p>
     {error && <p className="mt-3 text-sm font-medium text-rose-700" role="alert">{error}</p>}
-  </CardContent></Card>;
+  </section>;
 
-  return <Card><CardHeader><CardTitle role="heading" aria-level={2}>Booking sebagai guest</CardTitle></CardHeader><CardContent>
+  if (!canBook) return <p className="text-sm text-muted-foreground">Kapasitas aktivitas sudah penuh.</p>;
+
+  return <section aria-labelledby="guest-booking-title">
+    <h2 id="guest-booking-title" className="mb-2 font-semibold">Booking sebagai guest</h2>
     <p className="text-sm leading-relaxed text-muted-foreground">Tidak perlu akun. Gunakan nama dan nomor WhatsApp Indonesia yang dapat dihubungi organizer.</p>
     <form className="mt-5 space-y-4" onSubmit={submit}>
-      <div className="space-y-2"><Label htmlFor="guest-name">Nama</Label><Input id="guest-name" name="name" autoComplete="name" maxLength={120} required value={displayName} onChange={(event) => setDisplayName(event.target.value)} /></div>
-      <div className="space-y-2"><Label htmlFor="guest-whatsapp">Nomor WhatsApp</Label><Input id="guest-whatsapp" name="tel" type="tel" inputMode="tel" autoComplete="tel" placeholder="0812 3456 7890" minLength={8} maxLength={32} required value={whatsapp} onChange={(event) => setWhatsapp(event.target.value)} /></div>
+      <div className="space-y-2"><Label htmlFor="guest-name">Nama</Label><Input id="guest-name" name="name" autoComplete="name" maxLength={120} required className="min-h-11" value={displayName} onChange={(event) => setDisplayName(event.target.value)} /></div>
+      <div className="space-y-2"><Label htmlFor="guest-whatsapp">Nomor WhatsApp</Label><Input id="guest-whatsapp" name="tel" type="tel" inputMode="tel" autoComplete="tel" placeholder="0812 3456 7890" minLength={8} maxLength={32} required className="min-h-11" value={whatsapp} onChange={(event) => setWhatsapp(event.target.value)} /></div>
       <Button type="submit" className="min-h-11" disabled={submitting}>{submitting ? <LoaderCircle className="animate-spin motion-reduce:animate-none" aria-hidden="true" /> : null}{submitting ? 'Membuat booking…' : 'Booking tempat'}</Button>
       {error && <p className="text-sm font-medium text-rose-700" role="alert">{error}</p>}
     </form>
-  </CardContent></Card>;
+  </section>;
 }

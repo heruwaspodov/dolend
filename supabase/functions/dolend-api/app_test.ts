@@ -249,6 +249,40 @@ Deno.test('organizer roster reads participant users embedded as objects', async 
   }
 });
 
+Deno.test('event roster exposes display names only after event access is verified', async () => {
+  const originalFetch = globalThis.fetch;
+  let rosterRequests = 0;
+  globalThis.fetch = async (input, init) => {
+    const url = new URL(String(input));
+    if (url.pathname === '/rest/v1/events') return Response.json({ id: identity.id, venue_snapshot: {} });
+    if (url.pathname === '/rest/v1/event_participants') {
+      assert(url.searchParams.get('event_id') === `eq.${identity.id}`, 'Roster is not scoped to the event');
+      if (init?.method === 'HEAD') return new Response(null, { headers: { 'content-range': '*/12' } });
+      rosterRequests++;
+      assert(url.searchParams.get('select') === 'users(display_name)', 'Roster selected non-display fields');
+      assert(url.searchParams.get('status') === 'in.(confirmed,attended,no_show)', 'Roster includes unconfirmed participants');
+      assert(url.searchParams.get('offset') === '10' && url.searchParams.get('limit') === '10', 'Roster is not paginated');
+      return Response.json([{ users: { display_name: 'Tamu Contoh' } }, { users: [{ display_name: 'Anggota Contoh' }] }]);
+    }
+    throw new Error(`Unexpected event roster request: ${url.pathname}`);
+  };
+  try {
+    const validInvite = 'i'.repeat(43);
+    const invites: EventInviteService = { canAccess: async (_, token) => token === validInvite };
+    const routes = manualPaymentRoutes(null, 'http://supabase.test', 'test-key', undefined, null, null, invites);
+    const endpoint = `http://localhost/events/${identity.id}?roster_page=2`;
+    const denied = await routes.handle(new Request(endpoint));
+    assert(denied.status === 403, 'Restricted event exposed roster to anonymous visitor');
+    const response = await routes.handle(new Request(endpoint, { headers: { 'x-invite-token': validInvite } }));
+    assert(response.ok, `Expected event detail, got ${response.status}`);
+    const { data } = await response.json();
+    assert(rosterRequests === 1, 'Denied request queried the roster');
+    assert(JSON.stringify(data.participant_roster) === JSON.stringify({ page: 2, names: ['Tamu Contoh', 'Anggota Contoh'] }), 'Unexpected roster projection');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 Deno.test('event share link returns the same organizer-only token after creation', async () => {
   const originalFetch = globalThis.fetch;
   let status = 'recruiting';

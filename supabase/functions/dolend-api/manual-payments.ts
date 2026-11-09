@@ -183,16 +183,37 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
     const {data:invoice}=await client().from('invoices').select('id').eq('participant_id',participant.id).maybeSingle();
     return {...participantDto(participant),invoice_id:invoice?.id??null};
   }
-  async function eventDto(eventId: string, publicOnly: boolean) {
+  const confirmedStatuses = ['confirmed', 'attended', 'no_show'];
+  const rosterPageSize = 10;
+  const eventRosterQuery = t.Object({ roster_page: t.Optional(t.Numeric({ minimum: 1, maximum: 10000, multipleOf: 1 })) });
+
+  async function eventDto(eventId: string, publicOnly: boolean, rosterPage = 1) {
     let query=client().from('events').select('id,title,description,starts_at,ends_at,registration_closes_at,timezone,capacity,price_amount,currency,status,visibility,venue_snapshot,venue_booking_status,estimated_total_cost,contributions_locked_at,contribution_mode,payment_mode,payment_due_at,payment_timing,hold_minutes,version,activity_types(slug,name)').eq('id',eventId);
     if(publicOnly)query=query.in('status',['published','recruiting','confirmed','completed']);
     const {data:e,error}=await query.single();
     if(error)throw new FinanceError('FORBIDDEN');
-    const {count}=await client().from('event_participants').select('id',{count:'exact',head:true}).eq('event_id',e.id).in('status',['confirmed','attended','no_show']);
-    const {count:chargeable}=await client().from('event_participants').select('id',{count:'exact',head:true}).eq('event_id',e.id).eq('chargeable',true).eq('status','confirmed');
+    const [{count}, {count:chargeable}] = await Promise.all([
+      client().from('event_participants').select('id',{count:'exact',head:true}).eq('event_id',e.id).in('status',confirmedStatuses),
+      client().from('event_participants').select('id',{count:'exact',head:true}).eq('event_id',e.id).eq('chargeable',true).eq('status','confirmed'),
+    ]);
+    const page = Math.min(rosterPage, Math.max(1, Math.ceil((count ?? 0) / rosterPageSize)));
+    let participant_roster: { page: number; names: (string | null)[] } | undefined;
+    if (publicOnly && count !== null) {
+      if (count === 0) participant_roster = { page, names: [] };
+      else {
+        const first = (page - 1) * rosterPageSize;
+        const { data, error: rosterError } = await client().from('event_participants')
+          .select('users(display_name)').eq('event_id', eventId).in('status', confirmedStatuses)
+          .order('id').range(first, first + rosterPageSize - 1);
+        if (!rosterError) participant_roster = {
+          page,
+          names: (data ?? []).map(({ users }) => (Array.isArray(users) ? users[0] : users)?.display_name ?? null),
+        };
+      }
+    }
     const {venue_snapshot,activity_types,...rest}=e;
     const activityType = Array.isArray(activity_types) ? activity_types[0] : activity_types;
-    return {...rest,activity_type_slug:activityType?.slug??null,...(!publicOnly?{activity_type_name:activityType?.name??null}:{}),participants_count:count??0,estimated_per_person:chargeable?Math.ceil(Number(e.estimated_total_cost)/chargeable):null,venue:{name:venue_snapshot?.name?.trim()||'Venue belum ditentukan',address:venue_snapshot?.address??'',maps_url:venue_snapshot?.maps_url??'',...(venue_snapshot?.latitude!==undefined?{latitude:Number(venue_snapshot.latitude),longitude:Number(venue_snapshot.longitude)}:{}),...(venue_snapshot?.meeting_instructions?{meeting_instructions:venue_snapshot.meeting_instructions}:{}),...(!publicOnly&&venue_snapshot?.coarse_region_code?{coarse_region_code:venue_snapshot.coarse_region_code}:{})}};
+    return {...rest,activity_type_slug:activityType?.slug??null,...(!publicOnly?{activity_type_name:activityType?.name??null}:{}),participants_count:count??0,participant_roster,estimated_per_person:chargeable?Math.ceil(Number(e.estimated_total_cost)/chargeable):null,venue:{name:venue_snapshot?.name?.trim()||'Venue belum ditentukan',address:venue_snapshot?.address??'',maps_url:venue_snapshot?.maps_url??'',...(venue_snapshot?.latitude!==undefined?{latitude:Number(venue_snapshot.latitude),longitude:Number(venue_snapshot.longitude)}:{}),...(venue_snapshot?.meeting_instructions?{meeting_instructions:venue_snapshot.meeting_instructions}:{}),...(!publicOnly&&venue_snapshot?.coarse_region_code?{coarse_region_code:venue_snapshot.coarse_region_code}:{})}};
   }
   return new Elysia({ aot: false })
     .onBeforeHandle(({set}) => {set.headers['cache-control']='no-store';})
@@ -220,14 +241,14 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
         };
       })};
     })
-    .get('/participant/events/:id', async ({request,params}) => {
+    .get('/participant/events/:id', async ({request,params,query}) => {
       const userId = await participantUser(request);
       const {data, error} = await client().from('event_participants').select('status,hold_expires_at')
         .eq('event_id', params.id).eq('user_id', userId).maybeSingle();
       if (error) throw new FinanceError('STORAGE_UNAVAILABLE');
       if (!data || !canViewAsParticipant(data.status, data.hold_expires_at)) throw new FinanceError('FORBIDDEN');
-      return {data: await eventDto(params.id, true)};
-    },{params:t.Object({id:uuid})})
+      return {data: await eventDto(params.id, true, query.roster_page)};
+    },{params:t.Object({id:uuid}),query:eventRosterQuery})
     .get('/organizer/events',async ({request,query})=>{
       const id=await actor(request);
       const {data:members,error:me}=await client().from('workspace_members').select('workspace_id').eq('profile_id',id).in('role',['owner','organizer']);
@@ -267,10 +288,10 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
       const workspace = Array.isArray(data.workspaces) ? data.workspaces[0] : data.workspaces;
       return { data: { ...event, workspace_id: data.workspace_id, workspace_name: workspace?.name ?? null } };
     },{params:t.Object({id:uuid})})
-    .get('/events/:id',async ({params,request}) => {
+    .get('/events/:id',async ({params,request,query}) => {
       await publicEventAccess(params.id,request);
-      return {data:await eventDto(params.id,true)};
-    },{params:t.Object({id:uuid})})
+      return {data:await eventDto(params.id,true,query.roster_page)};
+    },{params:t.Object({id:uuid}),query:eventRosterQuery})
     .post('/events',async ({request,body}) => {
       const id=await actor(request);
       const venue=body.venue_snapshot?normalizeVenueSnapshot(body.venue_snapshot):undefined;
