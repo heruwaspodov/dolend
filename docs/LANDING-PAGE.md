@@ -42,11 +42,11 @@ Sesuai arahan pengguna, **provider SMS dan payment gateway ditunda**. Tidak ada 
 ## Menjalankan dan menerbitkan
 
 ```sh
-npm ci
-npm run build
-npm run test:landing
-npm run hosting:deploy
-HOSTING_BASE_URL=https://dolend.web.app npm run test:landing
+pnpm install --frozen-lockfile
+pnpm run build
+pnpm run test:landing
+pnpm run hosting:deploy
+HOSTING_BASE_URL=https://dolend.web.app pnpm run test:landing
 ```
 
 Firebase CLI harus terautentikasi. Jangan menggunakan `build:preview`/fixture event untuk rilis live. `test:hosting` tetap untuk suite POC T03 dengan fixture khusus; `test:landing` tidak membutuhkan fixture tersebut. Browser default adalah Chrome lokal; Chromium Playwright dapat dipakai melalui `PLAYWRIGHT_CHANNEL=chromium` setelah instalasinya.

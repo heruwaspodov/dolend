@@ -4,12 +4,12 @@
 
 Gunakan `.env.local` untuk frontend Next.js dan API Deno lokal. File ini sudah dibuat pada workspace, berizin `0600`, dan diabaikan Git. `.env.example` adalah kontrak konfigurasi tanpa nilai key.
 
-Next.js membacanya otomatis melalui `npm run dev`; `npm run api:dev` meneruskannya ke Deno dengan `--env-file=.env.local`.
+Next.js membacanya otomatis melalui `pnpm run dev`; `pnpm run api:dev` meneruskannya ke Deno dengan `--env-file=.env.local`.
 
 Validasi konfigurasi tanpa mencetak key:
 
 ```sh
-npm run env:check
+pnpm run env:check
 ```
 
 | Variable | Pemakai | Sifat |
@@ -40,9 +40,9 @@ Jangan menaruh service-role key, database password, SMS token, payment secret, a
 Schema database tidak dipilih oleh aplikasi melalui `.env.local`. Supabase CLI sudah di-link ke project `fpbefabsqryxmnmxufjw`; project ref lokal disimpan dalam `supabase/.temp/` yang gitignored. Login CLI menyediakan otorisasi untuk migration:
 
 ```sh
-npx supabase migration list --linked
-npx supabase db push --linked --dry-run
-npx supabase db push --linked
+pnpm exec supabase migration list --linked
+pnpm exec supabase db push --linked --dry-run
+pnpm exec supabase db push --linked
 ```
 
 Migration SQL pada `supabase/migrations/` adalah source of truth schema. Ini menghindari penyimpanan password PostgreSQL atau service-role key di repository.

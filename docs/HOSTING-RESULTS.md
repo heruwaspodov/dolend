@@ -44,18 +44,18 @@ Preview WhatsApp/metadata event masih umum Dolend. Detail diambil client-side; t
 
 ## Menjalankan ulang
 
-Diperlukan npm dependencies dan Firebase CLI terautentikasi (sesi ini 14.27.0).
+Diperlukan dependency proyek dan Firebase CLI terautentikasi (sesi ini 14.27.0).
 
 ```sh
-npm ci
-npm run build:preview
-npm run preview:fixture
-npm run test:hosting
-npm run hosting:preview
-HOSTING_BASE_URL=https://dolend--t03-pnd1m1mh.web.app npm run test:hosting
+pnpm install --frozen-lockfile
+pnpm run build:preview
+pnpm run preview:fixture
+pnpm run test:hosting
+pnpm run hosting:preview
+HOSTING_BASE_URL=https://dolend--t03-pnd1m1mh.web.app pnpm run test:hosting
 ```
 
-Gunakan URL baru bila hasil deploy channel berubah. Playwright memakai Chrome lokal secara default; `PLAYWRIGHT_CHANNEL=chromium` dapat dipakai setelah `npx playwright install chromium`. Fixture metadata lokal diabaikan Git; jangan mengubah contoh menjadi data pribadi. Untuk build normal, biarkan `NEXT_PUBLIC_POC_EVENT_FIXTURES=false` lalu jalankan `npm run build`.
+Gunakan URL baru bila hasil deploy channel berubah. Playwright memakai Chrome lokal secara default; `PLAYWRIGHT_CHANNEL=chromium` dapat dipakai setelah `pnpm exec playwright install chromium`. Fixture metadata lokal diabaikan Git; jangan mengubah contoh menjadi data pribadi. Untuk build normal, biarkan `NEXT_PUBLIC_POC_EVENT_FIXTURES=false` lalu jalankan `pnpm run build`.
 
 Berikutnya: T04 schema/transaksi/RLS dan T05 provider readiness. CI/CD remote tetap T06, UI alur lengkap tetap T07.
 

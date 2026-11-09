@@ -7,12 +7,12 @@ Fixture ini khusus T02 dan **bukan migration schema bisnis**. SQL memakai namesp
 Jalankan dari root proyek dengan Supabase CLI yang sudah login. Perintah berikut membuat dan menghapus resource sementara hanya pada project Dolend yang dipilih pengguna.
 
 ```sh
-npm run supabase -- db query --linked --project-ref fpbefabsqryxmnmxufjw --file supabase/poc/setup.sql
-POC_PROJECT_REF=fpbefabsqryxmnmxufjw npm run poc:hosted -- prepare
-npm run supabase -- functions deploy dolend-compat-poc --project-ref fpbefabsqryxmnmxufjw --use-api
-POC_PROJECT_REF=fpbefabsqryxmnmxufjw npm run poc:hosted -- test
+pnpm run supabase -- db query --linked --project-ref fpbefabsqryxmnmxufjw --file supabase/poc/setup.sql
+POC_PROJECT_REF=fpbefabsqryxmnmxufjw pnpm run poc:hosted -- prepare
+pnpm run supabase -- functions deploy dolend-compat-poc --project-ref fpbefabsqryxmnmxufjw --use-api
+POC_PROJECT_REF=fpbefabsqryxmnmxufjw pnpm run poc:hosted -- test
 POC_PROJECT_REF=fpbefabsqryxmnmxufjw node scripts/poc-storage-check.mjs
-POC_PROJECT_REF=fpbefabsqryxmnmxufjw npm run poc:hosted -- cleanup
+POC_PROJECT_REF=fpbefabsqryxmnmxufjw pnpm run poc:hosted -- cleanup
 ```
 
 `test` berjalan sekali per prepare: counter dan user deletion mengubah fixture. Setelah kegagalan, periksa laporan, lakukan cleanup, setup/prepare ulang sebelum full test berikutnya. Jangan menghapus state sebelum cleanup selesai; file itu memuat identitas resource yang harus dibersihkan. Selalu jalankan cleanup juga ketika test gagal.
@@ -24,6 +24,6 @@ Probe memakai `verify_jwt=false` hanya pada function ini untuk webhook HMAC. End
 Pure handler tests tanpa hosted fixtures:
 
 ```sh
-npm run poc:check
-npm run poc:test
+pnpm run poc:check
+pnpm run poc:test
 ```

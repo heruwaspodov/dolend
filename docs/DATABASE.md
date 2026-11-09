@@ -91,10 +91,10 @@ A late prepay receipt is always retained. When no seat remains or event is close
 ## Migration and verification commands
 
 ```sh
-npm run db:test
-npm run supabase -- db push --linked --project-ref fpbefabsqryxmnmxufjw --dry-run
-npm run supabase -- db push --linked --project-ref fpbefabsqryxmnmxufjw --yes
-DATABASE_TEST_PROJECT_REF=fpbefabsqryxmnmxufjw npm run db:test:hosted
+pnpm run db:test
+pnpm run supabase -- db push --linked --project-ref fpbefabsqryxmnmxufjw --dry-run
+pnpm run supabase -- db push --linked --project-ref fpbefabsqryxmnmxufjw --yes
+DATABASE_TEST_PROJECT_REF=fpbefabsqryxmnmxufjw pnpm run db:test:hosted
 ```
 
 Migrations are append-only once applied. Reference activity categories are seeded by a versioned migration; separate db.seed is disabled to avoid a missing/duplicate seed file. Never reset the hosted database to run tests. A local Supabase reset on an isolated Docker project may replay all migrations when Docker is available.
@@ -104,7 +104,7 @@ Local verification uses PGlite with minimal Auth table/function stubs, then repl
 Hosted verification uses disposable Auth accounts, synthetic users and scoped events. It exercises actual RPC/RLS/parallel Postgres transactions, real hold expiry, and duplicate payment/refund callbacks without contacting any payment provider. Credentials are held in memory; cleanup state IDs are stored in gitignored `.env.database-state.json`. Temporary SQL cleanup runs as a privileged database operator, deletes only tracked fixtures in FK order, then removes fixture users. If cleanup fails, keep that state and run:
 
 ```sh
-DATABASE_TEST_PROJECT_REF=fpbefabsqryxmnmxufjw npm run db:test:hosted -- cleanup
+DATABASE_TEST_PROJECT_REF=fpbefabsqryxmnmxufjw pnpm run db:test:hosted -- cleanup
 ```
 
 No live email/SMS or money is sent. Generated dictionary/catalog checks contain schema metadata only. Detailed evidence is in [DATABASE-RESULTS.md](DATABASE-RESULTS.md).

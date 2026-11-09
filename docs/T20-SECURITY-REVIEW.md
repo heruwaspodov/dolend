@@ -4,12 +4,12 @@ Tanggal audit: 5 November 2026. Status: audit sumber dan bukti uji; bukan sertif
 
 ## Bukti terverifikasi
 
-- `npm run api:check`, `npm run api:test` (23), `npm run db:test` (77 assertion), `npm run lint`, `npm run typecheck`, production build, dan static export verification lulus.
+- API check/tests (23), database tests (77 assertions), lint, typecheck, production build, dan static export verification lulus.
 - Hosted DB suite lulus 13 pemeriksaan; kapasitas 20 join/5 kursi, retry, ownership/RLS, invite revoke, callback/payment, refund, late expiry, dan cleanup fixture teruji. Hasil terbaru: [database-hosted-results.json](database-hosted-results.json).
 - Hosted Storage runner lulus: staging/attachment QRIS, venue/event edit, private proof, signed URL expiry, akses lintas owner/token, 10 review serentak menghasilkan satu receipt, orphan cleanup, dan fixture cleanup. Hasil: [manual-storage-hosted-results.json](manual-storage-hosted-results.json).
 - Migration `private_uploads` terdaftar dan diterapkan di project Dolend; RLS aktif, hanya service-role memiliki grants. Function `dolend-api` v24 live; health mengirim `no-store`/`nosniff`.
 - Guest booking aktual melalui Function hosted dan token-scoped status lookup lulus; akun/event fixture dihapus. Detail: [T20-HOSTED-REGISTRATION.md](T20-HOSTED-REGISTRATION.md).
-- Pemindaian dependency: `npm audit --omit=dev` menemukan 0 runtime vulnerability. Audit seluruh graph menemukan 37 advisory low/moderate pada development/build tooling, 0 high/critical. Build/export verification lulus. Dependency detail tersedia dari `npm audit --json`; perubahan mayor untuk perbaikan beberapa advisory tidak diterapkan.
+- Pemindaian dependency baseline menemukan 0 runtime vulnerability. Audit seluruh graph menemukan 37 advisory low/moderate pada development/build tooling, 0 high/critical. Build/export verification lulus; perubahan mayor untuk perbaikan beberapa advisory tidak diterapkan.
 - Pemeriksaan source API tidak menemukan pemanggilan console/logging yang dapat mencetak request atau credential. Pemeriksaan route/DTO tidak menemukan kebocoran konkret pada akses yang ditinjau: profile owner-scoped, guest token no-store dan header-scoped, event projection menghapus snapshot mentah, serta bukti dan signed URL organizer-scoped.
 - Follow-up source audit lokal 5 November: tidak ada `select('*')` atau console/logger call di API Elysia. Organizer payment settings memakai kolom eksplisit; payment review DTO hanya berisi ID, nominal, status, dan signed URL pendek, tanpa path bukti, idempotency key, nested participant ID, atau provider payload. Regression test allowlist ditambahkan (`api:test` 41/41). Ini menutup satu temuan konkret, bukan audit lengkap route-by-role.
 - Supabase local Docker berhasil dijalankan; `supabase db reset --local --no-seed` mereplay seluruh migration dan generated `database.types.ts` diregenerasi dari schema lokal. Ini bukan hosted migration atau bukti restore backup.

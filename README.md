@@ -29,9 +29,9 @@ Target live: **https://dolend.web.app/**, project Firebase `dolend-apps`, site `
 Kalkulator, pilihan DP, status peserta, copy link, serta tautan simulasi dapat dicoba tanpa login. Konfigurasi simulasi dibagikan lewat URL fragment; tidak membuat event atau menyimpan peserta ke database. Login organizer kini dirancang memakai Google, bukan SMS. Payment gateway tetap **ditunda atas permintaan pengguna**. DP 50% hanya ilustrasi front-end, bukan fitur installment backend yang sudah tersedia.
 
 ```sh
-npm run build
-npm run test:landing
-npm run hosting:deploy
+pnpm run build
+pnpm run test:landing
+pnpm run hosting:deploy
 ```
 
 `hosting:deploy` menerbitkan `out/` ke live site. Gunakan build normal dengan `NEXT_PUBLIC_POC_EVENT_FIXTURES=false` untuk rilis landing, bukan `build:preview`. Detail QA dan hasil deploy ada di [LANDING-PAGE.md](docs/LANDING-PAGE.md).
@@ -47,32 +47,33 @@ npm run hosting:deploy
 | Data dan layanan | Supabase PostgreSQL, Auth, Storage, Cron |
 | Validasi nomor | libphonenumber-js; nomor Indonesia disimpan dalam format `62...` |
 
-Versi dependency dipin dalam `package.json` dan `package-lock.json`. Elysia serta SDK backend dipin terpisah dalam `supabase/functions/dolend-api/deno.json` dan `deno.lock`. Commit kedua lockfile tersebut. Proyek tidak menggunakan Cloudflare.
+Versi dependency dipin dalam `package.json` dan `pnpm-lock.yaml`; versi pnpm dipin melalui field `packageManager`. Elysia serta SDK backend dipin terpisah dalam `supabase/functions/dolend-api/deno.json` dan `deno.lock`. Commit lockfile pnpm dan Deno tersebut. Proyek tidak menggunakan Cloudflare.
 
 ## Persiapan
 
-Gunakan **Node.js 24 LTS** seperti `.node-version`, beserta npm. Seri Node 22 mulai 22.14 juga didukung aplikasi; CI memakai Node 24. Deno, Supabase CLI, dan Firebase CLI sudah menjadi dependency lokal; keduanya tidak perlu dipasang global. Docker diperlukan hanya untuk menjalankan Supabase lokal melalui CLI, bukan untuk API Deno langsung.
+Gunakan **Node.js 24 LTS** seperti `.node-version` dan pnpm versi yang dipin di `package.json`. Seri Node 22 mulai 22.14 juga didukung aplikasi; CI memakai Node 24. Aktifkan Corepack agar versi pnpm yang dipin digunakan. Deno, Supabase CLI, dan Firebase CLI sudah menjadi dependency lokal; keduanya tidak perlu dipasang global. Docker diperlukan hanya untuk menjalankan Supabase lokal melalui CLI, bukan untuk API Deno langsung.
 
 ```sh
 cd /Users/wspdv/Works/dolend
-npm ci
+corepack enable
+pnpm install --frozen-lockfile
 cp .env.example .env.local
 ```
 
-`.env.local` workspace sudah berisi URL project, URL API, dan publishable key Dolend. File ini gitignored dan dipakai otomatis oleh Next.js; Deno membacanya melalui perintah `--env-file` di bawah. Periksa tanpa menampilkan key dengan `npm run env:check`. Browser hanya boleh menerima URL dan public/publishable key lewat `NEXT_PUBLIC_*`; secret layanan tetap di server. Nilai `NEXT_PUBLIC_*` masuk ke bundle saat build. Penjelasan koneksi database, hosted Function, Firebase, dan CI ada di [ENVIRONMENT.md](docs/ENVIRONMENT.md).
+`.env.local` workspace sudah berisi URL project, URL API, dan publishable key Dolend. File ini gitignored dan dipakai otomatis oleh Next.js; Deno membacanya melalui perintah `--env-file` di bawah. Periksa tanpa menampilkan key dengan `pnpm run env:check`. Browser hanya boleh menerima URL dan public/publishable key lewat `NEXT_PUBLIC_*`; secret layanan tetap di server. Nilai `NEXT_PUBLIC_*` masuk ke bundle saat build. Penjelasan koneksi database, hosted Function, Firebase, dan CI ada di [ENVIRONMENT.md](docs/ENVIRONMENT.md).
 
 ## Menjalankan aplikasi
 
 Frontend dan API sekaligus (disarankan):
 
 ```sh
-npm run dev:all
+pnpm run dev:all
 ```
 
 Log diberi awalan `[web]` dan `[api]`. Menekan `Ctrl+C` menghentikan keduanya. Jika ingin menjalankannya terpisah, frontend pada terminal pertama:
 
 ```sh
-npm run dev
+pnpm run dev
 ```
 
 Buka [localhost:3000](http://localhost:3000).
@@ -80,7 +81,7 @@ Buka [localhost:3000](http://localhost:3000).
 API Deno, pada terminal kedua dari direktori proyek:
 
 ```sh
-npm run api:dev
+pnpm run api:dev
 ```
 
 Health API: [localhost:8000/dolend-api/v1/health](http://localhost:8000/dolend-api/v1/health). Watch mode aktif. `/me`, `/profile/bootstrap`, dan `/profile` membutuhkan user JWT Google melalui Supabase; anon key bukan identitas pengguna. Guest booking memakai `POST /events/:id/guest-bookings` dan service-role hanya di backend.
@@ -88,7 +89,7 @@ Health API: [localhost:8000/dolend-api/v1/health](http://localhost:8000/dolend-a
 `api:dev` membaca `.env.local` dan menjalankan API dengan watch mode. Event unlisted dibuka melalui `/event/?id=<uuid>#invite=<token>`; fragment diteruskan client sebagai header API dan dipertahankan saat guest mendapat token booking. Perintah ekuivalennya:
 
 ```sh
-npx deno run --env-file=.env.local \
+pnpm exec deno run --env-file=.env.local \
   --config supabase/functions/dolend-api/deno.json \
   --allow-env --allow-net --watch \
   supabase/functions/dolend-api/index.ts
@@ -100,51 +101,51 @@ Untuk `/me` lokal, set `SUPABASE_URL` dan `SUPABASE_PUBLISHABLE_KEY` (atau `SUPA
 
 | Perintah | Kegunaan |
 | --- | --- |
-| `npm run dev:all` | Frontend dan API paralel dalam satu terminal |
-| `npm run dev` | Frontend dengan live reload |
-| `npm run env:check` | Validasi `.env.local` tanpa mencetak key |
-| `npm run build` | Build frontend menjadi folder `out/` |
-| `npm run lint` | ESLint frontend dan script Node; API diperiksa lewat Deno |
-| `npm run typecheck` | Pemeriksaan TypeScript frontend |
-| `npm run api:dev` | API Deno dengan watch mode |
-| `npm run api:check` | Pemeriksaan tipe API |
-| `npm run api:test` | Test handler API lokal, tanpa layanan Supabase |
-| `npm run api:test:hosted-profile` | Test profil/JWT/RLS hosted dengan fixture sementara |
-| `npm run test:phone` | Unit test normalisasi nomor Indonesia |
-| `npm run test:account` | Browser test fondasi akun pada desktop dan mobile |
-| `npm run test:organizer` | Browser test dashboard, create/manage event, dan roster |
-| `npm run test:participation` | Browser test booking/cancel guest serta join/cancel akun Google |
-| `npm run api:smoke` | Smoke HTTP ke `API_BASE_URL` yang ditentukan |
-| `npm run supabase -- <command>` | Supabase CLI lokal |
-| `npm run ui -- add <component>` | Menambah komponen shadcn/ui |
-| `npm run poc:check` / `npm run poc:test` | Pemeriksaan probe kompatibilitas tanpa hosted fixture |
-| `npm run build:preview` | Static build dengan adapter fixture publik khusus pratinjau |
-| `npm run preview:fixture` | Buat data contoh baru setelah build selesai |
-| `npm run db:test` | Replay migration, invariant/RLS tests dan snapshot restore lokal |
-| `npm run db:test:hosted` | Scoped fixture test hosted; memerlukan DATABASE_TEST_PROJECT_REF eksplisit |
-| `npm run storage:test:hosted:supabase` | E2E private upload Supabase; membuat dan membersihkan fixture hosted |
-| `npm run db:catalog` | Verifikasi RLS/grants/FK indexes dan generate dictionary |
-| `npm run db:types` | Generate ulang TypeScript contracts dari schema hosted |
-| `npm run test:landing` | Browser tests landing dan simulator pada build normal |
-| `npm run hosting:deploy` | Deploy langsung output build ke https://dolend.web.app/ |
-| `npm run test:hosting` | Uji browser desktop dan mobile terhadap static export |
-| `npm run test:r06` | Verifikasi lokal R06: database, build normal, alur guest/organizer, build fixture, dan static-hosting refresh |
-| `npm run hosting:preview` | Deploy channel `t03` ke site `dolend`, expiry 7 hari |
+| `pnpm run dev:all` | Frontend dan API paralel dalam satu terminal |
+| `pnpm run dev` | Frontend dengan live reload |
+| `pnpm run env:check` | Validasi `.env.local` tanpa mencetak key |
+| `pnpm run build` | Build frontend menjadi folder `out/` |
+| `pnpm run lint` | ESLint frontend dan script Node; API diperiksa lewat Deno |
+| `pnpm run typecheck` | Pemeriksaan TypeScript frontend |
+| `pnpm run api:dev` | API Deno dengan watch mode |
+| `pnpm run api:check` | Pemeriksaan tipe API |
+| `pnpm run api:test` | Test handler API lokal, tanpa layanan Supabase |
+| `pnpm run api:test:hosted-profile` | Test profil/JWT/RLS hosted dengan fixture sementara |
+| `pnpm run test:phone` | Unit test normalisasi nomor Indonesia |
+| `pnpm run test:account` | Browser test fondasi akun pada desktop dan mobile |
+| `pnpm run test:organizer` | Browser test dashboard, create/manage event, dan roster |
+| `pnpm run test:participation` | Browser test booking/cancel guest serta join/cancel akun Google |
+| `pnpm run api:smoke` | Smoke HTTP ke `API_BASE_URL` yang ditentukan |
+| `pnpm run supabase -- <command>` | Supabase CLI lokal |
+| `pnpm run ui -- add <component>` | Menambah komponen shadcn/ui |
+| `pnpm run poc:check` / `pnpm run poc:test` | Pemeriksaan probe kompatibilitas tanpa hosted fixture |
+| `pnpm run build:preview` | Static build dengan adapter fixture publik khusus pratinjau |
+| `pnpm run preview:fixture` | Buat data contoh baru setelah build selesai |
+| `pnpm run db:test` | Replay migration, invariant/RLS tests dan snapshot restore lokal |
+| `pnpm run db:test:hosted` | Scoped fixture test hosted; memerlukan DATABASE_TEST_PROJECT_REF eksplisit |
+| `pnpm run storage:test:hosted:supabase` | E2E private upload Supabase; membuat dan membersihkan fixture hosted |
+| `pnpm run db:catalog` | Verifikasi RLS/grants/FK indexes dan generate dictionary |
+| `pnpm run db:types` | Generate ulang TypeScript contracts dari schema hosted |
+| `pnpm run test:landing` | Browser tests landing dan simulator pada build normal |
+| `pnpm run hosting:deploy` | Deploy langsung output build ke https://dolend.web.app/ |
+| `pnpm run test:hosting` | Uji browser desktop dan mobile terhadap static export |
+| `pnpm run test:r06` | Verifikasi lokal R06: database, build normal, alur guest/organizer, build fixture, dan static-hosting refresh |
+| `pnpm run hosting:preview` | Deploy channel `t03` ke site `dolend`, expiry 7 hari |
 
 Pemeriksaan sebelum mengirim perubahan:
 
 ```sh
-npm run lint
-npm run build
-npm run typecheck
-npm run api:check
-npm run api:test
+pnpm run lint
+pnpm run build
+pnpm run typecheck
+pnpm run api:check
+pnpm run api:test
 ```
 
 Dengan API lokal tetap berjalan, jalankan smoke HTTP:
 
 ```sh
-API_BASE_URL=http://localhost:8000/dolend-api/v1 npm run api:smoke
+API_BASE_URL=http://localhost:8000/dolend-api/v1 pnpm run api:smoke
 ```
 
 Smoke mengirim 100 health request berurutan dan 20 bersamaan. Hasil ini tidak membuktikan transaksi database, concurrency write, atau cold start. `api:smoke` juga mendukung environment `SUPABASE_PUBLISHABLE_KEY`; untuk legacy anon JWT, script mengirimkannya sebagai bearer ke gateway. Endpoint `/me` tetap membutuhkan user JWT tersendiri.
@@ -160,8 +161,8 @@ https://fpbefabsqryxmnmxufjw.supabase.co/functions/v1/dolend-api/v1
 Jika CLI belum terautentikasi, login terlebih dahulu. Deploy function menggunakan project ref eksplisit; perintah ini tidak melakukan database linking atau migration:
 
 ```sh
-npm run supabase -- login
-npm run supabase -- functions deploy dolend-api \
+pnpm run supabase -- login
+pnpm run supabase -- functions deploy dolend-api \
   --project-ref fpbefabsqryxmnmxufjw --use-api
 ```
 
@@ -171,21 +172,21 @@ Frontend memakai `output: 'export'` dan konfigurasi `firebase.json` yang menunju
 
 ## Preview Firebase dan uji static hosting
 
-Firebase CLI yang dipin dipasang oleh `npm ci`. Untuk deploy manual, login melalui `npx firebase login`; CI menggunakan OIDC tanpa login browser. Untuk preview T03:
+Firebase CLI yang dipin dipasang oleh `pnpm install --frozen-lockfile`. Untuk deploy manual, login melalui `pnpm exec firebase login`; CI menggunakan OIDC tanpa login browser. Untuk preview T03:
 
 ```sh
-npm run build:preview
-npm run preview:fixture
-npm run test:hosting
-npm run hosting:preview
+pnpm run build:preview
+pnpm run preview:fixture
+pnpm run test:hosting
+pnpm run hosting:preview
 ```
 
-Fixture JSON dibuat di `out/__poc/events/` setelah build. Metadata ID lokal di `.firebase-preview-fixture.json` diabaikan Git. Data contoh hanya berisi informasi publik sintetis dan diberi label pratinjau; bukan event yang dapat didaftarkan. API nyata memakai `NEXT_PUBLIC_API_URL` dan format `{ data: PublicEvent }`. Build normal (`npm run build`) membersihkan output fixture dan tidak mengaktifkan adapter POC jika flag tidak diaktifkan.
+Fixture JSON dibuat di `out/__poc/events/` setelah build. Metadata ID lokal di `.firebase-preview-fixture.json` diabaikan Git. Data contoh hanya berisi informasi publik sintetis dan diberi label pratinjau; bukan event yang dapat didaftarkan. API nyata memakai `NEXT_PUBLIC_API_URL` dan format `{ data: PublicEvent }`. Build normal (`pnpm run build`) membersihkan output fixture dan tidak mengaktifkan adapter POC jika flag tidak diaktifkan.
 
-Uji browser memakai Chrome lokal secara default. Jika memakai Chromium Playwright, jalankan `npx playwright install chromium` lalu set `PLAYWRIGHT_CHANNEL=chromium`. Uji preview dengan URL hasil deploy:
+Uji browser memakai Chrome lokal secara default. Jika memakai Chromium Playwright, jalankan `pnpm exec playwright install chromium` lalu set `PLAYWRIGHT_CHANNEL=chromium`. Uji preview dengan URL hasil deploy:
 
 ```sh
-HOSTING_BASE_URL=https://dolend--t03-pnd1m1mh.web.app npm run test:hosting
+HOSTING_BASE_URL=https://dolend--t03-pnd1m1mh.web.app pnpm run test:hosting
 ```
 
 Preview channel bersifat publik dan berumur terbatas; jangan memasukkan data pribadi ke fixture. Deployment ini ditujukan ke preview, bukan live channel. Metadata/preview WhatsApp tetap umum Dolend; SEO event dinamis terbatas karena konten diambil setelah halaman dibuka.

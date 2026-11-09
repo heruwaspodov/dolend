@@ -7,4 +7,4 @@ Before changing schema/API, read the active task slice in `PLAN.md`, `docs/DATAB
 - Add a new forward migration; never rewrite an applied migration. Preserve RLS, grants, FK indexes, locks, idempotency, audit trails, financial history, and integer IDR.
 - Public DTOs must exclude phone, evidence paths, secrets, raw provider payloads, and private payment instructions unless the verified role requires them.
 - Internal jobs must be bounded, retry-safe, externally scheduled, and protected by server-only credentials. Never log credentials or access tokens.
-- Verification: `npm run api:check`, `npm run api:test`, and `npm run db:test` when migrations/RPCs change. Hosted tests, migration push, function deploy, and scheduler changes require explicit user scope.
+- Verification: `pnpm run api:check`, `pnpm run api:test`, and `pnpm run db:test` when migrations/RPCs change. Hosted tests, migration push, function deploy, and scheduler changes require explicit user scope.

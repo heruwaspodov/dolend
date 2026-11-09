@@ -1,0 +1,5 @@
+onlyBuiltDependencies:
+  - deno
+  - protobufjs
+  - re2
+  - unrs-resolver

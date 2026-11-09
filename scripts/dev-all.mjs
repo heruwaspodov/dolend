@@ -43,7 +43,8 @@ function stop(signal = 'SIGTERM', code = 0) {
 }
 
 for (const command of commands) {
-  const child = spawn('npm', ['run', command.script], {
+  const packageManager = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
+  const child = spawn(packageManager, ['run', command.script], {
     env: process.env,
     detached: process.platform !== 'win32',
     stdio: ['inherit', 'pipe', 'pipe'],

@@ -15,7 +15,7 @@ Terakhir diperbarui: 5 November 2026. Sumber scope: `PLAN.md` T20–T29 dan §9.
 | Bukti | Level | Sumber |
 | --- | --- | --- |
 | API negative suite 23 test, lint, typecheck, production build, local DB 77 assertion | Local test | Status T20 di `PLAN.md` |
-| Dependency runtime `npm audit --omit=dev` tanpa vulnerability | Local test | Status T20 di `PLAN.md` |
+| Audit dependency runtime baseline tanpa vulnerability | Local test | Status T20 di `PLAN.md` |
 | Concurrency 20 join/5 seat, ownership/RLS, duplicate payment/refund, invite revoke, expiry | Hosted scoped test | `database-hosted-results.json` |
 | Guest/member browser flow 4/4 memakai API mock | Local test | Status T20 di `PLAN.md` |
 | Preview desktop/mobile 72/76; empat gagal karena fixture menonaktifkan registration | Local preview | Status T20 di `PLAN.md` |
@@ -31,7 +31,7 @@ Terakhir diperbarui: 5 November 2026. Sumber scope: `PLAN.md` T20–T29 dan §9.
 | Supabase local Docker stack started; fresh local migration replay succeeded and generated DB types were regenerated from local schema | Local environment | `DATABASE.md`; `DATA-DICTIONARY.md` remains hosted snapshot |
 | Function `dolend-api` lokal health merespons HTTP 200 dengan header no-store/nosniff | Local API probe | Local Supabase stack on port 54321 |
 | T18 attendance guard: future start and non-organizer rejected, retry keeps one audit row, no-show preserves invoice; DB suite now 99 assertions | Local database test | `PLAN.md` T18; migration `20261105180000_attendance_start_guard.sql` |
-| Preview build + fixture: hosting/browser checks 14/14; normal build guest booking/member participation 4/4 | Local browser test | `npm run build:preview`, `npm run preview:fixture`, `npm run test:hosting`; normal `npm run build` + targeted Playwright |
+| Preview build + fixture: hosting/browser checks 14/14; normal build guest booking/member participation 4/4 | Local browser test | Preview build/fixture dan hosting checks; normal build + targeted Playwright |
 
 ## Gap T20 yang masih terbuka
 

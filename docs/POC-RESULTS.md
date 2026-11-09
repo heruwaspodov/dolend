@@ -14,7 +14,7 @@
 | Webhook | Signature HMAC raw text valid; palsu/stale ditolak; 20 callback duplikat hanya satu row; ID sama/payload berubah mendapat 409 |
 | HTTP | CORS allow/preflight/deny, JSON validation 400, error 404 aman, run-token guard dan secret injection |
 | Smoke | 100 hosted read dalam run terkini tanpa error; 120 health request pada run awal juga lulus |
-| Reproducibility | Direktori source baru tanpa node_modules: npm ci, lint, static build, frontend/API/probe typecheck, 6 API tests dan 2 probe tests lulus |
+| Reproducibility | Verifikasi clean-source historis sebelum migrasi pnpm: dependency install, lint, static build, frontend/API/probe typecheck, 6 API tests dan 2 probe tests lulus. Instalasi lockfile saat ini menggunakan `pnpm install --frozen-lockfile`. |
 
 Baseline awal Node 22.14.0; runner dan clean-source check pada sesi lanjutan memakai Node 25.8.2. Deno lokal 2.9.6, Next.js 16.4.3, React 19.3.1, Supabase JS 2.118.0, CLI 2.122.0. Package dan Deno lock tersedia. Tidak menggunakan Bun runtime atau in-process Cron.
 

@@ -32,17 +32,17 @@ Untuk dashboard/workspace UI, gunakan `docs/design/DESIGN-notion.md` sebagai ref
 - Identitas bisnis adalah `public.users`; identitas login adalah `auth.users`. Normalisasi nomor Indonesia melalui `src/lib/phone.ts`, bukan logika baru yang tersebar.
 - Schema berubah melalui migration baru. Pertahankan RLS, grants, FK indexes, idempotensi, integer IDR, audit, dan ledger history. Jangan edit migration yang sudah diterapkan.
 - `src/lib/database.types.ts` adalah generated output; regenerasi setelah perubahan schema, jangan jadikan patch manual sebagai sumber kontrak.
-- Gunakan Node dari `.node-version`, npm + `package-lock.json`, dan dependency exact. Jangan commit output build, cache, log, atau fixture sementara.
+- Gunakan Node dari `.node-version`, pnpm versi yang dipin pada `package.json` + `pnpm-lock.yaml`, dan dependency exact. Jangan commit output build, cache, log, atau fixture sementara.
 - Push ke `main` memicu deployment live. Tidak ada deploy, hosted test/migration, push, atau perubahan resource eksternal kecuali pengguna memintanya secara eksplisit.
 
 ## Verifikasi berdasar dampak
 
 - Docs/config agent saja: periksa diff, link/path, dan konsistensi dengan `PLAN.md`.
-- Frontend: `npm run lint`, `npm run build`, `npm run typecheck`; tambah test Playwright area terkait setelah build.
-- API: `npm run api:check` dan `npm run api:test`.
-- Database: `npm run db:test`; baca `docs/DATABASE.md` sebelum test hosted apa pun.
-- Nomor telepon: `npm run test:phone`.
-- Probe kompatibilitas: `npm run poc:check` dan `npm run poc:test`.
+- Frontend: `pnpm run lint`, `pnpm run build`, `pnpm run typecheck`; tambah test Playwright area terkait setelah build.
+- API: `pnpm run api:check` dan `pnpm run api:test`.
+- Database: `pnpm run db:test`; baca `docs/DATABASE.md` sebelum test hosted apa pun.
+- Nomor telepon: `pnpm run test:phone`.
+- Probe kompatibilitas: `pnpm run poc:check` dan `pnpm run poc:test`.
 
 Laporkan command yang dijalankan, hasilnya, dan hal yang belum diverifikasi. Jangan mengklaim deployment atau kesiapan release dari verifikasi lokal.
 

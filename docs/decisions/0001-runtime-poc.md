@@ -16,7 +16,7 @@ API utama `dolend-api` tetap memakai gateway JWT verification. `/me` juga melaku
 - Multipart/private Storage/signed download bekerja; public/cross-user download dan upload, MIME invalid, oversize, serta signed URL expired ditolak.
 - HMAC SHA-256 diverifikasi atas timestamp + teks body asli. Pada Elysia dynamic handler gunakan `parse: 'text'` lalu body, bukan mencoba membaca Request lagi setelah parsing. Whitespace body dipertahankan. Signature palsu/kedaluwarsa ditolak; 20 callback duplikat hanya menyimpan satu entry; ID sama/payload berbeda ditolak.
 - Hosted CORS/preflight, validasi JSON, safe error envelope, secret injection dan 100 smoke read lulus.
-- Fresh source directory: npm ci, lint, build static, TypeScript, Deno check, 6 test API + 2 test probe lulus.
+- Historical fresh-source verification before the pnpm migration: dependency install, lint, static build, TypeScript, Deno check, 6 API tests + 2 probe tests passed.
 
 ## Performa dan batas interpretasi
 

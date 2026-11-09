@@ -14,10 +14,10 @@ Keputusan pengguna, 27 Oktober 2026: React + Tailwind CSS + shadcn/ui. Next.js A
 ## Menambah komponen
 
 ```sh
-npm run ui -- add dialog
+pnpm run ui -- add dialog
 ```
 
-Review perubahan source/dependencies dari CLI sebelum digunakan. Setelah menambah dependency, pertahankan versi exact dan package-lock. Pakai semantic token seperti `bg-primary` dan `text-muted-foreground`, hindari mengulang warna literal per komponen. Gunakan label form, focus-visible, dan tap target minimal 44 px untuk aksi utama.
+Review perubahan source/dependencies dari CLI sebelum digunakan. Setelah menambah dependency, pertahankan versi exact dan `pnpm-lock.yaml`. Pakai semantic token seperti `bg-primary` dan `text-muted-foreground`, hindari mengulang warna literal per komponen. Gunakan label form, focus-visible, dan tap target minimal 44 px untuk aksi utama.
 
 ## Status task
 

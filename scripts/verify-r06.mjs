@@ -9,12 +9,12 @@ const run = (command, args) => new Promise((resolve, reject) => {
   });
 });
 
-const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+const pnpm = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
 const playwright = process.platform === 'win32' ? 'node_modules/.bin/playwright.cmd' : 'node_modules/.bin/playwright';
 
-await run(npm, ['run', 'db:test']);
-await run(npm, ['run', 'build']);
+await run(pnpm, ['run', 'db:test']);
+await run(pnpm, ['run', 'build']);
 await run(playwright, ['test', 'tests/event-booking.spec.ts', 'tests/manual-payment.spec.ts', 'tests/organizer.spec.ts']);
-await run(npm, ['run', 'build:preview']);
-await run(npm, ['run', 'preview:fixture']);
+await run(pnpm, ['run', 'build:preview']);
+await run(pnpm, ['run', 'preview:fixture']);
 await run(playwright, ['test', 'tests/hosting.spec.ts']);

@@ -52,14 +52,14 @@ Throttle, rotasi token, dan guest proof flow sudah dibuktikan pada PostgreSQL/Ed
 ## Verifikasi lokal
 
 ```sh
-npm run test:phone
-npm run db:test
-npm run api:check
-npm run api:test
-npm run lint
-npm run build
-npm run typecheck
-npm run test:account
+pnpm run test:phone
+pnpm run db:test
+pnpm run api:check
+pnpm run api:test
+pnpm run lint
+pnpm run build
+pnpm run typecheck
+pnpm run test:account
 ```
 
 Hosted profile test 27 Oktober berbasis phone identity tidak mewakili kontrak baru. Pada 1 November, login OAuth asli diverifikasi dari localhost dan domain Firebase; runner Storage terpisah memakai fixture metadata Google sintetis untuk organizer dan token booking guest nyata. Publishing OAuth atau perubahan konfigurasi provider production tetap memerlukan persetujuan eksplisit.

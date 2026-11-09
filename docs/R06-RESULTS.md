@@ -2,7 +2,7 @@
 
 Tanggal: 3 November 2026.
 
-Runner lokal `npm run test:r06` memisahkan build normal dari build fixture agar adapter pratinjau tidak menyamarkan alur API nyata. Urutannya adalah replay database, build normal, browser checks guest/payment/organizer, build fixture, pembuatan fixture publik, lalu browser checks static hosting.
+Runner lokal `pnpm run test:r06` memisahkan build normal dari build fixture agar adapter pratinjau tidak menyamarkan alur API nyata. Urutannya adalah replay database, build normal, browser checks guest/payment/organizer, build fixture, pembuatan fixture publik, lalu browser checks static hosting.
 
 ## Hasil lokal
 

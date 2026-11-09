@@ -10,7 +10,7 @@ export function getSupabaseBrowserClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   if (!url || !publishableKey) {
-    throw new Error('Konfigurasi publik Supabase belum tersedia. Jalankan npm run env:check.');
+    throw new Error('Konfigurasi publik Supabase belum tersedia. Jalankan pnpm run env:check.');
   }
 
   browserClient = createClient(url, publishableKey, {
