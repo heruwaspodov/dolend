@@ -179,5 +179,5 @@ jobs:
           project_id: dolend-apps
           workload_identity_provider: projects/231014996414/locations/global/workloadIdentityPools/dolend-github/providers/github-main
           service_account: dolend-hosting-ci@dolend-apps.iam.gserviceaccount.com
-      - run: pnpm run hosting:deploy -- --non-interactive
+      - run: pnpm run hosting:deploy --non-interactive
       - run: pnpm run ci:verify-live
