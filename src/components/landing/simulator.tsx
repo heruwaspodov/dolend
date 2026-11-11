@@ -5,15 +5,12 @@ import { ChevronDown, Copy, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { workspaceFormChoice, workspaceFormControl, workspaceFormPanel } from '@/components/organizer/workspace-form';
+import { BillingChoices } from '@/components/organizer/billing-choices';
+import { workspaceFormControl, workspaceFormPanel } from '@/components/organizer/workspace-form';
+import { costModelOptions, paymentTimingOptions } from '@/lib/event-billing-options';
 import { cn } from '@/lib/utils';
-import { categories, defaultDemo, demoLink, rupiah, validConfig, type DemoConfig, type Policy } from './content';
+import { categories, defaultDemo, demoLink, restoreDemo, rupiah, validConfig, validDemoAmount, type DemoConfig } from './content';
 
-const policies: { id: Policy; name: string; description: string; summary: string }[] = [
-  { id: 'lunas', name: 'Wajib Lunas di Awal', description: 'Peserta mendapat tempat setelah bayar lunas.', summary: 'Bayar lunas di awal' },
-  { id: 'dp', name: 'DP 50% di Awal', description: 'Peserta mendapat tempat setelah bayar uang muka 50%.', summary: 'Uang muka 50%' },
-  { id: 'nanti', name: 'Catat Bayar di Lokasi', description: 'Peserta mendapat tempat saat mendaftar dan bayar saat bertemu.', summary: 'Bayar di lokasi' },
-];
 const names = ['Kamu (Penyelenggara)', 'Teman 1', 'Teman 2'];
 export function Simulator({ contentWidth }: { contentWidth: string }) {
   const [config, setConfig] = useState<DemoConfig>(defaultDemo);
@@ -26,10 +23,10 @@ export function Simulator({ contentWidth }: { contentWidth: string }) {
       try {
         if (window.location.hash.length > 4000) throw new Error();
         const raw = new URLSearchParams(window.location.hash.split('?')[1]).get('demo');
-        const data: unknown = JSON.parse(raw ?? 'null');
-        if (!validConfig(data)) throw new Error();
+        const data = restoreDemo(JSON.parse(raw ?? 'null'));
+        if (!data) throw new Error();
         // Copy only known fields: shared links cannot inject arbitrary properties or URLs.
-        setConfig({ category: data.category, venue: data.venue, schedule: data.schedule, cost: data.cost, capacity: data.capacity, policy: data.policy, paid: [...data.paid] });
+        setConfig({ category: data.category, venue: data.venue, schedule: data.schedule, cost: data.cost, price: data.price, capacity: data.capacity, joined: data.joined, costModel: data.costModel, paymentTiming: data.paymentTiming, paid: [...data.paid] });
         document.getElementById('simulasi')?.scrollIntoView({ behavior: 'instant' });
       } catch { setNotice('Tautan simulasi tidak valid. Kamu tetap bisa mencoba contoh di bawah.'); }
     };
@@ -43,13 +40,21 @@ export function Simulator({ contentWidth }: { contentWidth: string }) {
   };
   const valid = validConfig(config);
   const category = categories.find(item => item.id === config.category)!;
-  const policy = policies.find(item => item.id === config.policy)!;
+  const costModel = costModelOptions.find(option => option.value === config.costModel)!;
+  const timing = paymentTimingOptions.find(option => option.value === config.paymentTiming)!;
+  const isFree = config.costModel === 'free';
+  const isDynamic = config.costModel === 'dynamic';
   const capacity = valid ? Number(config.capacity) : 0;
-  const total = valid ? Number(config.cost) : 0;
-  const perPerson = valid ? Math.ceil(total / capacity) : 0;
-  const upfront = config.policy === 'dp' ? Math.ceil(perPerson / 2) : config.policy === 'nanti' ? 0 : perPerson;
+  const amountField = isDynamic ? 'cost' : 'price';
+  const cost = valid && !isFree ? Number(config[amountField]) : 0;
+  const total = isFree || isDynamic ? cost : cost * capacity;
+  const joined = config.joined === '' ? capacity : Number(config.joined);
+  const perPerson = valid && isDynamic ? Math.ceil(total / joined) : cost;
+  const minimumCost = isDynamic ? 0 : 1;
+  const costLabel = isDynamic ? 'Total biaya (Rp)' : 'Harga per peserta (Rp)';
+  const perPersonLabel = isDynamic ? 'Estimasi patungan per orang' : 'Harga per peserta';
   const sample = names.slice(0, valid ? Math.min(3, capacity) : 3);
-  const paymentRequiredForSlot = total > 0 && config.policy !== 'nanti';
+  const paymentRequiredForSlot = config.costModel === 'fixed' && config.paymentTiming === 'before_event';
   const confirmed = valid ? sample.filter((_, index) => !paymentRequiredForSlot || config.paid[index]).length : 0;
   const link = valid ? demoLink(config) : '';
   const copyLink = async () => {
@@ -69,23 +74,28 @@ export function Simulator({ contentWidth }: { contentWidth: string }) {
     <div className={contentWidth}>
       <div className="mb-6 max-w-xl sm:mb-8">
         <h2 id="simulator-title" className="text-2xl font-bold tracking-tight sm:text-3xl">Hitung patungan</h2>
-        <p className="mt-2 text-sm leading-relaxed text-[#514e4a] sm:text-base">Masukkan total biaya dan kuota. Lihat patungan per orang jika semua tempat terisi.</p>
+        <p className="mt-2 text-sm leading-relaxed text-[#514e4a] sm:text-base">Coba model biaya dan lihat berapa yang dibayar tiap peserta.</p>
       </div>
       <div className="grid items-start gap-x-6 gap-y-5 lg:grid-cols-2">
         <div className={cn(workspaceFormPanel, 'min-w-0 space-y-4 divide-y-0 rounded-xl p-4 sm:p-6')}>
           <h3 className="text-base font-semibold">Biaya dan kuota</h3>
           <div className="grid grid-cols-2 gap-3 sm:gap-4">
-            <div className="min-w-0 space-y-2"><Label htmlFor="demo-cost">Total biaya (Rp)</Label><Input id="demo-cost" type="number" min={0} max={1e12} step={1} inputMode="numeric" value={config.cost} onChange={event => update('cost', event.target.value)} aria-invalid={!/^\d{1,13}$/.test(config.cost) || Number(config.cost) > 1e12} aria-describedby={!valid ? 'demo-validation' : undefined} className={workspaceFormControl} /></div>
+            {!isFree && <div className="min-w-0 space-y-2"><Label htmlFor="demo-cost">{costLabel}</Label><Input id="demo-cost" type="number" min={minimumCost} max={1e12} step={1} inputMode="numeric" value={config[amountField]} onChange={event => update(amountField, event.target.value)} aria-invalid={!validDemoAmount(config[amountField], minimumCost)} aria-describedby={!valid ? 'demo-validation' : undefined} className={workspaceFormControl} /></div>}
             <div className="min-w-0 space-y-2"><Label htmlFor="demo-capacity">Kuota peserta</Label><Input id="demo-capacity" type="number" min={2} max={30} step={1} inputMode="numeric" value={config.capacity} onChange={event => update('capacity', event.target.value)} aria-invalid={!/^\d{1,2}$/.test(config.capacity) || Number(config.capacity) < 2 || Number(config.capacity) > 30} aria-describedby={!valid ? 'demo-validation' : undefined} className={workspaceFormControl} /></div>
           </div>
-          {!valid && <p role="alert" id="demo-validation" className="text-sm text-red-700">Isi biaya dengan rupiah bulat antara 0–1 triliun dan kuota antara 2–30 orang.</p>}
+          {isDynamic && <div className="min-w-0 space-y-2">
+            <Label htmlFor="demo-joined">Jumlah peserta untuk estimasi</Label>
+            <Input id="demo-joined" type="number" min={1} max={Number(config.capacity) || 30} step={1} inputMode="numeric" value={config.joined} placeholder={config.capacity} onChange={event => update('joined', event.target.value)} aria-describedby="demo-joined-hint" className={workspaceFormControl} />
+            <p id="demo-joined-hint" className="text-xs text-[#615d59]">Kosongkan untuk menghitung saat kuota penuh.</p>
+          </div>}
+          {!valid && <p role="alert" id="demo-validation" className="text-sm text-red-700">{isFree ? 'Isi kuota antara 2–30 orang.' : `Isi biaya dengan rupiah bulat antara ${minimumCost}–1 triliun dan kuota antara 2–30 orang.`}{isDynamic && ' Jumlah peserta harus antara 1 dan kuota.'}</p>}
           <div className="border-t border-[#e6e3df] pt-4">
-            <p className="text-sm font-medium text-[#514e4a]">Patungan per orang</p>
+            <p className="text-sm font-medium text-[#514e4a]">{perPersonLabel}</p>
             <p className="mt-1 text-2xl font-bold wrap-anywhere text-[#005bab] tabular-nums" aria-live="polite" aria-atomic="true" data-testid="demo-quick-total">
               {valid ? rupiah(perPerson) : '—'}
             </p>
           </div>
-          <p className="text-xs leading-relaxed text-[#514e4a]">Patungan dibulatkan ke atas dalam rupiah.</p>
+          {isDynamic && <p className="text-xs leading-relaxed text-[#514e4a]">Estimasi dibulatkan ke atas. Patungan akhir mengikuti biaya aktual dan jumlah peserta.</p>}
         </div>
 
         <section id="contoh-undangan" aria-labelledby="demo-preview-title" className={cn(workspaceFormPanel, 'min-w-0 scroll-mt-20 divide-y-0 rounded-xl p-4 sm:p-6')}>
@@ -104,14 +114,13 @@ export function Simulator({ contentWidth }: { contentWidth: string }) {
               <p className="mt-1 wrap-anywhere text-sm font-semibold tabular-nums" data-testid="demo-total">{valid ? rupiah(total) : '—'}</p>
             </div>
             <div className="min-w-0 border-l border-[#e6e3df] pl-3">
-              <p className="text-xs text-[#615d59]">Patungan per orang</p>
+              <p className="text-xs text-[#615d59]">{perPersonLabel}</p>
               <p className="mt-1 wrap-anywhere text-sm font-bold text-[#005bab] tabular-nums" data-testid="demo-per-person">{valid ? rupiah(perPerson) : '—'}</p>
             </div>
           </div>
-          {config.policy === 'dp' && <p className="mt-3 text-sm leading-relaxed text-[#514e4a]" data-testid="demo-dp">DP per orang: <strong>{valid ? rupiah(upfront) : '—'}</strong> · Sisa pelunasan: <strong>{valid ? rupiah(perPerson - upfront) : '—'}</strong></p>}
           <div className="mt-4 border-t border-[#e6e3df] pt-3">
             <div className="mb-2 flex flex-wrap justify-between gap-x-3 gap-y-1 text-sm">
-              <span>{valid && total === 0 ? 'Gratis' : policy.summary}</span>
+              <span>{costModel.label}{!isFree && <span className="block text-xs text-[#615d59]">{timing.label}</span>}</span>
               <span className="font-semibold text-[#005bab] tabular-nums" data-testid="demo-quota">{confirmed} / {valid ? capacity : '—'} terisi</span>
             </div>
             <div role="progressbar" aria-label="Kuota simulasi terisi" aria-valuemin={0} aria-valuemax={valid ? capacity : 30} aria-valuenow={confirmed} className="h-2 overflow-hidden rounded-full bg-[#e6e3df]">
@@ -133,21 +142,22 @@ export function Simulator({ contentWidth }: { contentWidth: string }) {
               <div className="min-w-0 space-y-2"><Label htmlFor="demo-venue">Nama tempat</Label><Input id="demo-venue" maxLength={120} value={config.venue} onChange={event => update('venue', event.target.value)} className={workspaceFormControl} /></div>
               <div className="min-w-0 space-y-2"><Label htmlFor="demo-schedule">Jadwal main</Label><Input id="demo-schedule" maxLength={120} value={config.schedule} onChange={event => update('schedule', event.target.value)} className={workspaceFormControl} /></div>
             </div>
-            <fieldset className="space-y-2"><legend className="mb-2 text-sm font-semibold">Cara bayar dalam simulasi</legend>
-              {policies.map(item => <label key={item.id} className={cn(workspaceFormChoice, 'flex cursor-pointer items-center gap-3 p-3')}><input type="radio" name="demo-policy" value={item.id} checked={config.policy === item.id} onChange={() => update('policy', item.id)} className="size-4 shrink-0 accent-[#006bc9]" /><span><span className="block text-sm font-semibold">{item.name}</span><span className="mt-1 block text-sm leading-relaxed text-[#514e4a]">{item.description}</span></span></label>)}
-            </fieldset>
+            <BillingChoices legend="Model biaya" name="demo-cost-model" options={costModelOptions} value={config.costModel} onChange={value => update('costModel', value)} />
+            {!isFree && <div className="border-t border-[#e6e3df] pt-4">
+              <BillingChoices legend="Waktu pembayaran" name="demo-payment-timing" options={paymentTimingOptions} value={config.paymentTiming} onChange={value => update('paymentTiming', value)} inline />
+            </div>}
           </div>
         </details>
 
         <div className="min-w-0 divide-y divide-[#e6e3df] rounded-xl border border-[#e6e3df] bg-white px-4 sm:px-6">
-          {(!valid || total > 0) && (
+          {!isFree && (!valid || total > 0) && (
             <section aria-labelledby="demo-payments-title" className="py-4">
               <h3 id="demo-payments-title" className="text-base font-semibold">Pembayaran peserta contoh</h3>
               <p className="mt-1 text-sm leading-relaxed text-[#514e4a]">
                 {!valid
                   ? 'Perbaiki biaya dan kuota untuk mencoba status pembayaran.'
                   : paymentRequiredForSlot
-                    ? `Ubah status pembayaran untuk melihat kuota. Tempat terisi setelah peserta ${config.policy === 'dp' ? 'bayar uang muka' : 'bayar lunas'}.`
+                    ? 'Ubah status pembayaran untuk melihat kuota. Tempat terisi setelah peserta bayar lunas.'
                     : 'Ubah status pembayaran. Peserta tetap dihitung dalam kuota.'}
               </p>
               <ul className="mt-2 divide-y divide-[#e6e3df]">
@@ -163,7 +173,7 @@ export function Simulator({ contentWidth }: { contentWidth: string }) {
                       onClick={() => update('paid', config.paid.map((value, position) => position === index ? !value : value))}
                       className="min-h-11 shrink-0 px-3 text-xs"
                     >
-                      {config.paid[index] ? (config.policy === 'dp' ? 'Sudah bayar DP' : 'Lunas') : 'Belum bayar'}
+                      {config.paid[index] ? 'Lunas' : 'Belum bayar'}
                     </Button>
                   </li>
                 ))}

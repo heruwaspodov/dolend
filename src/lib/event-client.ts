@@ -1,3 +1,4 @@
+import type { CostModel, PaymentTiming } from './event-billing-options';
 export type PublicEvent = {
   id: string;
   title: string;
@@ -16,7 +17,8 @@ export type PublicEvent = {
   estimated_total_cost?: number | null;
   estimated_per_person?: number | null;
   contributions_locked_at?: string | null;
-  payment_timing?: 'before_event' | 'after_event';
+  cost_model?: CostModel;
+  payment_timing?: PaymentTiming | null;
   payment_mode?:'free'|'before_event'|'after_event';
   payment_due_at?:string|null;
   hold_minutes?:number;

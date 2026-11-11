@@ -219,6 +219,62 @@ Deno.test('manual finance endpoints reject anonymous organizers and invalid payl
   }
 });
 
+Deno.test('event creation keeps the cost model independent of payment timing', async () => {
+  const originalFetch = globalThis.fetch;
+  const writes: { path: string; data: Record<string, unknown> }[] = [];
+  globalThis.fetch = (input, init) => {
+    const path = new URL(String(input)).pathname;
+    if (path === '/rest/v1/workspace_members') return Promise.resolve(Response.json({ role: 'owner' }));
+    if (path === '/rest/v1/events' || path === '/rest/v1/rpc/create_billed_event') {
+      writes.push({ path, data: JSON.parse(String(init?.body)) });
+      return Promise.resolve(Response.json({ id: identity.id }));
+    }
+    throw new Error(`Unexpected create event request: ${path}`);
+  };
+
+  try {
+    const routes = manualPaymentRoutes(accountMock(), 'http://supabase.test', 'test-key');
+    const event = {
+      workspace_id: identity.id, activity_type_id: identity.id, title: 'Badminton',
+      starts_at: '2026-12-03T12:00:00Z', ends_at: '2026-12-03T14:00:00Z',
+      registration_closes_at: '2026-12-02T12:00:00Z', timezone: 'Asia/Jakarta',
+      capacity: 12, visibility: 'public', venue_snapshot: { name: 'GOR Fixture', address: 'Jalan Fixture', maps_url: '' },
+    };
+    const create = (billing: Record<string, unknown>) => routes.handle(new Request('http://localhost/events', {
+      method: 'POST', headers: authHeaders, body: JSON.stringify({ ...event, ...billing }),
+    }));
+    for (const timing of ['before_event', 'after_event']) {
+      const dynamic = await create({ cost_model: 'dynamic', payment_timing: timing, estimated_total_cost: 100000 });
+      assert(dynamic.status === 200, `Dynamic ${timing}: ${await dynamic.text()}`);
+      const dynamicWrite = writes.at(-1);
+      assert(dynamicWrite?.path === '/rest/v1/events' && dynamicWrite.data.payment_timing === timing
+        && dynamicWrite.data.contribution_mode === 'dynamic' && !('cost_model' in dynamicWrite.data), 'Dynamic timing was not stored');
+
+      const fixed = await create({
+        cost_model: 'fixed', payment_timing: timing, price_amount: 50000, payment_method_id: identity.id,
+        ...(timing === 'after_event' ? { payment_due_at: '2026-12-04T14:00:00Z' } : { hold_minutes: 15 }),
+      });
+      assert(fixed.status === 200, `Fixed ${timing}: ${await fixed.text()}`);
+      const fixedWrite = writes.at(-1);
+      assert(fixedWrite?.path.endsWith('/create_billed_event') && fixedWrite.data.p_payment_mode === timing,
+        'Fixed timing was not forwarded to the invoice workflow');
+    }
+
+    const free = await create({ cost_model: 'free' });
+    assert(free.status === 200 && writes.at(-1)?.data.p_payment_mode === 'free', 'Free event was not created');
+    const legacy = await create({ billing_mode: 'before_event', price_amount: 50000, payment_method_id: identity.id });
+    assert(legacy.status === 200 && writes.at(-1)?.data.p_payment_mode === 'before_event', 'Legacy create payload stopped working');
+
+    const writeCount = writes.length;
+    const freeWithTiming = await create({ cost_model: 'free', payment_timing: 'after_event' });
+    const fixedWithoutTiming = await create({ cost_model: 'fixed', price_amount: 50000, payment_method_id: identity.id });
+    assert(freeWithTiming.status === 422 && fixedWithoutTiming.status === 422 && writes.length === writeCount,
+      'Invalid timing reached a database write');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 Deno.test('organizer roster reads participant users embedded as objects', async () => {
   const originalFetch = globalThis.fetch;
   let contributionMode = 'legacy';

@@ -37,12 +37,15 @@ test('example quota starts at its final value when reduced motion is enabled', a
   await expect(invitation.getByText('4', { exact: true })).toHaveCSS('opacity', '0');
 });
 
-test('calculator updates venue, schedule, rounded costs and DP balance', async ({ page }) => {
+test('calculator updates venue, schedule, rounded estimates, fixed prices and free events', async ({ page }) => {
   await page.goto('/#simulasi');
   await page.getByLabel('Total biaya (Rp)', { exact: true }).fill('100000');
   await page.getByLabel('Kuota peserta', { exact: true }).fill('3');
   await expect(page.getByTestId('demo-quick-total')).toHaveText('Rp 33.334');
   await expect(page.getByTestId('demo-quick-total')).toBeInViewport();
+  await page.getByLabel('Jumlah peserta untuk estimasi').fill('2');
+  await expect(page.getByTestId('demo-quick-total')).toHaveText('Rp 50.000');
+  await page.getByLabel('Jumlah peserta untuk estimasi').fill('');
   await expect(page.getByLabel('Nama tempat', { exact: true })).toBeHidden();
   await page.getByText('Sesuaikan contoh undangan', { exact: true }).click();
   await page.getByLabel('Nama tempat', { exact: true }).fill('Lapangan Teman');
@@ -50,18 +53,25 @@ test('calculator updates venue, schedule, rounded costs and DP balance', async (
   await expect(page.getByTestId('demo-preview-venue')).toHaveText('Lapangan Teman');
   await expect(page.getByTestId('demo-preview-schedule')).toHaveText('Minggu, 08.00 WIB');
   await expect(page.getByTestId('demo-per-person')).toHaveText('Rp 33.334');
-  await page.getByRole('radio', { name: /DP 50% di Awal/ }).check();
-  await expect(page.getByTestId('demo-dp')).toContainText('DP per orang: Rp 16.667');
-  await expect(page.getByTestId('demo-dp')).toContainText('Sisa pelunasan: Rp 16.667');
+  await page.getByRole('radio', { name: 'Patungan harga tetap', exact: true }).check();
+  await page.getByLabel('Harga per peserta (Rp)', { exact: true }).fill('40000');
+  await expect(page.getByTestId('demo-per-person')).toHaveText('Rp 40.000');
+  await expect(page.getByTestId('demo-total')).toHaveText('Rp 120.000');
+  await page.getByRole('radio', { name: /^Gratis/ }).check();
+  await expect(page.getByLabel('Harga per peserta (Rp)', { exact: true })).toHaveCount(0);
+  await expect(page.getByTestId('demo-per-person')).toHaveText('Rp 0');
+  await expect(page.getByRole('heading', { name: 'Pembayaran peserta contoh' })).toHaveCount(0);
+  await expect(page.getByRole('group', { name: 'Waktu pembayaran' })).toHaveCount(0);
 });
 
 test('sample payment statuses change capacity without exceeding the selected limit', async ({ page }) => {
   await page.goto('/#simulasi');
+  await page.getByText('Sesuaikan contoh undangan', { exact: true }).click();
+  await page.getByRole('radio', { name: 'Patungan harga tetap', exact: true }).check();
   await expect(page.getByTestId('demo-quota')).toHaveText('2 / 12 terisi');
   await page.getByRole('button', { name: 'Ubah status Teman 1', exact: true }).click();
   await expect(page.getByTestId('demo-quota')).toHaveText('1 / 12 terisi');
-  await page.getByText('Sesuaikan contoh undangan', { exact: true }).click();
-  await page.getByRole('radio', { name: /Catat Bayar di Lokasi/ }).check();
+  await page.getByRole('radio', { name: 'Setelah event', exact: true }).check();
   await expect(page.getByText('Ubah status pembayaran. Peserta tetap dihitung dalam kuota.')).toBeVisible();
   await page.getByRole('button', { name: 'Ubah status Teman 1', exact: true }).click();
   await expect(page.getByTestId('demo-quota')).toHaveText('3 / 12 terisi');
@@ -106,7 +116,8 @@ test('copy creates a restorable demo link and WhatsApp stays an explicit share l
   await page.getByText('Sesuaikan contoh undangan', { exact: true }).click();
   await page.getByLabel('Nama tempat', { exact: true }).fill('Studio Sore');
   await page.getByRole('button', { name: 'Studio Musik', exact: true }).click();
-  await page.getByRole('radio', { name: /DP 50% di Awal/ }).check();
+  await page.getByRole('radio', { name: 'Patungan harga tetap', exact: true }).check();
+  await page.getByRole('radio', { name: 'Setelah event', exact: true }).check();
   await page.getByRole('button', { name: 'Salin tautan', exact: true }).click();
   await expect(page.getByRole('status')).toContainText('Tautan simulasi berhasil disalin.');
   const link = await page.evaluate(() => navigator.clipboard.readText());
@@ -120,7 +131,8 @@ test('copy creates a restorable demo link and WhatsApp stays an explicit share l
   await expect(recipient.getByTestId('demo-preview-venue')).toHaveText('Studio Sore');
   await recipient.getByText('Sesuaikan contoh undangan', { exact: true }).click();
   await expect(recipient.getByLabel('Nama tempat', { exact: true })).toHaveValue('Studio Sore');
-  await expect(recipient.getByRole('radio', { name: /DP 50% di Awal/ })).toBeChecked();
+  await expect(recipient.getByRole('radio', { name: 'Patungan harga tetap', exact: true })).toBeChecked();
+  await expect(recipient.getByRole('radio', { name: 'Setelah event', exact: true })).toBeChecked();
   await expect(recipient.getByRole('button', { name: 'Studio Musik', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await recipient.reload();
   await expect(recipient.getByTestId('demo-preview-venue')).toHaveText('Studio Sore');
@@ -167,4 +179,15 @@ test('landing links to the existing account sign-in', async ({ page }) => {
   await signIn.focus();
   await page.keyboard.press('Enter');
   await expect(page).toHaveURL(/\/account\/$/);
+});
+
+test('older DP links open as fixed prices without treating deposits as full payments', async ({ page }) => {
+  const demo = {
+    category: 'soccer', venue: 'Lapangan Teman', schedule: 'Sabtu sore',
+    cost: '100000', capacity: '3', policy: 'dp', paid: [true, true, false],
+  };
+  await page.goto(`/#simulasi?demo=${encodeURIComponent(JSON.stringify(demo))}`);
+  await expect(page.getByTestId('demo-preview-venue')).toHaveText('Lapangan Teman');
+  await expect(page.getByTestId('demo-per-person')).toHaveText('Rp 33.334');
+  await expect(page.getByTestId('demo-quota')).toHaveText('0 / 3 terisi');
 });

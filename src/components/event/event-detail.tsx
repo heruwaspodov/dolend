@@ -70,8 +70,8 @@ export function EventDetail() {
   const startDay = day.format(start);
   const endDay = day.format(end);
   const seats = event.capacity - event.participants_count;
-  const dynamic = event.contribution_mode === 'dynamic';
-  const timing = dynamic ? event.payment_timing : event.payment_mode;
+  const dynamic = event.cost_model ? event.cost_model === 'dynamic' : event.contribution_mode === 'dynamic';
+  const timing = event.cost_model || dynamic ? event.payment_timing : event.payment_mode;
   const paymentLabel = !dynamic && event.price_amount === 0 ? 'Gratis'
     : timing === 'before_event' ? 'Bayar sebelum event'
     : timing === 'after_event' ? 'Bayar setelah event'

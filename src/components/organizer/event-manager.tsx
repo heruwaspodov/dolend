@@ -24,7 +24,7 @@ const sectionFields = 'grid gap-4 sm:grid-cols-2';
 const panelInset = 'px-5 py-5 sm:px-8';
 const zoneOffsets:Record<string,string>={'Asia/Jakarta':'+07:00','Asia/Makassar':'+08:00','Asia/Jayapura':'+09:00'};
 type Notice = { kind: 'success' | 'error'; text: string } | null;
-type ManagedEvent = Omit<PublicEvent, 'venue'> & { venue: PublicEvent['venue'] & { coarse_region_code?: string }; status: 'published'|'recruiting' | 'confirmed' | 'completed' | 'cancelled'; visibility:'public'|'unlisted'; venue_booking_status: string; version: number; registration_closes_at:string; payment_timing:'before_event'|'after_event';payment_mode?:'free'|'before_event'|'after_event' };
+type ManagedEvent = Omit<PublicEvent, 'venue'> & { venue: PublicEvent['venue'] & { coarse_region_code?: string }; status: 'published'|'recruiting' | 'confirmed' | 'completed' | 'cancelled'; visibility:'public'|'unlisted'; venue_booking_status: string; version: number; registration_closes_at:string; payment_timing:PublicEvent['payment_timing'];payment_mode?:'free'|'before_event'|'after_event' };
 type EventShare = { link: { token: string; expires_at: string } | null; legacy_active: boolean };
 type OrganizerEventBasics = { workspace_id?: string | null; workspace_name?: string | null; activity_type_name?: string | null };
 
@@ -251,7 +251,7 @@ export function EventManager() {
           <div><Label htmlFor="manage-capacity">Kapasitas (orang)</Label><Input id="manage-capacity" name="capacity" type="number" inputMode="numeric" min={1} max={100000} defaultValue={event.capacity} required className={field} /></div>
           {event.contribution_mode === 'dynamic' && <>
             <div><Label htmlFor="manage-cost">Perkiraan biaya total (Rp)</Label><Input id="manage-cost" name="estimated_total_cost" type="number" min={0} step={1000} defaultValue={roster.estimated_total_cost} required className={field} /></div>
-            <div><Label htmlFor="manage-timing">Waktu pembayaran</Label><SearchableSelect id="manage-timing" name="payment_timing" defaultValue={event.payment_timing} className="mt-2"><option value="before_event">Sebelum event</option><option value="after_event">Setelah event</option></SearchableSelect></div>
+            <div><Label htmlFor="manage-timing">Waktu pembayaran</Label><SearchableSelect id="manage-timing" name="payment_timing" defaultValue={event.payment_timing ?? 'before_event'} className="mt-2"><option value="before_event">Sebelum event</option><option value="after_event">Setelah event</option></SearchableSelect></div>
           </>}
         </div>
       </WorkspaceFormSection>

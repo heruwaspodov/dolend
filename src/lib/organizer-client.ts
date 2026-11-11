@@ -26,7 +26,7 @@ export type RosterParticipant = {
 export type EventRoster = {
   estimated_total_cost: number;
   contributions_locked_at: string | null;
-  payment_timing: 'before_event' | 'after_event';
+  payment_timing: 'before_event' | 'after_event' | null;
   contribution_mode?:'legacy'|'dynamic';
   payment_mode?:'free'|'before_event'|'after_event';
   estimated_per_person: number | null;

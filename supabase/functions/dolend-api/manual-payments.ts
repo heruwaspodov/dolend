@@ -188,7 +188,7 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
   const eventRosterQuery = t.Object({ roster_page: t.Optional(t.Numeric({ minimum: 1, maximum: 10000, multipleOf: 1 })) });
 
   async function eventDto(eventId: string, publicOnly: boolean, rosterPage = 1) {
-    let query=client().from('events').select('id,title,description,starts_at,ends_at,registration_closes_at,timezone,capacity,price_amount,currency,status,visibility,venue_snapshot,venue_booking_status,estimated_total_cost,contributions_locked_at,contribution_mode,payment_mode,payment_due_at,payment_timing,hold_minutes,version,activity_types(slug,name)').eq('id',eventId);
+    let query=client().from('events').select('id,title,description,starts_at,ends_at,registration_closes_at,timezone,capacity,price_amount,currency,status,visibility,venue_snapshot,venue_booking_status,estimated_total_cost,contributions_locked_at,contribution_mode,cost_model,payment_mode,payment_due_at,payment_timing,hold_minutes,version,activity_types(slug,name)').eq('id',eventId);
     if(publicOnly)query=query.in('status',['published','recruiting','confirmed','completed']);
     const {data:e,error}=await query.single();
     if(error)throw new FinanceError('FORBIDDEN');
@@ -297,22 +297,40 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
       const venue=body.venue_snapshot?normalizeVenueSnapshot(body.venue_snapshot):undefined;
       const {data:membership}=await client().from('workspace_members').select('role').eq('workspace_id',body.workspace_id).eq('profile_id',id).in('role',['owner','organizer']).maybeSingle();
       if(!membership) throw new FinanceError('FORBIDDEN');
-      if(body.billing_mode) {
-        if(body.estimated_total_cost!==undefined||body.payment_timing!==undefined||!venue)throw new FinanceError('INVALID_REQUEST');
+      const { cost_model, billing_mode, ...fields } = body;
+      if (cost_model && billing_mode) throw new FinanceError('INVALID_REQUEST');
+      const model = cost_model ?? (billing_mode === 'free' ? 'free' : billing_mode ? 'fixed' : 'dynamic');
+      const timing = billing_mode === 'free' ? undefined : billing_mode ?? fields.payment_timing;
+      if (billing_mode && fields.payment_timing !== undefined) throw new FinanceError('INVALID_REQUEST');
+
+      if (model !== 'dynamic') {
+        if (!venue || fields.estimated_total_cost !== undefined) throw new FinanceError('INVALID_REQUEST');
+        if (model === 'free') {
+          if (timing || (fields.price_amount ?? 0) !== 0 || fields.payment_method_id
+            || fields.hold_minutes !== undefined || fields.payment_due_at) throw new FinanceError('INVALID_REQUEST');
+        } else if (!timing || !fields.price_amount || !fields.payment_method_id
+          || (timing === 'after_event' && (!fields.payment_due_at || fields.hold_minutes !== undefined))
+          || (timing === 'before_event' && fields.payment_due_at)) {
+          throw new FinanceError('INVALID_REQUEST');
+        }
+
         return {data:await rpc('create_billed_event',{
-          p_actor:id,p_workspace:body.workspace_id,p_activity_type:body.activity_type_id,p_title:body.title,
-          p_description:body.description??'',p_starts_at:body.starts_at,p_ends_at:body.ends_at,
-          p_registration_closes_at:body.registration_closes_at,p_timezone:body.timezone,p_capacity:body.capacity,
-          p_visibility:body.visibility,p_venue_snapshot:venue,p_payment_mode:body.billing_mode,
-          p_price_amount:body.price_amount??0,p_payment_due_at:body.payment_due_at??null,
-          p_hold_minutes:body.hold_minutes??15,p_payment_method:body.payment_method_id??null,
+          p_actor:id,p_workspace:fields.workspace_id,p_activity_type:fields.activity_type_id,p_title:fields.title,
+          p_description:fields.description??'',p_starts_at:fields.starts_at,p_ends_at:fields.ends_at,
+          p_registration_closes_at:fields.registration_closes_at,p_timezone:fields.timezone,p_capacity:fields.capacity,
+          p_visibility:fields.visibility,p_venue_snapshot:venue,p_payment_mode:model === 'free' ? 'free' : timing,
+          p_price_amount:fields.price_amount??0,p_payment_due_at:fields.payment_due_at??null,
+          p_hold_minutes:fields.hold_minutes??15,p_payment_method:fields.payment_method_id??null,
         })};
       }
-      if(body.estimated_total_cost===undefined||body.payment_timing===undefined||body.price_amount!==undefined||body.payment_due_at!==undefined||body.hold_minutes!==undefined||body.payment_method_id!==undefined)throw new FinanceError('INVALID_REQUEST');
-      const {data,error}=await client().from('events').insert({...body,...(venue?{venue_snapshot:venue}:{}),organizer_profile_id:id,contribution_mode:'dynamic',payment_mode:'free',price_amount:0,status:'recruiting'}).select('id').single();
+      if (fields.estimated_total_cost === undefined || !timing || fields.price_amount !== undefined
+        || fields.payment_due_at !== undefined || fields.hold_minutes !== undefined || fields.payment_method_id !== undefined) {
+        throw new FinanceError('INVALID_REQUEST');
+      }
+      const {data,error}=await client().from('events').insert({...fields,...(venue?{venue_snapshot:venue}:{}),organizer_profile_id:id,contribution_mode:'dynamic',payment_mode:'free',price_amount:0,status:'recruiting'}).select('id').single();
       if(error) throw new FinanceError('CONFLICT');
       return {data};
-    },{body:t.Object({workspace_id:uuid,activity_type_id:uuid,title:t.String({minLength:1,maxLength:200}),description:t.Optional(t.String({maxLength:10000})),starts_at:t.String({format:'date-time'}),ends_at:t.String({format:'date-time'}),registration_closes_at:t.String({format:'date-time'}),timezone:t.String({minLength:1,maxLength:100}),capacity:t.Integer({minimum:1,maximum:100000}),estimated_total_cost:t.Optional(amount),payment_timing:t.Optional(t.Union([t.Literal('before_event'),t.Literal('after_event')])),billing_mode:t.Optional(t.Union([t.Literal('free'),t.Literal('before_event'),t.Literal('after_event')])),price_amount:t.Optional(amount),payment_due_at:t.Optional(t.String({format:'date-time'})),hold_minutes:t.Optional(t.Integer({minimum:1,maximum:1440})),payment_method_id:t.Optional(uuid),visibility:t.Union([t.Literal('public'),t.Literal('unlisted')]),venue_snapshot:t.Optional(venueSnapshot)},{additionalProperties:false})})
+    },{body:t.Object({workspace_id:uuid,activity_type_id:uuid,title:t.String({minLength:1,maxLength:200}),description:t.Optional(t.String({maxLength:10000})),starts_at:t.String({format:'date-time'}),ends_at:t.String({format:'date-time'}),registration_closes_at:t.String({format:'date-time'}),timezone:t.String({minLength:1,maxLength:100}),capacity:t.Integer({minimum:1,maximum:100000}),estimated_total_cost:t.Optional(amount),cost_model:t.Optional(t.Union([t.Literal('dynamic'),t.Literal('fixed'),t.Literal('free')])),payment_timing:t.Optional(t.Union([t.Literal('before_event'),t.Literal('after_event')])),billing_mode:t.Optional(t.Union([t.Literal('free'),t.Literal('before_event'),t.Literal('after_event')])),price_amount:t.Optional(amount),payment_due_at:t.Optional(t.String({format:'date-time'})),hold_minutes:t.Optional(t.Integer({minimum:1,maximum:1440})),payment_method_id:t.Optional(uuid),visibility:t.Union([t.Literal('public'),t.Literal('unlisted')]),venue_snapshot:t.Optional(venueSnapshot)},{additionalProperties:false})})
     .patch('/events/:id/planning',async ({request,params,body}) => {
       const actorId=await actor(request);
       const {expected_version,...patch}=body;

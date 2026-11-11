@@ -14,6 +14,15 @@ begin
   p_description=>'',p_starts_at=>now()+interval '2 days',p_ends_at=>now()+interval '2 days 2 hours',
   p_registration_closes_at=>now()+interval '1 day',p_timezone=>'Asia/Jakarta',p_capacity=>4,p_visibility=>'public',
   p_venue_snapshot=>venue,p_payment_mode=>'free',p_price_amount=>0);
+ if free_event.cost_model is distinct from 'free' or free_event.payment_timing is distinct from null then
+  raise exception 'INVALID_COST_MODEL_OR_TIMING';
+ end if;
+ begin
+  update public.events set payment_timing='before_event' where id=free_event.id;
+  raise exception 'EXPECTED_FREE_TIMING_REJECTION';
+ exception when check_violation then
+  if sqlerrm not like '%events_cost_model_payment_timing_check%' then raise; end if;
+ end;
  participant=public.join_event(free_event.id,owner_user,owner);
  if exists(select 1 from public.invoices where participant_id=participant.id) then raise exception 'FREE_CREATED_INVOICE'; end if;
 
@@ -21,6 +30,9 @@ begin
   p_description=>'',p_starts_at=>now()+interval '3 days',p_ends_at=>now()+interval '3 days 2 hours',
   p_registration_closes_at=>now()+interval '2 days',p_timezone=>'Asia/Jakarta',p_capacity=>4,p_visibility=>'unlisted',
   p_venue_snapshot=>venue,p_payment_mode=>'before_event',p_price_amount=>5000,p_hold_minutes=>30,p_payment_method=>bank);
+ if before_event.cost_model is distinct from 'fixed' or before_event.payment_timing is distinct from 'before_event' then
+  raise exception 'INVALID_COST_MODEL_OR_TIMING';
+ end if;
  participant=public.join_event(before_event.id,other_user,other);
  if participant.status<>'held' then raise exception 'PREPAY_NOT_HELD'; end if;
  select * into strict invoice from public.invoices where participant_id=participant.id;
@@ -37,6 +49,9 @@ begin
   p_description=>'',p_starts_at=>now()+interval '4 days',p_ends_at=>now()+interval '4 days 2 hours',
   p_registration_closes_at=>now()+interval '3 days',p_timezone=>'Asia/Jakarta',p_capacity=>4,p_visibility=>'public',
   p_venue_snapshot=>venue,p_payment_mode=>'after_event',p_price_amount=>7000,p_payment_due_at=>now()+interval '5 days',p_payment_method=>bank);
+ if after_event.cost_model is distinct from 'fixed' or after_event.payment_timing is distinct from 'after_event' then
+  raise exception 'INVALID_COST_MODEL_OR_TIMING';
+ end if;
  participant=public.join_event(after_event.id,owner_user,owner);
  select * into strict invoice from public.invoices where participant_id=participant.id;
  if participant.status<>'confirmed' or invoice.due_at<after_event.ends_at then raise exception 'POSTPAY_DUE_INVALID'; end if;

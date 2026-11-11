@@ -360,6 +360,7 @@ test('form venue mengirim koordinat dan petunjuk bertemu', async ({ page }) => {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
   await page.getByRole('button',{name:'Buat event'}).click();
   await expect(page).toHaveURL(`/event/manage/?id=${eventId}`);
+  expect(created).toMatchObject({cost_model:'dynamic',payment_timing:'before_event'});
   expect(created?.venue_snapshot).toEqual({name:'GOR Jakarta',address:'Jakarta Pusat',maps_url:'',latitude:-6.2,longitude:106.816666,meeting_instructions:'Tunggu di lobi utama.',coarse_region_code:'ID-JK'});
 });
 
@@ -371,11 +372,15 @@ test('form membuat event harga tetap setelah event',async({page})=>{
   await page.goto('/event/create/');
   await page.getByLabel('Nama event').fill('Badminton postpay');
   await page.getByLabel('Mulai').fill('2026-11-06T19:00');await page.getByLabel('Selesai').fill('2026-11-06T21:00');await page.getByLabel('Pendaftaran ditutup').fill('2026-11-05T19:00');
-  await page.getByRole('radio', { name: 'Harga tetap, bayar setelah event', exact: true }).check();
+  await page.getByRole('radio', { name: 'Setelah event', exact: true }).check();
+  await page.getByRole('radio', { name: 'Gratis', exact: true }).check();
+  await expect(page.getByRole('group', { name: 'Waktu pembayaran' })).toHaveCount(0);
+  await page.getByRole('radio', { name: 'Patungan harga tetap', exact: true }).check();
+  await expect(page.getByRole('radio', { name: 'Setelah event', exact: true })).toBeChecked();
   await page.getByLabel('Harga per peserta (Rp)').fill('50000');await page.getByLabel('Rekening penerima').click();await page.getByRole('option', { name: 'BCA Host', exact: true }).click();await page.getByLabel('Jatuh tempo pembayaran').fill('2026-11-07T21:00');
   await page.getByLabel('Nama tempat').fill('GOR Jakarta');await page.getByLabel('Alamat').fill('Jakarta Pusat');
   await page.getByRole('button',{name:'Buat event'}).click();await expect(page).toHaveURL(`/event/manage/?id=${eventId}`);
-  expect(created).toMatchObject({billing_mode:'after_event',price_amount:50000,payment_due_at:'2026-11-07T21:00:00+07:00',payment_method_id:bankMethodId});
+  expect(created).toMatchObject({cost_model:'fixed',payment_timing:'after_event',price_amount:50000,payment_due_at:'2026-11-07T21:00:00+07:00',payment_method_id:bankMethodId});
   expect(created?.estimated_total_cost).toBeUndefined();
 });
 

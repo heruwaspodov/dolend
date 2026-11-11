@@ -9,7 +9,7 @@ Keputusan pengguna, 27 Oktober 2026: React + Tailwind CSS + shadcn/ui. Next.js A
 - Komponen source dimiliki proyek pada `src/components/ui/`: Button, Card, Badge, Input, Label.
 - Utility `cn` tersedia melalui `src/lib/utils.ts`; generator saat ini juga mengimpor package `cn` langsung.
 - Token CSS di `src/app/globals.css`: warna primary emerald, background slate-50, teks navy sesuai landing referensi pengguna, semantic foreground/border/focus; Plus Jakarta Sans Variable dari dependency lokal, tanpa download font runtime dari Google. Class `.dark` bawaan generator tersedia, tetapi belum ada toggle atau verifikasi dark mode.
-- Homepage mengadaptasi HTML pengguna ke React, Tailwind, Button/Card/Input/Label shadcn. CTA membuka simulator. Perhitungan patungan, DP ilustratif, perubahan status peserta, share link yang memulihkan konfigurasi, FAQ dan menu mobile tersedia; SMS/payment nyata belum aktif.
+- Homepage mengadaptasi HTML pengguna ke React, Tailwind, Button/Card/Input/Label shadcn. CTA membuka simulator. Simulasi mengikuti form Buat Event, dengan tiga model biaya dan pilihan waktu pembayaran terpisah untuk event berbayar. Estimasi patungan mengikuti jumlah peserta. Perubahan status peserta, share link yang memulihkan konfigurasi, FAQ dan menu mobile tersedia; SMS/payment nyata belum aktif.
 
 ## Menambah komponen
 
