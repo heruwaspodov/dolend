@@ -47,9 +47,8 @@ export function Simulator({ contentWidth }: { contentWidth: string }) {
   const capacity = valid ? Number(config.capacity) : 0;
   const amountField = isDynamic ? 'cost' : 'price';
   const cost = valid && !isFree ? Number(config[amountField]) : 0;
-  const total = isFree || isDynamic ? cost : cost * capacity;
   const joined = config.joined === '' ? capacity : Number(config.joined);
-  const perPerson = valid && isDynamic ? Math.ceil(total / joined) : cost;
+  const perPerson = valid && isDynamic ? Math.ceil(cost / joined) : cost;
   const minimumCost = isDynamic ? 0 : 1;
   const costLabel = isDynamic ? 'Total biaya (Rp)' : 'Harga per peserta (Rp)';
   const perPersonLabel = isDynamic ? 'Estimasi patungan per orang' : 'Harga per peserta';
@@ -108,12 +107,12 @@ export function Simulator({ contentWidth }: { contentWidth: string }) {
               <p className="mt-0.5 wrap-anywhere text-sm text-[#514e4a]" data-testid="demo-preview-schedule">{config.schedule.trim() || 'Jadwal kegiatan'}</p>
             </div>
           </div>
-          <div className="mt-4 grid grid-cols-2 gap-3 border-t border-[#e6e3df] pt-4">
-            <div className="min-w-0">
+          <div className={cn("mt-4 border-t border-[#e6e3df] pt-4", isDynamic && "grid grid-cols-2 gap-3")}>
+            {isDynamic && <div className="min-w-0">
               <p className="text-xs text-[#615d59]">Total biaya</p>
-              <p className="mt-1 wrap-anywhere text-sm font-semibold tabular-nums" data-testid="demo-total">{valid ? rupiah(total) : '—'}</p>
-            </div>
-            <div className="min-w-0 border-l border-[#e6e3df] pl-3">
+              <p className="mt-1 wrap-anywhere text-sm font-semibold tabular-nums" data-testid="demo-total">{valid ? rupiah(cost) : '—'}</p>
+            </div>}
+            <div className={cn('min-w-0', isDynamic && 'border-l border-[#e6e3df] pl-3')}>
               <p className="text-xs text-[#615d59]">{perPersonLabel}</p>
               <p className="mt-1 wrap-anywhere text-sm font-bold text-[#005bab] tabular-nums" data-testid="demo-per-person">{valid ? rupiah(perPerson) : '—'}</p>
             </div>
@@ -150,7 +149,7 @@ export function Simulator({ contentWidth }: { contentWidth: string }) {
         </details>
 
         <div className="min-w-0 divide-y divide-[#e6e3df] rounded-xl border border-[#e6e3df] bg-white px-4 sm:px-6">
-          {!isFree && (!valid || total > 0) && (
+          {!isFree && (!valid || cost > 0) && (
             <section aria-labelledby="demo-payments-title" className="py-4">
               <h3 id="demo-payments-title" className="text-base font-semibold">Pembayaran peserta contoh</h3>
               <p className="mt-1 text-sm leading-relaxed text-[#514e4a]">

@@ -53,10 +53,13 @@ test('calculator updates venue, schedule, rounded estimates, fixed prices and fr
   await expect(page.getByTestId('demo-preview-venue')).toHaveText('Lapangan Teman');
   await expect(page.getByTestId('demo-preview-schedule')).toHaveText('Minggu, 08.00 WIB');
   await expect(page.getByTestId('demo-per-person')).toHaveText('Rp 33.334');
+  await expect(page.getByTestId('demo-total')).toHaveText('Rp 100.000');
   await page.getByRole('radio', { name: 'Patungan harga tetap', exact: true }).check();
   await page.getByLabel('Harga per peserta (Rp)', { exact: true }).fill('40000');
   await expect(page.getByTestId('demo-per-person')).toHaveText('Rp 40.000');
-  await expect(page.getByTestId('demo-total')).toHaveText('Rp 120.000');
+  await expect(page.getByTestId('demo-total')).toHaveCount(0);
+  await page.getByLabel('Kuota peserta', { exact: true }).fill('12');
+  await expect(page.getByTestId('demo-per-person')).toHaveText('Rp 40.000');
   await page.getByRole('radio', { name: /^Gratis/ }).check();
   await expect(page.getByLabel('Harga per peserta (Rp)', { exact: true })).toHaveCount(0);
   await expect(page.getByTestId('demo-per-person')).toHaveText('Rp 0');

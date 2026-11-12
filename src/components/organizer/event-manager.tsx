@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { organizerRequest, type ActivityType, type EventRoster } from '@/lib/organizer-client';
+import { costModelOptions, paymentTimingOptions } from '@/lib/event-billing-options';
 import { isUuid, type PublicEvent } from '@/lib/event-client';
 import { useOrganizerSession } from '@/lib/use-organizer-session';
 import { venueSnapshotFromForm } from '@/lib/venue-form';
@@ -16,11 +17,12 @@ import { canShareEvent, canonicalEventUrl, eventShareSectionId } from '@/lib/eve
 import { SessionGate } from './session-gate';
 import { EventBasicsFields } from './event-basics-fields';
 import { EventRosterTable } from './event-roster-table';
-import { WorkspaceFormHeader, WorkspaceFormSection, workspaceFormAction, workspaceFormControl, workspaceFormDividers, workspaceFormPanel, workspaceFormWidth } from './workspace-form';
+import { WorkspaceFormHeader, WorkspaceFormSection, workspaceFormAction, workspaceFormChoice, workspaceFormControl, workspaceFormDividers, workspaceFormPanel, workspaceFormWidth } from './workspace-form';
 
 const field = `mt-2 ${workspaceFormControl}`;
 const textarea = `${field} h-auto resize-y py-2`;
 const sectionFields = 'grid gap-4 sm:grid-cols-2';
+const rupiah = new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 });
 const panelInset = 'px-5 py-5 sm:px-8';
 const zoneOffsets:Record<string,string>={'Asia/Jakarta':'+07:00','Asia/Makassar':'+08:00','Asia/Jayapura':'+09:00'};
 type Notice = { kind: 'success' | 'error'; text: string } | null;
@@ -211,6 +213,47 @@ export function EventManager() {
     ? canonicalEventUrl(window.location.origin, eventId, event.visibility === 'unlisted' ? share?.link?.token : undefined)
     : '';
 
+  const canEditPlanning = event.status !== 'completed' && event.status !== 'cancelled';
+  const costModel = event.cost_model ?? (event.contribution_mode === 'dynamic' ? 'dynamic' : event.price_amount > 0 ? 'fixed' : 'free');
+  const modelOption = costModelOptions.find(option => option.value === costModel);
+  // Older fixed-price responses carry the actual timing in payment_mode.
+  const timing = event.cost_model || costModel === 'dynamic' ? event.payment_timing : event.payment_mode;
+  const timingOption = paymentTimingOptions.find(option => option.value === timing);
+  const billingSection = (
+    <WorkspaceFormSection id="manage-billing-title" title="Kapasitas dan pembayaran">
+      <div className={sectionFields}>
+        {canEditPlanning && <div>
+          <Label htmlFor="manage-capacity">Kapasitas (orang)</Label>
+          <Input id="manage-capacity" name="capacity" type="number" inputMode="numeric" min={1} max={100000} defaultValue={event.capacity} required className={field} />
+        </div>}
+        <dl className="sm:col-span-2">
+          <dt className="mb-2 text-sm font-medium">Model biaya</dt>
+          <dd className={`${workspaceFormChoice} px-3 py-2.5 text-sm`}>
+            <p className="font-semibold">{modelOption?.label}</p>
+            <p className="mt-0.5 leading-relaxed text-[#615d59]">{modelOption?.hint}</p>
+          </dd>
+        </dl>
+        {costModel === 'dynamic' && canEditPlanning && <div>
+          <Label htmlFor="manage-cost">Perkiraan biaya total (Rp)</Label>
+          <Input id="manage-cost" name="estimated_total_cost" type="number" min={0} max={1e12} step={1} defaultValue={roster.estimated_total_cost} required className={field} />
+        </div>}
+        {costModel === 'fixed' && <dl>
+          <dt className="text-sm font-medium">Harga per peserta</dt>
+          <dd className="mt-2 text-sm tabular-nums">Rp {rupiah.format(event.price_amount)}</dd>
+        </dl>}
+        {costModel === 'dynamic' && canEditPlanning ? <div>
+          <Label htmlFor="manage-timing">Waktu pembayaran</Label>
+          <SearchableSelect id="manage-timing" name="payment_timing" defaultValue={timingOption?.value ?? 'before_event'} className="mt-2">
+            {paymentTimingOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </SearchableSelect>
+        </div> : costModel !== 'free' && timingOption && <dl>
+          <dt className="text-sm font-medium">Waktu pembayaran</dt>
+          <dd className="mt-2 text-sm">{timingOption.label}</dd>
+        </dl>}
+      </div>
+    </WorkspaceFormSection>
+  );
+
   return <div className={`${workspaceFormWidth} ${workspaceFormPanel} wrap-anywhere`}>
     <WorkspaceFormHeader
       icon={SlidersHorizontal}
@@ -225,7 +268,7 @@ export function EventManager() {
         <Button type="button" variant="outline" className="mt-3 min-h-11 bg-white" onClick={() => void navigator.clipboard.writeText(bookingLink)}><Copy aria-hidden="true" />Salin tautan</Button>
       </div>
     </WorkspaceFormSection>}
-    {event.status !== 'completed' && event.status !== 'cancelled' && <form key={event.version} onSubmit={updatePlanning} className={workspaceFormDividers} aria-labelledby="planning-title">
+    {canEditPlanning ? <form key={event.version} onSubmit={updatePlanning} className={workspaceFormDividers} aria-labelledby="planning-title">
       <WorkspaceFormSection id="planning-title" title="Dasar event" description="Workspace, jenis kegiatan, dan akses ditetapkan saat event dibuat.">
         <EventBasicsFields event={event} activities={activities} />
       </WorkspaceFormSection>
@@ -246,19 +289,11 @@ export function EventManager() {
           <div className="sm:col-span-2"><Label htmlFor="manage-meeting">Petunjuk bertemu</Label><textarea id="manage-meeting" name="meeting_instructions" maxLength={1000} rows={3} defaultValue={event.venue.meeting_instructions} className={textarea} /></div>
         </div>
       </WorkspaceFormSection>
-      <WorkspaceFormSection id="manage-billing-title" title="Kapasitas dan pembayaran" description="Atur kapasitas dan, untuk iuran dinamis, perkiraan biaya serta waktu pembayaran.">
-        <div className={sectionFields}>
-          <div><Label htmlFor="manage-capacity">Kapasitas (orang)</Label><Input id="manage-capacity" name="capacity" type="number" inputMode="numeric" min={1} max={100000} defaultValue={event.capacity} required className={field} /></div>
-          {event.contribution_mode === 'dynamic' && <>
-            <div><Label htmlFor="manage-cost">Perkiraan biaya total (Rp)</Label><Input id="manage-cost" name="estimated_total_cost" type="number" min={0} step={1000} defaultValue={roster.estimated_total_cost} required className={field} /></div>
-            <div><Label htmlFor="manage-timing">Waktu pembayaran</Label><SearchableSelect id="manage-timing" name="payment_timing" defaultValue={event.payment_timing ?? 'before_event'} className="mt-2"><option value="before_event">Sebelum event</option><option value="after_event">Setelah event</option></SearchableSelect></div>
-          </>}
-        </div>
-      </WorkspaceFormSection>
+      {billingSection}
       <div className={`${panelInset} flex sm:justify-end`}>
         <Button type="submit" disabled={busy === 'planning'} className={`${workspaceFormAction} w-full sm:w-fit`}>{busy === 'planning' ? 'Menyimpan…' : 'Simpan planning'}</Button>
       </div>
-    </form>}
+    </form> : billingSection}
     <EventRosterTable
       roster={roster}
       dynamic={event.contribution_mode === 'dynamic'}

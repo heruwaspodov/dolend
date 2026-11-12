@@ -402,6 +402,9 @@ test('ruang kelola memuat roster dan membuat tautan guest satu kali', async ({ p
   await page.route('**/dolend-api/v1/participants/77777777-7777-4777-8777-777777777777/cancel', async route => { cancellation=route.request().postDataJSON(); await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:{ok:true}})}); });
   await page.route(`**/dolend-api/v1/events/${eventId}/cancel`, async route => { eventStatus='cancelled'; await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:null})}); });
   await page.goto(`/event/manage/?id=${eventId}`);
+  const billing = page.getByRole('region', { name: 'Kapasitas dan pembayaran' });
+  await expect(billing.getByText('Patungan sesuai jumlah peserta', { exact: true })).toBeVisible();
+  await expect(billing.getByLabel('Waktu pembayaran')).toBeVisible();
   await expect(page.getByRole('heading', { name:'Daftar peserta' })).toBeVisible();
   const table = page.getByRole('table', { name: 'Daftar peserta' });
   await expect(table.getByRole('columnheader', { name: 'Tagihan' })).toBeVisible();
