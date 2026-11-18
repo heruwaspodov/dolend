@@ -280,17 +280,21 @@ test('venue workspace tetap bisa dipakai saat pencarian luar mencapai batas', as
     return route.fulfill({ json: { data: saved ? { status: 'limited', venues: [] } : { status: 'ok', venues: [venue] } } });
   });
   await page.goto('/event/create/');
+  await page.getByRole('button', { name: 'Cari atau pilih venue' }).click();
   const search = page.getByRole('searchbox', { name: 'Cari venue' });
   await search.fill('GOR Uji');
   await expect(page.getByText('Belum ada venue yang cocok di workspace.')).toBeVisible();
   expect(requests).toBe(0);
   await page.getByRole('button', { name: 'Cari di peta', exact: true }).click();
   await page.getByRole('button', { name: /GOR Uji/ }).click();
+  await page.getByText('Detail lokasi manual', { exact: true }).click();
   await expect(page.getByLabel('Nama tempat')).toHaveValue('GOR Uji');
   await expect(page.getByLabel('Latitude')).toHaveValue('-6.2');
   await page.getByRole('button', { name: 'Simpan ke venue workspace' }).click();
   await expect(page.getByText('Venue tersimpan di workspace dan bisa dipakai lagi.')).toBeVisible();
   await page.reload();
+  await page.getByRole('button', { name: 'Cari atau pilih venue' }).click();
+  await page.getByText('Detail lokasi manual', { exact: true }).click();
   await search.fill('GOR Uji');
   await expect(page.getByText('Venue di workspace', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Cari di peta', exact: true }).click();
@@ -325,6 +329,7 @@ test('Buat Event memakai pencarian peta dari tampilan lebar ketika API venue gag
 
   await page.goto('/event/create/');
   const location = page.getByRole('region', { name: 'Lokasi', exact: true });
+  await location.getByRole('button', { name: 'Cari atau pilih venue' }).click();
   const search = location.getByRole('searchbox', { name: 'Cari venue' });
   await search.fill('Unggul Sport Center');
   await expect(location.getByText('Venue workspace belum bisa dimuat.')).toBeVisible();
@@ -333,6 +338,7 @@ test('Buat Event memakai pencarian peta dari tampilan lebar ketika API venue gag
   await expect(location.getByRole('button', { name: 'Cari di luar Dolend' })).toHaveCount(0);
   await expect(location.getByText(/Pencarian di luar area peta belum tersedia/)).toBeVisible();
   await location.getByRole('button', { name: 'Unggul Sports Center', exact: true }).click();
+  await location.getByText('Detail lokasi manual', { exact: true }).click();
   await expect(location.getByLabel('Nama tempat')).toHaveValue('Unggul Sports Center');
   await expect.poll(async () => Number(await location.getByLabel('Latitude').inputValue())).toBeCloseTo(-7.918495, 4);
   await expect.poll(async () => Number(await location.getByLabel('Longitude').inputValue())).toBeCloseTo(112.655268, 4);
@@ -349,6 +355,7 @@ test('form venue mengirim koordinat dan petunjuk bertemu', async ({ page }) => {
   await page.getByLabel('Mulai').fill('2026-11-06T19:00');
   await page.getByLabel('Selesai').fill('2026-11-06T21:00');
   await page.getByLabel('Pendaftaran ditutup').fill('2026-11-05T19:00');
+  await page.getByText('Detail lokasi manual', { exact: true }).click();
   await page.getByLabel('Nama tempat').fill('GOR Jakarta');
   await page.getByLabel('Alamat').fill('Jakarta Pusat');
   await page.getByText('Koordinat dan kode area', { exact: true }).click();
@@ -378,6 +385,7 @@ test('form membuat event harga tetap setelah event',async({page})=>{
   await page.getByRole('radio', { name: 'Patungan harga tetap', exact: true }).check();
   await expect(page.getByRole('radio', { name: 'Setelah event', exact: true })).toBeChecked();
   await page.getByLabel('Harga per peserta (Rp)').fill('50000');await page.getByLabel('Rekening penerima').click();await page.getByRole('option', { name: 'BCA Host', exact: true }).click();await page.getByLabel('Jatuh tempo pembayaran').fill('2026-11-07T21:00');
+  await page.getByText('Detail lokasi manual', { exact: true }).click();
   await page.getByLabel('Nama tempat').fill('GOR Jakarta');await page.getByLabel('Alamat').fill('Jakarta Pusat');
   await page.getByRole('button',{name:'Buat event'}).click();await expect(page).toHaveURL(`/event/manage/?id=${eventId}`);
   expect(created).toMatchObject({cost_model:'fixed',payment_timing:'after_event',price_amount:50000,payment_due_at:'2026-11-07T21:00:00+07:00',payment_method_id:bankMethodId});
@@ -462,6 +470,8 @@ test('planning memperbarui snapshot venue lengkap', async ({page, context}) => {
   await expect(basics.getByLabel('Deskripsi')).toHaveValue(publicEvent.description);
   const location = page.getByRole('region', { name: 'Lokasi', exact: true });
   await expect(location.getByText(/Pencarian workspace belum tersedia/)).toBeVisible();
+  await location.getByRole('button', { name: 'Pilih venue' }).click();
+  await location.getByText('Detail lokasi manual', { exact: true }).click();
   await location.getByRole('button', { name: 'Pilih titik di peta' }).click();
   await location.getByRole('searchbox', { name: 'Cari di area peta' }).fill('Unggul Sport Center');
   await location.getByRole('button', { name: 'Unggul Sports Center' }).click();
@@ -530,6 +540,8 @@ test('peta Kelola Event memakai lokasi perangkat atau Malang saat koordinat koso
   }
 
   await page.goto(manageUrl);
+  await location.getByRole('button', { name: 'Pilih venue' }).click();
+  await location.getByText('Detail lokasi manual', { exact: true }).click();
   await expect(location.getByRole('searchbox', { name: 'Cari venue' })).toBeVisible();
   await usePoint();
   await expect(latitude).toHaveValue('-6.2');
@@ -553,6 +565,8 @@ test('peta Kelola Event memakai lokasi perangkat atau Malang saat koordinat koso
     };
   });
   await page.reload();
+  await location.getByRole('button', { name: 'Pilih venue' }).click();
+  await location.getByText('Detail lokasi manual', { exact: true }).click();
   await usePoint();
   await expect(latitude).toHaveValue('-7.98');
   await expect(longitude).toHaveValue('112.63');

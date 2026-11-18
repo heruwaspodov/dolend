@@ -270,8 +270,8 @@ function ManagedEvents() {
                 <tbody className="divide-y">
                   {pageRows.map(event => {
                     const manageHref = `/event/manage/?id=${event.id}`;
-                    const shareAllowed = canShareEvent(event.status);
-                    const isPublic = event.visibility === 'public' && shareAllowed;
+                    const shareAllowed = canShareEvent(event.status, event.starts_at, event.timezone);
+                    const isPublic = event.visibility === 'public';
                     const isPending = pending?.id === event.id;
                     return (
                       <tr key={event.id} className="relative isolate align-middle hover:bg-[#faf9f8] focus-within:bg-[#faf9f8]">

@@ -3,7 +3,7 @@
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useEffect, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { SlidersHorizontal } from 'lucide-react';
+import { MapPin, SlidersHorizontal } from 'lucide-react';
 import { cn } from 'cn';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,6 +20,7 @@ import { EventBasicsFields } from './event-basics-fields';
 import { WorkspaceFormHeader, WorkspaceFormSection, workspaceFormDividers, workspaceFormAction, workspaceFormControl, workspaceFormPanel, workspaceFormWidth } from './workspace-form';
 
 const field = `mt-2 ${workspaceFormControl}`;
+const rupiah = new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 });
 const zones = [{ value: 'Asia/Jakarta', label: 'WIB', offset: '+07:00' }, { value: 'Asia/Makassar', label: 'WITA', offset: '+08:00' }, { value: 'Asia/Jayapura', label: 'WIT', offset: '+09:00' }];
 type PaymentMethod={id:string;type:'static_qris'|'bank_transfer'|'cash';recipient_name:string;is_active:boolean};
 
@@ -35,8 +36,22 @@ export function EventCreateForm() {
   const [timezone, setTimezone] = useState('Asia/Jakarta');
   const [costModel, setCostModel] = useState<CostModel>('dynamic');
   const [paymentTiming, setPaymentTiming] = useState<PaymentTiming>('before_event');
+  const [venueEditorOpen, setVenueEditorOpen] = useState(false);
+  const [capacityValue, setCapacityValue] = useState('12');
+  const [estimatedCostValue, setEstimatedCostValue] = useState('0');
+  const [fixedPriceValue, setFixedPriceValue] = useState('');
   const fixedPrice = costModel === 'fixed';
   const [paymentMethods,setPaymentMethods]=useState<PaymentMethod[]>([]);
+  const capacity = Number(capacityValue);
+  const estimatedCost = Number(estimatedCostValue);
+  const fixedPriceAmount = Number(fixedPriceValue);
+  const hasValidCapacity = Number.isSafeInteger(capacity) && capacity >= 1 && capacity <= 100000;
+  const hasValidEstimatedCost = estimatedCostValue.trim() !== '' && Number.isSafeInteger(estimatedCost) && estimatedCost >= 0 && estimatedCost <= 1e12;
+  const hasValidFixedPrice = Number.isSafeInteger(fixedPriceAmount) && fixedPriceAmount >= 1 && fixedPriceAmount <= 1e12;
+  const perPersonEstimate = costModel === 'free' ? 0
+    : costModel === 'fixed' ? (hasValidFixedPrice ? fixedPriceAmount : null)
+      : hasValidCapacity && hasValidEstimatedCost ? Math.ceil(estimatedCost / capacity) : null;
+  const formatRupiah = (amount: number) => `Rp ${rupiah.format(amount)}`;
 
   useEffect(() => {
     if (!session) return;
@@ -101,18 +116,33 @@ export function EventCreateForm() {
       </WorkspaceFormSection>
       <WorkspaceFormSection id="event-billing" title="Peserta dan biaya" description="Tentukan kuota, cara menghitung iuran, dan kapan peserta membayar.">
         <div className="grid gap-4 sm:grid-cols-2">
-          <div><Label htmlFor="capacity">Kapasitas (orang)</Label><Input id="capacity" name="capacity" type="number" inputMode="numeric" min={1} max={100000} defaultValue={12} required className={field} /></div>
+          <div><Label htmlFor="capacity">Kapasitas (orang)</Label><Input id="capacity" name="capacity" type="number" inputMode="numeric" min={1} max={100000} value={capacityValue} onChange={event => setCapacityValue(event.target.value)} required className={field} /></div>
           <div className="sm:col-span-2">
             <BillingChoices legend="Model biaya" name="cost_model" options={costModelOptions} value={costModel} onChange={setCostModel} />
           </div>
           {costModel === 'dynamic' && <div>
             <Label htmlFor="cost">Perkiraan biaya total (Rp)</Label>
-            <Input id="cost" name="estimated_total_cost" type="number" min={0} max={1e12} step={1} defaultValue={0} required className={field} />
+            <Input id="cost" name="estimated_total_cost" type="number" min={0} max={1e12} step={1} value={estimatedCostValue} onChange={event => setEstimatedCostValue(event.target.value)} required className={field} />
           </div>}
           {fixedPrice && <div>
             <Label htmlFor="price">Harga per peserta (Rp)</Label>
-            <Input id="price" name="price_amount" type="number" min={1} max={1e12} step={1} required className={field} />
+            <Input id="price" name="price_amount" type="number" min={1} max={1e12} step={1} value={fixedPriceValue} onChange={event => setFixedPriceValue(event.target.value)} required className={field} />
           </div>}
+          <div className="sm:col-span-2 border-t border-[#e6e3df] pt-3">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+              <p className="text-sm font-medium" id="per-person-estimate-label">
+                {costModel === 'dynamic' ? 'Estimasi patungan per orang' : costModel === 'fixed' ? 'Harga per peserta' : 'Biaya peserta'}
+              </p>
+              <output htmlFor={costModel === 'dynamic' ? 'capacity cost' : costModel === 'fixed' ? 'price' : undefined} aria-live="polite" aria-atomic="true" className="text-lg font-semibold tabular-nums text-[#005bab]">
+                {perPersonEstimate === null ? '—' : costModel === 'free' ? 'Gratis' : formatRupiah(perPersonEstimate)}
+              </output>
+            </div>
+            <p className="mt-1 text-xs leading-relaxed text-[#615d59]">
+              {costModel === 'dynamic' ? 'Asumsi kuota penuh; estimasi dibulatkan ke atas dan menyesuaikan jumlah peserta yang ikut.'
+                : costModel === 'fixed' ? 'Setiap peserta membayar nominal yang sama.'
+                  : 'Peserta tidak dikenakan biaya.'}
+            </p>
+          </div>
           {costModel !== 'free' && <div className="border-t border-[#e6e3df] pt-4 sm:col-span-2">
             <BillingChoices legend="Waktu pembayaran" name="payment_timing" options={paymentTimingOptions} value={paymentTiming} onChange={setPaymentTiming} inline />
           </div>}
@@ -137,20 +167,32 @@ export function EventCreateForm() {
       </WorkspaceFormSection>
       <WorkspaceFormSection id="event-venue" title="Lokasi" description={costModel === 'dynamic' ? 'Opsional. Kosongkan jika tempat masih dibicarakan.' : 'Nama dan alamat tempat wajib diisi untuk model biaya ini.'}>
         <div className="grid gap-4 sm:grid-cols-2">
-          <VenuePicker key={workspace} workspace={workspace} token={session.access_token} />
-          <div><Label htmlFor="venue-name">Nama tempat</Label><Input id="venue-name" name="venue_name" maxLength={200} required={costModel !== 'dynamic'} className={field} /></div>
-          <div><Label htmlFor="venue-address">Alamat</Label><Input id="venue-address" name="venue_address" maxLength={1000} required={costModel !== 'dynamic'} className={field} /></div>
-          <div className="sm:col-span-2"><Label htmlFor="maps">Tautan Google Maps <span className="font-normal text-[#615d59]">(opsional jika koordinat diisi)</span></Label><Input id="maps" name="maps_url" type="url" maxLength={2000} className={field} placeholder="https://www.google.com/maps/…" /></div>
+          <div className="sm:col-span-2">
+            <Button type="button" variant="outline" className="min-h-11 w-full sm:w-fit" aria-expanded={venueEditorOpen} aria-controls="create-venue-picker" onClick={() => setVenueEditorOpen(open => !open)}>
+              <MapPin aria-hidden="true" />{venueEditorOpen ? 'Tutup pencarian venue' : 'Cari atau pilih venue'}
+            </Button>
+          </div>
+          <div id="create-venue-picker" className="sm:col-span-2" hidden={!venueEditorOpen}>
+            <VenuePicker key={workspace} workspace={workspace} token={session.access_token} />
+          </div>
           <details className="rounded-lg border border-[#e6e3df] bg-white px-3 sm:col-span-2">
-            <summary className="min-h-11 cursor-pointer py-3 text-sm font-medium">Koordinat dan kode area</summary>
+            <summary className="min-h-11 cursor-pointer py-3 text-sm font-medium">Detail lokasi manual</summary>
             <div className="grid gap-4 pb-4 sm:grid-cols-2">
-              <p className="text-sm text-[#615d59] sm:col-span-2">Jika memakai koordinat, isi latitude dan longitude bersama-sama.</p>
-              <div><Label htmlFor="latitude">Latitude</Label><Input id="latitude" name="latitude" type="number" inputMode="decimal" min={-90} max={90} step="any" className={field} placeholder="-6.200000" /></div>
-              <div><Label htmlFor="longitude">Longitude</Label><Input id="longitude" name="longitude" type="number" inputMode="decimal" min={-180} max={180} step="any" className={field} placeholder="106.816666" /></div>
-              <div className="sm:col-span-2"><Label htmlFor="coarse-region-code">Kode area umum untuk rekomendasi</Label><Input id="coarse-region-code" name="coarse_region_code" maxLength={32} className={field} placeholder="Contoh: ID-JK" /><p className="mt-1 text-xs text-[#615d59]">Opsional. Gunakan kode kota/provinsi umum, jangan masukkan koordinat atau alamat di kolom ini.</p></div>
+              <div><Label htmlFor="venue-name">Nama tempat</Label><Input id="venue-name" name="venue_name" maxLength={200} required={costModel !== 'dynamic'} className={field} /></div>
+              <div><Label htmlFor="venue-address">Alamat</Label><Input id="venue-address" name="venue_address" maxLength={1000} required={costModel !== 'dynamic'} className={field} /></div>
+              <div className="sm:col-span-2"><Label htmlFor="maps">Tautan Google Maps <span className="font-normal text-[#615d59]">(opsional jika koordinat diisi)</span></Label><Input id="maps" name="maps_url" type="url" maxLength={2000} className={field} placeholder="https://www.google.com/maps/…" /></div>
+              <details className="rounded-lg border border-[#e6e3df] bg-white px-3 sm:col-span-2">
+                <summary className="min-h-11 cursor-pointer py-3 text-sm font-medium">Koordinat dan kode area</summary>
+                <div className="grid gap-4 pb-4 sm:grid-cols-2">
+                  <p className="text-sm text-[#615d59] sm:col-span-2">Jika memakai koordinat, isi latitude dan longitude bersama-sama.</p>
+                  <div><Label htmlFor="latitude">Latitude</Label><Input id="latitude" name="latitude" type="number" inputMode="decimal" min={-90} max={90} step="any" className={field} placeholder="-6.200000" /></div>
+                  <div><Label htmlFor="longitude">Longitude</Label><Input id="longitude" name="longitude" type="number" inputMode="decimal" min={-180} max={180} step="any" className={field} placeholder="106.816666" /></div>
+                  <div className="sm:col-span-2"><Label htmlFor="coarse-region-code">Kode area umum untuk rekomendasi</Label><Input id="coarse-region-code" name="coarse_region_code" maxLength={32} className={field} placeholder="Contoh: ID-JK" /><p className="mt-1 text-xs text-[#615d59]">Opsional. Gunakan kode kota/provinsi umum, jangan masukkan koordinat atau alamat di kolom ini.</p></div>
+                </div>
+              </details>
+              <div className="sm:col-span-2"><Label htmlFor="meeting-instructions">Petunjuk bertemu</Label><textarea id="meeting-instructions" name="meeting_instructions" maxLength={1000} rows={3} className={`${field} h-auto resize-y py-2 placeholder:text-[#615d59]`} placeholder="Contoh: tunggu di lobi utama 15 menit sebelum mulai" /></div>
             </div>
           </details>
-          <div className="sm:col-span-2"><Label htmlFor="meeting-instructions">Petunjuk bertemu</Label><textarea id="meeting-instructions" name="meeting_instructions" maxLength={1000} rows={3} className={`${field} h-auto resize-y py-2 placeholder:text-[#615d59]`} placeholder="Contoh: tunggu di lobi utama 15 menit sebelum mulai" /></div>
         </div>
       </WorkspaceFormSection>
       <div className="px-5 py-5 sm:px-8">

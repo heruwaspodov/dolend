@@ -3,7 +3,7 @@
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Ban, ChevronDown, Copy, SlidersHorizontal } from 'lucide-react';
+import { Ban, ChevronDown, Copy, MapPin, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -47,6 +47,7 @@ export function EventManager() {
   const [notice, setNotice] = useState<Notice>(null);
   const [stageNotice, setStageNotice] = useState<Notice>(null);
   const [bookingLink, setBookingLink] = useState('');
+  const [venueEditorOpen, setVenueEditorOpen] = useState(false);
   const [share, setShare] = useState<EventShare | null>(null);
   const [shareNotice, setShareNotice] = useState<Notice>(null);
 
@@ -99,6 +100,7 @@ export function EventManager() {
         capacity:Number(form.get('capacity')),...(dynamic?{payment_timing:form.get('payment_timing'),estimated_total_cost:Number(form.get('estimated_total_cost'))}:{}),venue_booking_status: form.get('venue_booking_status'),
         venue_snapshot: venueSnapshot,
       }) });
+      setVenueEditorOpen(false);
       setNotice({ kind: 'success', text: 'Rencana event berhasil diperbarui.' }); await load(session.access_token);
     } catch (reason) {
       if (reason instanceof Error && 'code' in reason && reason.code === 'VERSION_CONFLICT') {
@@ -174,7 +176,7 @@ export function EventManager() {
   }
 
   async function createShareLink() {
-    if (!session || !event || !canShareEvent(event.status) || event.status === 'completed') return;
+    if (!session || !event || !canShareEvent(event.status, event.starts_at, event.timezone) || event.status === 'completed') return;
     setBusy('invite');
     setShareNotice(null);
     try {
@@ -208,7 +210,9 @@ export function EventManager() {
 
   const status = event.status === 'cancelled' ? 'dibatalkan' : event.status === 'completed' ? 'selesai' : event.status === 'confirmed' || event.status === 'published' ? 'terkonfirmasi' : 'mencari peserta';
   const nextStatus = event.status === 'recruiting' ? 'confirmed' : event.status === 'confirmed' || event.status === 'published' ? 'completed' : null;
-  const shareAllowed = canShareEvent(event.status);
+  const statusAllowsSharing = canShareEvent(event.status);
+  const isPast = statusAllowsSharing && !canShareEvent(event.status, event.starts_at, event.timezone);
+  const shareAllowed = canShareEvent(event.status, event.starts_at, event.timezone);
   const shareLink = shareAllowed && (event.visibility === 'public' || share?.link)
     ? canonicalEventUrl(window.location.origin, eventId, event.visibility === 'unlisted' ? share?.link?.token : undefined)
     : '';
@@ -278,15 +282,34 @@ export function EventManager() {
           <div><Label htmlFor="manage-closes">Pendaftaran ditutup</Label><Input id="manage-closes" name="registration_closes_at" type="datetime-local" defaultValue={localDateTime(event.registration_closes_at,event.timezone)} required className={field} /></div><div><Label htmlFor="manage-timezone">Zona waktu</Label><Input id="manage-timezone" value={event.timezone} readOnly aria-readonly="true" className={`${field} bg-slate-50`} /></div>
         </div>
       </WorkspaceFormSection>
-      <WorkspaceFormSection id="manage-location-title" title="Lokasi" description="Perbarui tempat, status pemesanan, dan petunjuk bertemu.">
+      <WorkspaceFormSection id="manage-location-title" title="Lokasi" description="Perbarui status venue. Ganti venue atau buka detail lokasi bila perlu.">
         <div className={sectionFields}>
           <div className="sm:col-span-2"><Label htmlFor="venue-status">Status venue</Label><SearchableSelect id="venue-status" name="venue_booking_status" defaultValue={event.venue_booking_status ?? 'not_booked'} className="mt-2"><option value="not_booked">Belum dipesan</option><option value="pending">Sedang diproses</option><option value="booked">Sudah dipesan</option><option value="cancelled">Dibatalkan</option></SearchableSelect></div>
-          <VenuePicker workspace={event.workspace_id} token={session.access_token} />
-          <div><Label htmlFor="manage-venue">Nama venue</Label><Input id="manage-venue" name="venue_name" defaultValue={event.venue.name === 'Venue belum ditentukan' ? '' : event.venue.name} maxLength={200} className={field} /></div><div><Label htmlFor="manage-address">Alamat</Label><Input id="manage-address" name="venue_address" defaultValue={event.venue.address} maxLength={1000} className={field} /></div>
-          <div><Label htmlFor="manage-latitude">Latitude</Label><Input id="manage-latitude" name="latitude" type="number" inputMode="decimal" min={-90} max={90} step="any" defaultValue={event.venue.latitude} className={field} /></div><div><Label htmlFor="manage-longitude">Longitude</Label><Input id="manage-longitude" name="longitude" type="number" inputMode="decimal" min={-180} max={180} step="any" defaultValue={event.venue.longitude} className={field} /></div>
-          <div className="sm:col-span-2"><Label htmlFor="manage-maps">Tautan Google Maps <span className="font-normal text-slate-500">(opsional jika koordinat diisi)</span></Label><Input id="manage-maps" name="maps_url" type="url" defaultValue={event.venue.maps_url} maxLength={2000} className={field} /></div>
-          <div className="sm:col-span-2"><Label htmlFor="manage-coarse-region">Kode area umum untuk rekomendasi</Label><Input id="manage-coarse-region" name="coarse_region_code" defaultValue={event.venue.coarse_region_code} maxLength={32} className={field} placeholder="Contoh: ID-JK" /><p className="mt-1 text-xs text-slate-500">Opsional; gunakan kode kota/provinsi umum, bukan koordinat atau alamat.</p></div>
-          <div className="sm:col-span-2"><Label htmlFor="manage-meeting">Petunjuk bertemu</Label><textarea id="manage-meeting" name="meeting_instructions" maxLength={1000} rows={3} defaultValue={event.venue.meeting_instructions} className={textarea} /></div>
+          <div className="sm:col-span-2 flex flex-col gap-3 rounded-lg border border-[#e6e3df] bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className="text-sm font-medium">Venue saat ini</p>
+              <p className="mt-0.5 text-sm">{event.venue.name === 'Venue belum ditentukan' ? 'Belum dipilih' : event.venue.name}</p>
+              {event.venue.address && <p className="mt-0.5 text-sm text-[#615d59]">{event.venue.address}</p>}
+            </div>
+            <Button type="button" variant="outline" className="min-h-11 w-full shrink-0 sm:w-fit" aria-expanded={venueEditorOpen} aria-controls="manage-venue-picker" onClick={() => setVenueEditorOpen(open => !open)}>
+              <MapPin aria-hidden="true" />{venueEditorOpen ? 'Tutup pencarian venue' : event.venue.name === 'Venue belum ditentukan' ? 'Pilih venue' : 'Ganti venue'}
+            </Button>
+          </div>
+          <div id="manage-venue-picker" className="sm:col-span-2" hidden={!venueEditorOpen}>
+            <VenuePicker workspace={event.workspace_id} token={session.access_token} />
+          </div>
+          <details className="rounded-lg border border-[#e6e3df] bg-white px-3 sm:col-span-2">
+            <summary className="min-h-11 cursor-pointer py-3 text-sm font-medium">Detail lokasi manual</summary>
+            <div className={sectionFields}>
+              <div><Label htmlFor="manage-venue">Nama venue</Label><Input id="manage-venue" name="venue_name" defaultValue={event.venue.name === 'Venue belum ditentukan' ? '' : event.venue.name} maxLength={200} className={field} /></div>
+              <div><Label htmlFor="manage-address">Alamat</Label><Input id="manage-address" name="venue_address" defaultValue={event.venue.address} maxLength={1000} className={field} /></div>
+              <div><Label htmlFor="manage-latitude">Latitude</Label><Input id="manage-latitude" name="latitude" type="number" inputMode="decimal" min={-90} max={90} step="any" defaultValue={event.venue.latitude} className={field} /></div>
+              <div><Label htmlFor="manage-longitude">Longitude</Label><Input id="manage-longitude" name="longitude" type="number" inputMode="decimal" min={-180} max={180} step="any" defaultValue={event.venue.longitude} className={field} /></div>
+              <div className="sm:col-span-2"><Label htmlFor="manage-maps">Tautan Google Maps <span className="font-normal text-slate-500">(opsional jika koordinat diisi)</span></Label><Input id="manage-maps" name="maps_url" type="url" defaultValue={event.venue.maps_url} maxLength={2000} className={field} /></div>
+              <div className="sm:col-span-2"><Label htmlFor="manage-coarse-region">Kode area umum untuk rekomendasi</Label><Input id="manage-coarse-region" name="coarse_region_code" defaultValue={event.venue.coarse_region_code} maxLength={32} className={field} placeholder="Contoh: ID-JK" /><p className="mt-1 text-xs text-slate-500">Opsional; gunakan kode kota/provinsi umum, bukan koordinat atau alamat.</p></div>
+              <div className="sm:col-span-2"><Label htmlFor="manage-meeting">Petunjuk bertemu</Label><textarea id="manage-meeting" name="meeting_instructions" maxLength={1000} rows={3} defaultValue={event.venue.meeting_instructions} className={textarea} /></div>
+            </div>
+          </details>
         </div>
       </WorkspaceFormSection>
       {billingSection}
@@ -316,7 +339,9 @@ export function EventManager() {
       </form>
     </WorkspaceFormSection>}
     <WorkspaceFormSection id={eventShareSectionId} title="Bagikan event">
-      {shareLink ? <div>
+      {isPast ? (
+        <p className="text-sm text-[#615d59]">Event sudah lewat. Tautan undangan tidak tersedia.</p>
+      ) : shareLink ? <div>
         <Label htmlFor="share-link">Tautan yang dibagikan</Label>
         <Input id="share-link" readOnly value={shareLink} className={field} />
         {share?.link && <p className="mt-2 text-sm text-[#615d59]">Berlaku sampai {new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short', timeZone: event.timezone }).format(new Date(share.link.expires_at))}.</p>}

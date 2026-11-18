@@ -1,7 +1,29 @@
 export const eventShareSectionId = 'share-event-title';
 
-export function canShareEvent(status: string) {
-  return status === 'confirmed' || status === 'published' || status === 'completed';
+function isEventDateInPast(startsAt: string, timezone: string, now = new Date()) {
+  const dateInTimezone = (date: Date) => {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(date);
+    const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+    return `${values.year}-${values.month}-${values.day}`;
+  };
+
+  try {
+    return dateInTimezone(new Date(startsAt)) < dateInTimezone(now);
+  } catch {
+    return false;
+  }
+}
+
+export function canShareEvent(status: string, startsAt?: string, timezone?: string) {
+  const statusAllowsSharing = status === 'confirmed' || status === 'published' || status === 'completed';
+  if (!statusAllowsSharing) return false;
+  if (!startsAt || !timezone) return true;
+  return !isEventDateInPast(startsAt, timezone);
 }
 
 export function canonicalEventUrl(origin:string,eventId:string,inviteToken?:string) {
