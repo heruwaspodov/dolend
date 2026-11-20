@@ -3,7 +3,7 @@
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Ban, ChevronDown, Copy, MapPin, SlidersHorizontal } from 'lucide-react';
+import { Ban, ChevronDown, Copy, MapPin, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -50,6 +50,8 @@ export function EventManager() {
   const [venueEditorOpen, setVenueEditorOpen] = useState(false);
   const [share, setShare] = useState<EventShare | null>(null);
   const [shareNotice, setShareNotice] = useState<Notice>(null);
+  const [priceOptionsDraft, setPriceOptionsDraft] = useState<{id:string;name:string;amount:string;quota:string}[]>([]);
+  const [pricingEditorOpen, setPricingEditorOpen] = useState(false);
 
   const load = useCallback(async (token: string) => {
     setLoading(true);
@@ -60,6 +62,9 @@ export function EventManager() {
         organizerRequest<EventShare>(`/events/${eventId}/share-link`, token).catch(() => null),
       ]);
       setEvent(nextEvent); setRoster(nextRoster); setShare(nextShare); setShareNotice(null);
+      setPriceOptionsDraft(nextEvent.price_options?.length
+        ? nextEvent.price_options.map(option=>({id:option.id,name:option.name,amount:String(option.amount),quota:String(option.quota)}))
+        : [{id:'initial-1',name:'',amount:'',quota:''},{id:'initial-2',name:'',amount:'',quota:''}]);
     } catch (reason) { setNotice({ kind: 'error', text: reason instanceof Error ? reason.message : 'Event belum dapat dimuat.' }); }
     finally { setLoading(false); }
   }, [eventId]);
@@ -108,6 +113,29 @@ export function EventManager() {
       } else setNotice({ kind: 'error', text: reason instanceof Error ? reason.message : 'Rencana belum dapat disimpan.' });
     }
     finally { setBusy(''); }
+  }
+
+  async function updatePriceOptions(formEvent: FormEvent<HTMLFormElement>) {
+    formEvent.preventDefault(); if (!session || !event) return;
+    const options=priceOptionsDraft.map(option=>({name:option.name.trim(),amount:Number(option.amount),quota:Number(option.quota)}));
+    if (options.length<2 || options.some(option=>!option.name || !Number.isSafeInteger(option.amount) || option.amount<1 || !Number.isSafeInteger(option.quota) || option.quota<1)
+      || options.reduce((sum,option)=>sum+option.quota,0)!==event.capacity
+      || new Set(options.map(option=>option.name.toLocaleLowerCase('id-ID'))).size!==options.length) {
+      setNotice({kind:'error',text:`Isi nama unik, harga dan kuota positif; jumlah kuota harus tepat ${event.capacity}.`}); return;
+    }
+    setBusy('pricing'); setNotice(null);
+    try {
+      await organizerRequest(`/events/${eventId}/price-options`,session.access_token,{method:'PUT',body:JSON.stringify({expected_version:event.version,price_options:options})});
+      setPricingEditorOpen(false);
+      setNotice({kind:'success',text:'Kategori harga berhasil diperbarui.'});
+      await load(session.access_token);
+    } catch (reason) {
+      if(reason instanceof Error && 'code' in reason && reason.code==='PRICE_OPTIONS_LOCKED')
+        setNotice({kind:'error',text:'Kategori harga tidak dapat diubah setelah ada peserta atau tagihan.'});
+      else if(reason instanceof Error && 'code' in reason && reason.code==='VERSION_CONFLICT') {
+        await load(session.access_token);setNotice({kind:'error',text:'Event berubah di tab lain. Periksa kembali kategori harga terbaru.'});
+      } else setNotice({kind:'error',text:reason instanceof Error?reason.message:'Kategori harga belum dapat disimpan.'});
+    } finally {setBusy('');}
   }
 
   async function changeStatus(status: 'confirmed' | 'completed') {
@@ -214,7 +242,7 @@ export function EventManager() {
   const isPast = statusAllowsSharing && !canShareEvent(event.status, event.starts_at, event.timezone);
   const shareAllowed = canShareEvent(event.status, event.starts_at, event.timezone);
   const shareLink = shareAllowed && (event.visibility === 'public' || share?.link)
-    ? canonicalEventUrl(window.location.origin, eventId, event.visibility === 'unlisted' ? share?.link?.token : undefined)
+    ? canonicalEventUrl(window.location.origin,event.public_code,eventId,event.visibility === 'unlisted' ? share?.link?.token : undefined)
     : '';
 
   const canEditPlanning = event.status !== 'completed' && event.status !== 'cancelled';
@@ -241,10 +269,18 @@ export function EventManager() {
           <Label htmlFor="manage-cost">Perkiraan biaya total (Rp)</Label>
           <Input id="manage-cost" name="estimated_total_cost" type="number" min={0} max={1e12} step={1} defaultValue={roster.estimated_total_cost} required className={field} />
         </div>}
-        {costModel === 'fixed' && <dl>
+        {costModel === 'fixed' && (event.price_options?.length ? <div className="sm:col-span-2">
+          <p className="text-sm font-medium">Harga dan kuota per kategori</p>
+          <ul className="mt-2 divide-y divide-[#e6e3df] rounded-lg border border-[#e6e3df]">
+            {event.price_options.map(option => <li key={option.id} className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm">
+              <span className="font-medium">{option.name}</span>
+              <span className="text-right tabular-nums">Rp {rupiah.format(option.amount)}<span className="block text-xs text-[#615d59]">{option.taken} dari {option.quota} terisi</span></span>
+            </li>)}
+          </ul>
+        </div> : <dl>
           <dt className="text-sm font-medium">Harga per peserta</dt>
           <dd className="mt-2 text-sm tabular-nums">Rp {rupiah.format(event.price_amount)}</dd>
-        </dl>}
+        </dl>)}
         {costModel === 'dynamic' && canEditPlanning ? <div>
           <Label htmlFor="manage-timing">Waktu pembayaran</Label>
           <SearchableSelect id="manage-timing" name="payment_timing" defaultValue={timingOption?.value ?? 'before_event'} className="mt-2">
@@ -317,6 +353,21 @@ export function EventManager() {
         <Button type="submit" disabled={busy === 'planning'} className={`${workspaceFormAction} w-full sm:w-fit`}>{busy === 'planning' ? 'Menyimpan…' : 'Simpan planning'}</Button>
       </div>
     </form> : billingSection}
+    {costModel === 'fixed' && canEditPlanning && <WorkspaceFormSection id="manage-pricing-title" title="Kategori harga" description="Atur biaya berbeda untuk setiap kategori sebelum peserta pertama mendaftar.">
+      {roster.participants.length ? <p className="text-sm text-[#615d59]">Kategori harga terkunci karena event sudah memiliki peserta. Tagihan yang ada tetap memakai nominal saat peserta mendaftar.</p> : <>
+        <Button type="button" variant="outline" className="min-h-11" aria-expanded={pricingEditorOpen} aria-controls="manage-pricing-editor" onClick={()=>setPricingEditorOpen(open=>!open)}>{pricingEditorOpen?'Tutup pengaturan':'Atur kategori harga'}</Button>
+        {pricingEditorOpen && <form id="manage-pricing-editor" onSubmit={updatePriceOptions} className="mt-4 grid gap-4" aria-labelledby="manage-pricing-title">
+          <p className="text-sm text-[#615d59]">Jumlah kuota seluruh kategori harus sama dengan kapasitas event ({event.capacity}). Simpan perubahan kapasitas di atas terlebih dahulu.</p>
+          {priceOptionsDraft.map((option,index)=><div key={option.id} className="grid gap-3 rounded-lg border border-[#e6e3df] p-3 sm:grid-cols-[1fr_1fr_1fr_auto]">
+            <div><Label htmlFor={`manage-price-name-${index}`}>Nama kategori</Label><Input id={`manage-price-name-${index}`} placeholder="Kategori" value={option.name} maxLength={80} onChange={change=>setPriceOptionsDraft(items=>items.map((item,i)=>i===index?{...item,name:change.target.value}:item))} required className={field}/></div>
+            <div><Label htmlFor={`manage-price-amount-${index}`}>Harga (Rp)</Label><Input id={`manage-price-amount-${index}`} type="number" min={1} max={1e12} step={1} value={option.amount} onChange={change=>setPriceOptionsDraft(items=>items.map((item,i)=>i===index?{...item,amount:change.target.value}:item))} required className={field}/></div>
+            <div><Label htmlFor={`manage-price-quota-${index}`}>Kuota</Label><Input id={`manage-price-quota-${index}`} type="number" min={1} max={100000} step={1} value={option.quota} onChange={change=>setPriceOptionsDraft(items=>items.map((item,i)=>i===index?{...item,quota:change.target.value}:item))} required className={field}/></div>
+            {priceOptionsDraft.length>2&&<Button type="button" variant="ghost" size="icon" aria-label={`Hapus kategori ${option.name.trim()||index+1}`} title="Hapus kategori" onClick={()=>setPriceOptionsDraft(items=>items.length>2?items.filter((_,i)=>i!==index):items)} className="size-11 self-end text-[#615d59] hover:text-rose-700"><Trash2 className="size-4" aria-hidden="true" /></Button>}
+          </div>)}
+          <div className="flex flex-wrap items-center gap-3"><Button type="button" variant="outline" disabled={priceOptionsDraft.length>=20} onClick={()=>setPriceOptionsDraft(items=>[...items,{id:crypto.randomUUID(),name:'',amount:'',quota:''}])} className="min-h-11">Tambah kategori</Button><span className="text-xs text-[#615d59]">Minimal 2, maksimal 20 kategori.</span><Button type="submit" disabled={busy==='pricing'} className="min-h-11">{busy==='pricing'?'Menyimpan…':'Simpan kategori harga'}</Button></div>
+        </form>}
+      </>}
+    </WorkspaceFormSection>}
     <EventRosterTable
       roster={roster}
       dynamic={event.contribution_mode === 'dynamic'}
@@ -339,6 +390,11 @@ export function EventManager() {
       </form>
     </WorkspaceFormSection>}
     <WorkspaceFormSection id={eventShareSectionId} title="Bagikan event">
+      {event.public_code && <div className="mb-4 rounded-lg border border-[#e6e3df] bg-[#f6f5f4] p-3">
+        <Label htmlFor="event-public-code">Kode unik event</Label>
+        <Input id="event-public-code" readOnly value={event.public_code} className="mt-2 min-h-11 font-mono tracking-wider" />
+        {shareLink && <Button type="button" variant="outline" className="mt-3 min-h-11" onClick={() => void copyShareLink(shareLink)}><Copy aria-hidden="true" />Salin tautan pendek</Button>}
+      </div>}
       {isPast ? (
         <p className="text-sm text-[#615d59]">Event sudah lewat. Tautan undangan tidak tersedia.</p>
       ) : shareLink ? <div>

@@ -82,7 +82,7 @@ export function createApp({ allowedOrigins, pocMode = false, accountService, gue
       }
       if (error instanceof FinanceError) {
         const kind=error.message;
-        set.status=kind==='UNAUTHORIZED'?401:kind==='FORBIDDEN'?403:kind==='CONFLICT'||kind==='VERSION_CONFLICT'?409:kind==='STORAGE_UNAVAILABLE'?503:422;
+        set.status=kind==='UNAUTHORIZED'?401:kind==='FORBIDDEN'?403:['CONFLICT','VERSION_CONFLICT','PRICE_OPTION_FULL','PRICE_OPTION_LOCKED','PRICE_OPTIONS_LOCKED'].includes(kind)?409:kind==='STORAGE_UNAVAILABLE'?503:422;
         return {error:{code:kind,message:kind==='EVENT_NOT_CONFIRMED'?'Konfirmasi event terlebih dahulu agar bisa dibagikan.':'Permintaan belum dapat diproses.'}};
       }
       const request_id = crypto.randomUUID();
@@ -224,6 +224,7 @@ export function createApp({ allowedOrigins, pocMode = false, accountService, gue
           eventId: params.id,
           displayName: body.display_name,
           whatsapp: body.whatsapp,
+          priceOptionId: body.price_option_id,
           clientAddress: clientAddressFrom(request),
         });
         set.status = 201;
@@ -258,6 +259,7 @@ export function createApp({ allowedOrigins, pocMode = false, accountService, gue
       body: t.Object({
         display_name: t.String({ minLength: 1, maxLength: 120 }),
         whatsapp: t.String({ minLength: 8, maxLength: 32 }),
+        price_option_id: t.Optional(t.String({ format: 'uuid' })),
       }, { additionalProperties: false }),
     })
     .get('/events/:id/guest-bookings/me', async ({ params, request, set, requestId }) => {

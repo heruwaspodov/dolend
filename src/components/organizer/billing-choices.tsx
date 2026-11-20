@@ -1,20 +1,23 @@
 import { cn } from '@/lib/utils';
+import { Fragment, type ReactNode } from 'react';
 import { workspaceFormChoice } from './workspace-form';
 
-export function BillingChoices<Value extends string>({ legend, name, options, value, onChange, inline }: {
+export function BillingChoices<Value extends string>({ legend, name, options, value, onChange, inline, renderAfterOption }: {
   legend: string;
   name: string;
   options: readonly { value: Value; label: string; hint?: string }[];
   value: Value;
   onChange: (value: Value) => void;
   inline?: boolean;
+  renderAfterOption?: (option: Value) => ReactNode;
 }) {
   return (
     <fieldset className="min-w-0">
       <legend className="mb-2 text-sm font-medium">{legend}</legend>
       <div className={cn('grid gap-2', inline && 'grid-cols-2')}>
         {options.map(option => (
-          <label key={option.value} className={cn(workspaceFormChoice, 'flex cursor-pointer items-start gap-3 px-3 py-2.5')}>
+          <Fragment key={option.value}>
+          <label className={cn(workspaceFormChoice, 'flex cursor-pointer items-start gap-3 px-3 py-2.5')}>
             <input
               type="radio"
               name={name}
@@ -30,6 +33,8 @@ export function BillingChoices<Value extends string>({ legend, name, options, va
               {option.hint && <span id={`${name}-${option.value}-hint`} className="mt-0.5 block leading-relaxed text-[#615d59]">{option.hint}</span>}
             </span>
           </label>
+          {renderAfterOption?.(option.value)}
+          </Fragment>
         ))}
       </div>
     </fieldset>

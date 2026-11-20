@@ -89,7 +89,7 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
   async function rpc(name: string, params: Record<string, unknown>) {
     const { data, error } = await client().rpc(name, params);
     if (error) {
-      const domain=['EVENT_FULL','REGISTRATION_CLOSED','INVALID_EVENT_STATE','ATTENDANCE_RECORDED','ATTENDANCE_NOT_STARTED','REASON_REQUIRED','INVALID_UPLOAD','INVALID_PAYMENT_MODE','INVALID_BILLING_CONFIGURATION','INVALID_PAYMENT_DUE_AT','INVALID_PAYMENT_METHOD','INVOICE_NOT_PAYABLE','HOLD_EXPIRED','IDEMPOTENCY_MISMATCH','INVALID_EVIDENCE_STATE','EVIDENCE_REQUIRED','REVIEW_REASON_REQUIRED'];
+      const domain=['EVENT_FULL','REGISTRATION_CLOSED','INVALID_EVENT_STATE','ATTENDANCE_RECORDED','ATTENDANCE_NOT_STARTED','REASON_REQUIRED','INVALID_UPLOAD','INVALID_PAYMENT_MODE','INVALID_BILLING_CONFIGURATION','INVALID_PAYMENT_DUE_AT','INVALID_PAYMENT_METHOD','INVOICE_NOT_PAYABLE','HOLD_EXPIRED','IDEMPOTENCY_MISMATCH','INVALID_EVIDENCE_STATE','EVIDENCE_REQUIRED','REVIEW_REASON_REQUIRED','PRICE_OPTION_REQUIRED','PRICE_OPTION_FULL','PRICE_OPTION_LOCKED','PRICE_OPTIONS_LOCKED','INVALID_PRICE_OPTION','INVALID_PRICE_OPTIONS'];
       const known=domain.find(code=>error.message.includes(code));
       throw new FinanceError(error.code === '42501' ? 'FORBIDDEN' : error.message.includes('EVENT_VERSION_CONFLICT') ? 'VERSION_CONFLICT' : known??'CONFLICT');
     }
@@ -188,7 +188,7 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
   const eventRosterQuery = t.Object({ roster_page: t.Optional(t.Numeric({ minimum: 1, maximum: 10000, multipleOf: 1 })) });
 
   async function eventDto(eventId: string, publicOnly: boolean, rosterPage = 1) {
-    let query=client().from('events').select('id,title,description,starts_at,ends_at,registration_closes_at,timezone,capacity,price_amount,currency,status,visibility,venue_snapshot,venue_booking_status,estimated_total_cost,contributions_locked_at,contribution_mode,cost_model,payment_mode,payment_due_at,payment_timing,hold_minutes,version,activity_types(slug,name)').eq('id',eventId);
+    let query=client().from('events').select('id,public_code,title,description,starts_at,ends_at,registration_closes_at,timezone,capacity,price_amount,currency,status,visibility,venue_snapshot,venue_booking_status,estimated_total_cost,contributions_locked_at,contribution_mode,cost_model,payment_mode,payment_due_at,payment_timing,hold_minutes,version,activity_types(slug,name)').eq('id',eventId);
     if(publicOnly)query=query.in('status',['published','recruiting','confirmed','completed']);
     const {data:e,error}=await query.single();
     if(error)throw new FinanceError('FORBIDDEN');
@@ -196,6 +196,18 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
       client().from('event_participants').select('id',{count:'exact',head:true}).eq('event_id',e.id).in('status',confirmedStatuses),
       client().from('event_participants').select('id',{count:'exact',head:true}).eq('event_id',e.id).eq('chargeable',true).eq('status','confirmed'),
     ]);
+    const {data:priceOptions,error:priceOptionsError}=await client().from('event_price_options').select('id,name,amount,quota,sort_order').eq('event_id',e.id).order('sort_order').order('id');
+    if(priceOptionsError)throw new FinanceError('STORAGE_UNAVAILABLE');
+    const {data:optionParticipants,error:optionParticipantsError}=priceOptions?.length
+      ?await client().from('event_participants').select('price_option_id,status,hold_expires_at').eq('event_id',e.id).not('price_option_id','is',null)
+      :{data:[],error:null};
+    if(optionParticipantsError)throw new FinanceError('STORAGE_UNAVAILABLE');
+    const now=Date.now();
+    const publicPriceOptions=(priceOptions??[]).map(option=>{
+      const taken=(optionParticipants??[]).filter(participant=>participant.price_option_id===option.id&&
+        (['confirmed','attended','no_show'].includes(participant.status)||(participant.status==='held'&&participant.hold_expires_at&&Date.parse(participant.hold_expires_at)>now))).length;
+      return {id:option.id,name:option.name,amount:Number(option.amount),quota:option.quota,taken,remaining:Math.max(option.quota-taken,0)};
+    });
     const page = Math.min(rosterPage, Math.max(1, Math.ceil((count ?? 0) / rosterPageSize)));
     let participant_roster: { page: number; names: (string | null)[] } | undefined;
     if (publicOnly && count !== null) {
@@ -213,7 +225,7 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
     }
     const {venue_snapshot,activity_types,...rest}=e;
     const activityType = Array.isArray(activity_types) ? activity_types[0] : activity_types;
-    return {...rest,activity_type_slug:activityType?.slug??null,...(!publicOnly?{activity_type_name:activityType?.name??null}:{}),participants_count:count??0,participant_roster,estimated_per_person:chargeable?Math.ceil(Number(e.estimated_total_cost)/chargeable):null,venue:{name:venue_snapshot?.name?.trim()||'Venue belum ditentukan',address:venue_snapshot?.address??'',maps_url:venue_snapshot?.maps_url??'',...(venue_snapshot?.latitude!==undefined?{latitude:Number(venue_snapshot.latitude),longitude:Number(venue_snapshot.longitude)}:{}),...(venue_snapshot?.meeting_instructions?{meeting_instructions:venue_snapshot.meeting_instructions}:{}),...(!publicOnly&&venue_snapshot?.coarse_region_code?{coarse_region_code:venue_snapshot.coarse_region_code}:{})}};
+    return {...rest,price_options:publicPriceOptions,activity_type_slug:activityType?.slug??null,...(!publicOnly?{activity_type_name:activityType?.name??null}:{}),participants_count:count??0,participant_roster,estimated_per_person:chargeable?Math.ceil(Number(e.estimated_total_cost)/chargeable):null,venue:{name:venue_snapshot?.name?.trim()||'Venue belum ditentukan',address:venue_snapshot?.address??'',maps_url:venue_snapshot?.maps_url??'',...(venue_snapshot?.latitude!==undefined?{latitude:Number(venue_snapshot.latitude),longitude:Number(venue_snapshot.longitude)}:{}),...(venue_snapshot?.meeting_instructions?{meeting_instructions:venue_snapshot.meeting_instructions}:{}),...(!publicOnly&&venue_snapshot?.coarse_region_code?{coarse_region_code:venue_snapshot.coarse_region_code}:{})}};
   }
   return new Elysia({ aot: false })
     .onBeforeHandle(({set}) => {set.headers['cache-control']='no-store';})
@@ -288,6 +300,13 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
       const workspace = Array.isArray(data.workspaces) ? data.workspaces[0] : data.workspaces;
       return { data: { ...event, workspace_id: data.workspace_id, workspace_name: workspace?.name ?? null } };
     },{params:t.Object({id:uuid})})
+    .get('/events/code/:code',async ({params,request,query})=>{
+      const {data,error}=await client().from('events').select('id').eq('public_code',params.code).maybeSingle();
+      if(error)throw new FinanceError('STORAGE_UNAVAILABLE');
+      if(!data)throw new FinanceError('FORBIDDEN');
+      await publicEventAccess(data.id,request);
+      return {data:await eventDto(data.id,true,query.roster_page)};
+    },{params:t.Object({code:t.String({pattern:'^[23456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]{10}$'})}),query:eventRosterQuery})
     .get('/events/:id',async ({params,request,query}) => {
       await publicEventAccess(params.id,request);
       return {data:await eventDto(params.id,true,query.roster_page)};
@@ -307,30 +326,45 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
         if (!venue || fields.estimated_total_cost !== undefined) throw new FinanceError('INVALID_REQUEST');
         if (model === 'free') {
           if (timing || (fields.price_amount ?? 0) !== 0 || fields.payment_method_id
-            || fields.hold_minutes !== undefined || fields.payment_due_at) throw new FinanceError('INVALID_REQUEST');
-        } else if (!timing || !fields.price_amount || !fields.payment_method_id
+            || fields.hold_minutes !== undefined || fields.payment_due_at || fields.price_options?.length) throw new FinanceError('INVALID_REQUEST');
+        } else if (!timing || (!fields.price_options?.length && !fields.price_amount) || !fields.payment_method_id
           || (timing === 'after_event' && (!fields.payment_due_at || fields.hold_minutes !== undefined))
           || (timing === 'before_event' && fields.payment_due_at)) {
           throw new FinanceError('INVALID_REQUEST');
         }
 
-        return {data:await rpc('create_billed_event',{
+        if(fields.price_options?.length){
+          const options=fields.price_options;
+          if(options.length<2||options.length>20||options.some(option=>!option.name.trim()||!Number.isSafeInteger(option.amount)||option.amount<1||!Number.isSafeInteger(option.quota)||option.quota<1)||options.reduce((sum,option)=>sum+option.quota,0)!==fields.capacity||new Set(options.map(option=>option.name.trim().toLocaleLowerCase('id-ID'))).size!==options.length)throw new FinanceError('INVALID_REQUEST');
+        }
+        const createName=fields.price_options?.length?'create_billed_event_with_options':'create_billed_event';
+        return {data:await rpc(createName,{
           p_actor:id,p_workspace:fields.workspace_id,p_activity_type:fields.activity_type_id,p_title:fields.title,
           p_description:fields.description??'',p_starts_at:fields.starts_at,p_ends_at:fields.ends_at,
           p_registration_closes_at:fields.registration_closes_at,p_timezone:fields.timezone,p_capacity:fields.capacity,
           p_visibility:fields.visibility,p_venue_snapshot:venue,p_payment_mode:model === 'free' ? 'free' : timing,
-          p_price_amount:fields.price_amount??0,p_payment_due_at:fields.payment_due_at??null,
+          p_price_amount:fields.price_options?.length?Math.min(...fields.price_options.map(option=>option.amount)):fields.price_amount??0,p_payment_due_at:fields.payment_due_at??null,
           p_hold_minutes:fields.hold_minutes??15,p_payment_method:fields.payment_method_id??null,
+          ...(fields.price_options?.length?{p_options:fields.price_options}:{}),
         })};
       }
-      if (fields.estimated_total_cost === undefined || !timing || fields.price_amount !== undefined
+      if (fields.estimated_total_cost === undefined || !timing || fields.price_amount !== undefined || fields.price_options !== undefined
         || fields.payment_due_at !== undefined || fields.hold_minutes !== undefined || fields.payment_method_id !== undefined) {
         throw new FinanceError('INVALID_REQUEST');
       }
       const {data,error}=await client().from('events').insert({...fields,...(venue?{venue_snapshot:venue}:{}),organizer_profile_id:id,contribution_mode:'dynamic',payment_mode:'free',price_amount:0,status:'recruiting'}).select('id').single();
       if(error) throw new FinanceError('CONFLICT');
       return {data};
-    },{body:t.Object({workspace_id:uuid,activity_type_id:uuid,title:t.String({minLength:1,maxLength:200}),description:t.Optional(t.String({maxLength:10000})),starts_at:t.String({format:'date-time'}),ends_at:t.String({format:'date-time'}),registration_closes_at:t.String({format:'date-time'}),timezone:t.String({minLength:1,maxLength:100}),capacity:t.Integer({minimum:1,maximum:100000}),estimated_total_cost:t.Optional(amount),cost_model:t.Optional(t.Union([t.Literal('dynamic'),t.Literal('fixed'),t.Literal('free')])),payment_timing:t.Optional(t.Union([t.Literal('before_event'),t.Literal('after_event')])),billing_mode:t.Optional(t.Union([t.Literal('free'),t.Literal('before_event'),t.Literal('after_event')])),price_amount:t.Optional(amount),payment_due_at:t.Optional(t.String({format:'date-time'})),hold_minutes:t.Optional(t.Integer({minimum:1,maximum:1440})),payment_method_id:t.Optional(uuid),visibility:t.Union([t.Literal('public'),t.Literal('unlisted')]),venue_snapshot:t.Optional(venueSnapshot)},{additionalProperties:false})})
+    },{body:t.Object({workspace_id:uuid,activity_type_id:uuid,title:t.String({minLength:1,maxLength:200}),description:t.Optional(t.String({maxLength:10000})),starts_at:t.String({format:'date-time'}),ends_at:t.String({format:'date-time'}),registration_closes_at:t.String({format:'date-time'}),timezone:t.String({minLength:1,maxLength:100}),capacity:t.Integer({minimum:1,maximum:100000}),estimated_total_cost:t.Optional(amount),cost_model:t.Optional(t.Union([t.Literal('dynamic'),t.Literal('fixed'),t.Literal('free')])),payment_timing:t.Optional(t.Union([t.Literal('before_event'),t.Literal('after_event')])),billing_mode:t.Optional(t.Union([t.Literal('free'),t.Literal('before_event'),t.Literal('after_event')])),price_amount:t.Optional(amount),price_options:t.Optional(t.Array(t.Object({name:t.String({minLength:1,maxLength:80}),amount,quota:t.Integer({minimum:1,maximum:100000})},{additionalProperties:false}),{minItems:2,maxItems:20})),payment_due_at:t.Optional(t.String({format:'date-time'})),hold_minutes:t.Optional(t.Integer({minimum:1,maximum:1440})),payment_method_id:t.Optional(uuid),visibility:t.Union([t.Literal('public'),t.Literal('unlisted')]),venue_snapshot:t.Optional(venueSnapshot)},{additionalProperties:false})})
+    .put('/events/:id/price-options',async ({request,params,body})=>{
+      const id=await actor(request);
+      return {data:await rpc('set_event_price_options',{
+        p_event:params.id,p_actor:id,p_expected_version:body.expected_version,p_options:body.price_options,
+      })};
+    },{params:t.Object({id:uuid}),body:t.Object({
+      expected_version:t.Integer({minimum:1}),
+      price_options:t.Array(t.Object({name:t.String({minLength:1,maxLength:80}),amount,quota:t.Integer({minimum:1,maximum:100000})},{additionalProperties:false}),{minItems:2,maxItems:20}),
+    },{additionalProperties:false})})
     .patch('/events/:id/planning',async ({request,params,body}) => {
       const actorId=await actor(request);
       const {expected_version,...patch}=body;
@@ -345,14 +379,14 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
       delete billed.p_estimated_total_cost;delete billed.p_payment_timing;delete billed.p_timezone;
       return {data:await rpc('update_billed_event',billed)};
     },{params:t.Object({id:uuid}),body:t.Object({expected_version:t.Integer({minimum:1}),title:t.Optional(t.String({minLength:1,maxLength:200})),description:t.Optional(t.String({maxLength:10000})),starts_at:t.Optional(t.String({format:'date-time'})),ends_at:t.Optional(t.String({format:'date-time'})),registration_closes_at:t.Optional(t.String({format:'date-time'})),timezone:t.Optional(t.String({minLength:1,maxLength:100})),capacity:t.Optional(t.Integer({minimum:1,maximum:100000})),estimated_total_cost:t.Optional(amount),payment_timing:t.Optional(t.Union([t.Literal('before_event'),t.Literal('after_event')])),venue_booking_status:t.Optional(t.Union([t.Literal('not_booked'),t.Literal('pending'),t.Literal('booked'),t.Literal('cancelled')])),status:t.Optional(t.Union([t.Literal('confirmed'),t.Literal('completed')])),venue_snapshot:t.Optional(venueSnapshot)},{additionalProperties:false,minProperties:2})})
-    .post('/events/:id/join',async ({request,params}) => {
+    .post('/events/:id/join',async ({request,params,body}) => {
       const id=await actor(request);
       try { await publicEventAccess(params.id,request); }
       catch(error) { if(error instanceof FinanceError&&error.message==='FORBIDDEN')await rpc('manual_event_access',{p_event:params.id,p_actor:id});else throw error; }
       const {data:p}=await client().from('profiles').select('user_id').eq('id',id).single();
       if(!p) throw new FinanceError('FORBIDDEN');
-      return {data:await participantDtoWithInvoice(await rpc('join_event',{p_event_id:params.id,p_user_id:p.user_id,p_actor_profile_id:id}))};
-    },{params:t.Object({id:uuid})})
+      return {data:await participantDtoWithInvoice(await rpc('join_event_with_price_option',{p_event_id:params.id,p_user_id:p.user_id,p_actor_profile_id:id,p_guest_session_hash:null,p_price_option_id:body.price_option_id??null}))};
+    },{params:t.Object({id:uuid}),body:t.Object({price_option_id:t.Optional(uuid)},{additionalProperties:false})})
     .get('/events/:id/participation',async ({request,params})=>{
       const bookingToken=request.headers.get('x-booking-token');
       if(bookingToken) {

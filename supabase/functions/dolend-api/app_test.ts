@@ -311,6 +311,7 @@ Deno.test('event roster exposes display names only after event access is verifie
   globalThis.fetch = async (input, init) => {
     const url = new URL(String(input));
     if (url.pathname === '/rest/v1/events') return Response.json({ id: identity.id, venue_snapshot: {} });
+    if (url.pathname === '/rest/v1/event_price_options') return Response.json([]);
     if (url.pathname === '/rest/v1/event_participants') {
       assert(url.searchParams.get('event_id') === `eq.${identity.id}`, 'Roster is not scoped to the event');
       if (init?.method === 'HEAD') return new Response(null, { headers: { 'content-range': '*/12' } });

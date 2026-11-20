@@ -1,6 +1,7 @@
 import type { CostModel, PaymentTiming } from './event-billing-options';
 export type PublicEvent = {
   id: string;
+  public_code?: string;
   title: string;
   activity_type_slug?: string | null;
   description: string;
@@ -24,9 +25,11 @@ export type PublicEvent = {
   hold_minutes?:number;
   visibility?: 'public' | 'unlisted';
   price_amount: number;
+  price_options?: { id: string; name: string; amount: number; quota: number; taken: number; remaining: number }[];
   currency: 'IDR';
 };
 export const isUuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+export const isPublicEventCode = (value: string) => /^[23456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]{10}$/.test(value);
 export const isEventPreview = process.env.NEXT_PUBLIC_POC_EVENT_FIXTURES === 'true';
 
 export function safeMapsUrl(value: string): string | undefined {
@@ -42,6 +45,7 @@ function parseEvent(value: unknown, expectedId: string): PublicEvent {
   const venue = event.venue as Record<string, unknown> | undefined;
   const roster = event.participant_roster as PublicEvent['participant_roster'];
   if (event.id !== expectedId || typeof event.title !== 'string' || !event.title.trim() || event.title.length > 200 ||
+    (event.public_code !== undefined && (typeof event.public_code !== 'string' || !isPublicEventCode(event.public_code))) ||
     typeof event.description !== 'string' || event.description.length > 10000 ||
     typeof event.starts_at !== 'string' || !Number.isFinite(Date.parse(event.starts_at)) ||
     typeof event.ends_at !== 'string' || Date.parse(event.ends_at) <= Date.parse(event.starts_at) || !Number.isFinite(Date.parse(event.ends_at)) ||
@@ -77,4 +81,23 @@ export async function fetchPublicEvent(id: string, signal: AbortSignal, inviteTo
   if (!response.ok) throw new Error('API_UNAVAILABLE');
   const json = await response.json();
   return parseEvent(json.data, id);
+}
+
+export async function fetchPublicEventByCode(code:string,signal:AbortSignal,inviteToken?:string,bookingToken?:string,rosterPage=1):Promise<PublicEvent|null>{
+  if(!isPublicEventCode(code))return null;
+  const api=process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/,'');
+  if(!api)throw new Error('API_UNAVAILABLE');
+  const query=rosterPage>1?`?roster_page=${rosterPage}`:'';
+  const headers:Record<string,string>={Accept:'application/json'};
+  const key=process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  if(key){headers.apikey=key;if(key.startsWith('eyJ'))headers.Authorization=`Bearer ${key}`;}
+  if(inviteToken)headers['x-invite-token']=inviteToken;
+  if(bookingToken)headers['x-booking-token']=bookingToken;
+  const response=await fetch(`${api}/events/code/${encodeURIComponent(code)}${query}`,{signal,cache:'no-store',headers});
+  if(response.status===403||response.status===404)return null;
+  if(!response.ok)throw new Error('API_UNAVAILABLE');
+  const json=await response.json();
+  const id=(json.data as Record<string,unknown>|undefined)?.id;
+  if(typeof id!=='string'||!isUuid(id))throw new Error('INVALID_EVENT');
+  return parseEvent(json.data,id);
 }

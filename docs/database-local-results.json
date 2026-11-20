@@ -1,8 +1,8 @@
 {
-  "passed": 99,
+  "passed": 119,
   "failed": 0,
   "engine": "PGlite (PostgreSQL WASM); concurrency must be proven separately on hosted PostgreSQL",
-  "migrations": 33,
+  "migrations": 41,
   "restore_round_trip": true,
   "restore_scope": "PGlite datadir only; production Supabase restore remains a release drill"
 }

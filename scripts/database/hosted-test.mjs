@@ -48,6 +48,10 @@ const cleanup=async()=>{
  delete from public.events where id in (${events});
  delete from public.workspace_members where workspace_id in (${workspaces});
  delete from public.workspaces where id in (${workspaces});
+ delete from public.achievement_award_audit where profile_id in (${users});
+ delete from public.achievement_awards where profile_id in (${users});
+ delete from public.achievement_rebuild_jobs where profile_id in (${users});
+ delete from public.profile_stats where profile_id in (${users});
  delete from public.profiles where id in (${users});
  delete from public.users where id in (${businessUsers});
  commit;`;
@@ -62,7 +66,7 @@ const cleanup=async()=>{
  await unlink(statePath);state=null;
  console.log('PASS scoped fixture cleanup; schema and category seeds retained');
 };
-if(process.argv[2]==='cleanup'){await cleanup();process.exit(0);}
+if(process.argv[2]==='cleanup'||(process.argv[2]==='--'&&process.argv[3]==='cleanup')){await cleanup();process.exit(0);}
 assert(!state,'Existing fixture state. Run cleanup before starting another run.');
 state={runId:randomUUID(),project,events:[],businessUsers:[],users:[],workspaces:[]};await save();
 const report={date:new Date().toISOString().slice(0,10),project,checks:[]};

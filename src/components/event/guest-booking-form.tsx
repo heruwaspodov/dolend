@@ -17,7 +17,8 @@ const statusLabel: Record<string,string> = {
   cancelled: 'Booking sudah dibatalkan.',
 };
 
-export function GuestBookingForm({ eventId,inviteToken,bookingToken,canBook = true,onParticipationChange }: { eventId: string; inviteToken?:string;bookingToken?:string;canBook?:boolean;onParticipationChange:()=>void }) {
+type PriceOption={id:string;name:string;amount:number;quota:number;taken:number;remaining:number};
+export function GuestBookingForm({ eventId,inviteToken,bookingToken,canBook = true,priceOptions=[],onParticipationChange }: { eventId: string; inviteToken?:string;bookingToken?:string;canBook?:boolean;priceOptions?:PriceOption[];onParticipationChange:()=>void }) {
   const [displayName, setDisplayName] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
   const [status, setStatus] = useState('');
@@ -29,6 +30,7 @@ export function GuestBookingForm({ eventId,inviteToken,bookingToken,canBook = tr
   const [chargeId,setChargeId] = useState<string | null>(null);
   const [invoiceId,setInvoiceId] = useState<string | null>(null);
   const [issuedBookingToken,setIssuedBookingToken]=useState('');
+  const [priceOptionId,setPriceOptionId]=useState('');
 
   useEffect(() => {
     const hash = new URLSearchParams(window.location.hash.slice(1));
@@ -57,7 +59,7 @@ export function GuestBookingForm({ eventId,inviteToken,bookingToken,canBook = tr
     setSubmitting(true);
     setError('');
     try {
-      const booking = await createGuestBooking(eventId, { display_name: displayName.trim(), whatsapp: whatsapp.trim() },inviteToken);
+      const booking = await createGuestBooking(eventId, { display_name: displayName.trim(), whatsapp: whatsapp.trim(),...(priceOptionId?{price_option_id:priceOptionId}:{}) },inviteToken);
       const hash = new URLSearchParams({ ...(inviteToken?{invite:inviteToken}:{}),booking: booking.booking_token }).toString();
       window.history.replaceState(window.history.state, '', `${window.location.pathname}${window.location.search}#${hash}`);
       setStatus(booking.status);
@@ -116,7 +118,8 @@ export function GuestBookingForm({ eventId,inviteToken,bookingToken,canBook = tr
     <form className="mt-5 space-y-4" onSubmit={submit}>
       <div className="space-y-2"><Label htmlFor="guest-name">Nama</Label><Input id="guest-name" name="name" autoComplete="name" maxLength={120} required className="min-h-11" value={displayName} onChange={(event) => setDisplayName(event.target.value)} /></div>
       <div className="space-y-2"><Label htmlFor="guest-whatsapp">Nomor WhatsApp</Label><Input id="guest-whatsapp" name="tel" type="tel" inputMode="tel" autoComplete="tel" placeholder="0812 3456 7890" minLength={8} maxLength={32} required className="min-h-11" value={whatsapp} onChange={(event) => setWhatsapp(event.target.value)} /></div>
-      <Button type="submit" className="min-h-11" disabled={submitting}>{submitting ? <LoaderCircle className="animate-spin motion-reduce:animate-none" aria-hidden="true" /> : null}{submitting ? 'Membuat booking…' : 'Booking tempat'}</Button>
+      {priceOptions.length>0&&<div className="space-y-2"><Label htmlFor="guest-price-option">Pilih kategori harga</Label><select id="guest-price-option" required value={priceOptionId} onChange={event=>setPriceOptionId(event.target.value)} className="min-h-11 w-full rounded-md border bg-white px-3 text-sm"><option value="">Pilih kategori</option>{priceOptions.map(option=><option key={option.id} value={option.id} disabled={option.remaining===0}>{option.name} · Rp {new Intl.NumberFormat('id-ID').format(option.amount)} · sisa {option.remaining}</option>)}</select></div>}
+      <Button type="submit" className="min-h-11" disabled={submitting||(priceOptions.length>0&&!priceOptionId)}>{submitting ? <LoaderCircle className="animate-spin motion-reduce:animate-none" aria-hidden="true" /> : null}{submitting ? 'Membuat booking…' : 'Booking tempat'}</Button>
       {error && <p className="text-sm font-medium text-rose-700" role="alert">{error}</p>}
     </form>
   </section>;

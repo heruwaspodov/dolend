@@ -35,8 +35,8 @@ export async function getMemberParticipation(eventId:string,accessToken:string,s
   return data<OwnParticipation|null>(await fetch(apiUrl(`/events/${eventId}/participation`),{cache:'no-store',signal,headers:{...publicHeaders(),authorization:`Bearer ${accessToken}`}}));
 }
 
-export async function joinEventAsMember(eventId:string,accessToken:string,inviteToken?:string) {
-  return data<OwnParticipation>(await fetch(apiUrl(`/events/${eventId}/join`),{method:'POST',cache:'no-store',headers:{...publicHeaders(),authorization:`Bearer ${accessToken}`,...(inviteToken?{'x-invite-token':inviteToken}:{})}}));
+export async function joinEventAsMember(eventId:string,accessToken:string,inviteToken?:string,priceOptionId?:string) {
+  return data<OwnParticipation>(await fetch(apiUrl(`/events/${eventId}/join`),{method:'POST',cache:'no-store',headers:{...publicHeaders(),authorization:`Bearer ${accessToken}`,...(inviteToken?{'x-invite-token':inviteToken}:{}),'content-type':'application/json'},body:JSON.stringify(priceOptionId?{price_option_id:priceOptionId}:{})}));
 }
 
 export async function cancelMemberParticipation(eventId:string,accessToken:string,reason:string) {

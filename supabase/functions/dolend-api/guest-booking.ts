@@ -5,6 +5,7 @@ export type GuestBookingInput = {
   eventId: string;
   displayName: string;
   whatsapp: string;
+  priceOptionId?: string;
   clientAddress: string;
 };
 
@@ -106,11 +107,12 @@ export function createSupabaseGuestBookingService(url: string, serviceRoleKey: s
 
       const bookingToken = randomToken();
       const tokenHash = await sha256(bookingToken);
-      const { data, error } = await client.rpc('create_guest_booking', {
+      const { data, error } = await client.rpc('create_guest_booking_with_price_option', {
         p_event: input.eventId,
         p_display_name: input.displayName.trim(),
         p_phone_normalized: phoneNormalized,
         p_token_hash: tokenHash,
+        p_price_option_id: input.priceOptionId ?? null,
       });
       if (error) {
         if (error.message.includes('BOOKING_ALREADY_EXISTS')) throw new GuestBookingError('BOOKING_ALREADY_EXISTS');

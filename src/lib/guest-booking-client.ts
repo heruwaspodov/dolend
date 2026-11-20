@@ -33,7 +33,7 @@ async function responseData(response: Response) {
   return payload.data;
 }
 
-export async function createGuestBooking(eventId: string, input: { display_name: string; whatsapp: string },inviteToken?:string) {
+export async function createGuestBooking(eventId: string, input: { display_name: string; whatsapp: string; price_option_id?: string },inviteToken?:string) {
   const response = await fetch(apiUrl(`/events/${eventId}/guest-bookings`), {
     method: 'POST',
     cache: 'no-store',

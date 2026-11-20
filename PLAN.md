@@ -1,6 +1,6 @@
 # Dolend — Product & Implementation Plan
 
-Versi: 1.1 • Diperbarui: 1 November 2026 • Status: implementasi bertahap
+Versi: 1.1 • Diperbarui: 20 November 2026 • Status: implementasi bertahap
 
 ## Revisi scope MVP — 31 Oktober 2026
 
@@ -13,6 +13,14 @@ Keputusan pengguna berdasarkan `dolend_mvp_plan_sync.md` menggantikan ketentuan 
 - Pembatalan sebelum lock menghapus peserta dari pembagi; sesudah lock wajib memilih retain/waive/replacement/adjustment dengan audit.
 - MVP hanya QRIS statis organizer, transfer bank, tunai; dana langsung ke organizer. Laporan bayar menjadi pending_verification; hanya organizer pemilik yang dapat verified/rejected. Pembayaran parsial, kelebihan bayar, penyesuaian dan refund dicatat terpisah. Completed tidak menghapus utang.
 - Gateway, webhook payment, dynamic QRIS, escrow, settlement dan refund otomatis keluar MVP. T16 ditunda; dependency T17–T21 pada gateway tidak berlaku untuk MVP manual. Release gate tidak lagi mensyaratkan merchant/gateway approval.
+
+### Tambahan keputusan alur daftar publik — 20 November 2026
+
+1. **Tenggat bayar di muka per event:** organizer dapat mengatur durasi hold kursi; default 15 menit. Halaman pembayaran menampilkan hitung mundur berdasarkan tenggat dari server dan menonaktifkan form saat tenggat lewat. Backend tetap menjadi otoritas untuk menolak pembayaran terlambat dan melepas hold. Bukti yang dikirim sebelum tenggat tetap mengikuti proses verifikasi organizer.
+2. **Opsi harga berkuota:** organizer dapat mengaktifkan beberapa kategori harga opsional, misalnya Keeper Rp15.000 kuota 1 dan Pemain Rp30.000 kuota 10. Peserta memilih satu opsi; kuota opsi dan kapasitas event dijaga atomik. Nama opsi dan nominal disimpan sebagai snapshot tagihan. Untuk tahap awal, opsi harga berlaku pada model harga tetap, terpisah dari patungan dinamis.
+3. **Kode event publik:** setiap event memiliki kode unik 10 karakter untuk URL seperti `/d/ZDKjSH8pQ2`. Kode hanya menemukan event; token booking tetap menjadi kredensial rahasia tersendiri untuk akses booking guest. Visibility dan izin event tetap diperiksa saat resolusi kode.
+
+Poin 1: kolom `hold_minutes` dan pengaturan durasi saat membuat event sudah tersedia; countdown dan penguncian kontrol pembayaran diimplementasikan pada halaman pembayaran. Poin 2 dan 3 memiliki migration, API, dan alur client di workspace; migration awal keduanya sudah diterapkan ke Supabase lokal dan hosted. Editor kategori harga untuk event harga tetap tanpa peserta memiliki migration tambahan yang belum diterapkan. API dan Hosting untuk perubahan ini belum dideploy. Replay migration lokal dan tes database hosted untuk migration awal lulus, termasuk cleanup fixture.
 
 ### Urutan implementasi revisi
 
@@ -140,7 +148,7 @@ Supabase Cron → expiry / overdue / reconciliation / cleanup jobs
 
 Rute statis utama: `/`, `/login/`, `/auth/callback/`, `/dashboard/`, `/events/`, `/event/`, `/event/create/`, `/event/manage/`, `/join/`, `/payment/`, `/profile/`. Event baru memakai `/event/?id=<uuid>`; undangan memakai parameter token bila perlu. Manage/pay memakai ID pada query dan selalu memvalidasi akses di API. Query dibaca pada client setelah hydration (atau memakai Suspense boundary yang sesuai); build tidak bergantung pada event runtime.
 
-Jangan memakai `/events/[id]` yang mengharuskan semua event diketahui saat build. Firebase clean URLs/trailing slash harus diuji terhadap file hasil ekspor. Tidak ada catch-all rewrite ke file yang belum ada. Deep link, refresh, auth redirect, dan payment return URL diuji pada preview Hosting. `next/image` memakai unoptimized atau loader yang sesuai static hosting.
+Jangan memakai `/events/[id]` yang mengharuskan semua event diketahui saat build. Firebase clean URLs/trailing slash harus diuji terhadap file hasil ekspor. Route pendek `/d/**` memakai rewrite eksplisit ke `/event/index.html`, lalu resolver API mencari event dari kode; tidak ada catch-all rewrite ke file yang belum ada. Deep link, refresh, auth redirect, dan payment return URL diuji pada preview Hosting. `next/image` memakai unoptimized atau loader yang sesuai static hosting.
 
 Konsekuensi: metadata/preview WhatsApp MVP bersifat umum Dolend, teks pesan berisi detail event. Preview spesifik event membutuhkan rancangan tambahan dan tidak dijanjikan di MVP. SEO halaman event dinamis juga terbatas; ini tradeoff yang diterima untuk static export.
 

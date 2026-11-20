@@ -14,7 +14,7 @@ export function PaymentSettings({token}:{token:string}) {
   const [busy,setBusy]=useState(false);
   const [events,setEvents]=useState<{id:string;title:string}[]>([]);
   const [eventId,setEventId]=useState('');
-  const [type,setType]=useState('static_qris');
+  const [type,setType]=useState('bank_transfer');
   const [loading,setLoading]=useState(true);
   useEffect(()=>{
     const controller=new AbortController();
@@ -55,10 +55,11 @@ export function PaymentSettings({token}:{token:string}) {
           <div className="grid gap-2">
             <Label htmlFor="payment-type">Metode</Label>
             <SearchableSelect id="payment-type" value={type} onValueChange={e => setType(e)}>
-              <option value="static_qris">QRIS statis</option>
               <option value="bank_transfer">Transfer bank</option>
+              <option value="static_qris">QRIS statis</option>
               <option value="cash">Tunai</option>
             </SearchableSelect>
+            <p className="text-xs text-[#615d59]">Event harga tetap menggunakan rekening Transfer bank yang aktif.</p>
           </div>
           <div className="grid gap-2">
             <Label htmlFor="payment-recipient">Nama penerima / merchant</Label>

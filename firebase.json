@@ -6,6 +6,12 @@
       "**/.*",
       "**/node_modules/**"
     ],
+    "rewrites": [
+      {
+        "source": "/d/**",
+        "destination": "/event/index.html"
+      }
+    ],
     "trailingSlash": true,
     "headers": [
       {

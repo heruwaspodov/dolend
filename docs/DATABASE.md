@@ -120,6 +120,8 @@ Private bucket, validasi file, signed URL, guest-token recovery, dan callback Go
 
 Snapshot venue event dapat menyimpan `latitude`/`longitude` sebagai pasangan numerik, `meeting_instructions` maksimum 1000 karakter, dan Maps URL yang sudah dinormalisasi API. Constraint `events_venue_snapshot_fields_check` menjaga pasangan serta rentang koordinat tanpa mengubah snapshot lama yang tidak memiliki koordinat.
 
+Kode publik event disimpan pada `events.public_code`, dibangkitkan otomatis untuk event baru dan backfill event lama, lalu dijaga unik oleh index database. Kode ini identifier publik, bukan kredensial akses. Resolver API tetap memeriksa visibility dan token undangan; guest memakai booking token terpisah.
+
 References: [Supabase migrations](https://supabase.com/docs/guides/deployment/database-migrations), [database functions](https://supabase.com/docs/guides/database/functions), [PostgreSQL locks](https://www.postgresql.org/docs/17/explicit-locking.html), [RLS](https://www.postgresql.org/docs/17/ddl-rowsecurity.html).
 
 ## Revisi iuran manual — 31 Oktober 2026

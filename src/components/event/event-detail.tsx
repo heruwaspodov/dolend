@@ -1,12 +1,12 @@
 'use client';
 
 import Image from 'next/image';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { MapPin, UserRound } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { fetchPublicEvent, isEventPreview, isUuid, safeMapsUrl, type PublicEvent } from '@/lib/event-client';
+import { fetchPublicEvent, fetchPublicEventByCode, isEventPreview, isPublicEventCode, isUuid, safeMapsUrl, type PublicEvent } from '@/lib/event-client';
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser';
 import { EventParticipation } from './event-participation';
 import { EventVenueMap } from './event-venue-map';
@@ -16,38 +16,49 @@ export function EventDetail() {
   const params = useSearchParams();
   const id = params.get('id') ?? '';
   const memberView = params.get('member') === '1';
+  const pathname=useSyncExternalStore(
+    listener=>{window.addEventListener('popstate',listener);return()=>window.removeEventListener('popstate',listener);},
+    ()=>window.location.pathname,
+    ()=>'/event/',
+  );
+  const shortCode=pathname.match(/^\/d\/([^/]+)\/?$/)?.[1]??'';
   const [result, setResult] = useState<Result | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [rosterRequest, setRosterRequest] = useState({ id: '', page: 1 });
+  const codeRequest=!id?shortCode:'';
+  const requestKey=codeRequest||id;
   useEffect(() => {
-    if (!isUuid(id)) return;
+    if(codeRequest?!isPublicEventCode(codeRequest):!isUuid(id))return;
     const controller = new AbortController();
     const fragment=new URLSearchParams(window.location.hash.slice(1));
     const inviteToken=fragment.get('invite')??undefined;
     const bookingToken=fragment.get('booking')??undefined;
     const timeout = setTimeout(() => controller.abort('timeout'), 15000);
     let active = true;
-    const rosterPage = rosterRequest.id === id ? rosterRequest.page : 1;
-    fetchPublicEvent(id, controller.signal,inviteToken,bookingToken,undefined,rosterPage).then(async event => {
-      if (event || !memberView || isEventPreview || controller.signal.aborted) return event;
+    const rosterPage = rosterRequest.id === requestKey ? rosterRequest.page : 1;
+    const request=codeRequest
+      ? fetchPublicEventByCode(codeRequest,controller.signal,inviteToken,bookingToken,rosterPage)
+      : fetchPublicEvent(id, controller.signal,inviteToken,bookingToken,undefined,rosterPage);
+    request.then(async event => {
+      if (event || !memberView || isEventPreview || controller.signal.aborted || codeRequest) return event;
       const { data: { session } } = await getSupabaseBrowserClient().auth.getSession();
       return session ? fetchPublicEvent(id, controller.signal, undefined, undefined, session.access_token, rosterPage) : null;
     }).then((event) => {
       if (!active) return;
       setResult(current => {
-        if (!event) return { id, kind: 'missing' };
+        if (!event) return { id: requestKey, kind: 'missing' };
         return {
-          id, kind: 'found', event, inviteToken,
-          bookingToken: current?.id === id && current.kind === 'found' ? current.bookingToken : bookingToken,
+          id:requestKey, kind: 'found', event, inviteToken,
+          bookingToken: current?.id === requestKey && current.kind === 'found' ? current.bookingToken : bookingToken,
         };
       });
     }).catch(() => {
-      if (active) setResult(current => current?.id === id && current.kind === 'found' ? current : { id, kind: 'error' });
+      if (active) setResult(current => current?.id === requestKey && current.kind === 'found' ? current : { id:requestKey, kind: 'error' });
     }).finally(() => clearTimeout(timeout));
     return () => { active = false; clearTimeout(timeout); controller.abort(); };
-  }, [id, attempt, memberView, rosterRequest]);
-  if (!id || !isUuid(id)) return <State title="Tautan aktivitas tidak valid" description="Gunakan tautan lengkap dari penyelenggara untuk membuka aktivitas." />;
-  if (!result || result.id !== id) return <EventLoading />;
+  }, [id, codeRequest, requestKey, attempt, memberView, rosterRequest]);
+  if (codeRequest?!isPublicEventCode(codeRequest):!isUuid(id)) return <State title="Tautan aktivitas tidak valid" description="Gunakan tautan dari penyelenggara untuk membuka aktivitas." />;
+  if (!result || result.id !== requestKey) return <EventLoading />;
   if (result.kind === 'missing') return <State title="Aktivitas tidak ditemukan" description="Aktivitas ini belum tersedia atau tautannya sudah tidak berlaku." />;
   if (result.kind === 'error') return <State title="Aktivitas belum bisa dimuat" description="Coba lagi sebentar, atau hubungi penyelenggara jika masalah berlanjut.">
     <Button className="mt-5 min-h-11" onClick={() => { setResult(null); setAttempt((value) => value + 1); }}>Coba lagi</Button>
@@ -116,12 +127,13 @@ export function EventDetail() {
               <dd className="mt-1 text-lg font-bold wrap-anywhere tabular-nums sm:text-xl">{money.format(estimatedTotal)}</dd>
             </div>}
             <div className={estimatedTotal != null ? 'min-w-0 border-l border-[#e6e3df] pl-3 text-right sm:pl-4' : 'min-w-0'}>
-              <dt className="text-sm text-[#615d59]">{dynamic ? 'Estimasi iuran saat ini per orang' : 'Biaya per orang'}</dt>
+              <dt className="text-sm text-[#615d59]">{dynamic ? 'Estimasi iuran saat ini per orang' : event.price_options?.length ? 'Pilihan harga' : 'Biaya per orang'}</dt>
               <dd className="mt-1 text-lg font-bold wrap-anywhere text-[#005bab] tabular-nums sm:text-xl">
-                {perPerson == null ? '—' : !dynamic && perPerson === 0 ? 'Gratis' : money.format(perPerson)}
+                {event.price_options?.length ? `${event.price_options.length} kategori` : perPerson == null ? '—' : !dynamic && perPerson === 0 ? 'Gratis' : money.format(perPerson)}
               </dd>
             </div>
           </dl>
+          {event.price_options?.length ? <ul className="mt-3 grid gap-2 sm:grid-cols-2" aria-label="Pilihan harga">{event.price_options.map(option=><li key={option.id} className="flex items-center justify-between gap-3 rounded-lg border border-[#e6e3df] p-3 text-sm"><span className="font-medium">{option.name}</span><span className="text-right tabular-nums">{money.format(option.amount)}<span className="block text-xs text-[#615d59]">Sisa {option.remaining} dari {option.quota}</span></span></li>)}</ul> : null}
           {dynamic && <p className="mt-2 text-sm leading-relaxed text-[#615d59]">
             {event.contributions_locked_at ? 'Iuran sudah dikunci. Lihat tagihan pribadi melalui tautan booking.'
               : perPerson == null ? 'Belum ada peserta yang dikenai iuran.'
@@ -144,7 +156,7 @@ export function EventDetail() {
           <p className="mt-2 text-sm text-[#615d59]">{seats === 0 ? 'Kapasitas penuh' : `${seats} tempat tersisa`}</p>
         </section>
 
-        <EventParticipantList count={event.participants_count} roster={event.participant_roster} onPage={page => setRosterRequest({ id, page })} />
+        <EventParticipantList count={event.participants_count} roster={event.participant_roster} onPage={page => setRosterRequest({ id:requestKey, page })} />
 
         <section aria-labelledby="event-location" className="border-t border-[#e6e3df] pt-5 sm:pt-6">
           <h2 id="event-location" className="flex items-center gap-2 font-semibold"><MapPin className="size-4 shrink-0" aria-hidden="true" />Lokasi</h2>
@@ -159,7 +171,7 @@ export function EventDetail() {
         <div className="border-t border-[#e6e3df] pt-5 sm:pt-6">
           {isEventPreview
             ? <p className="text-sm text-[#615d59]">Pendaftaran aktivitas belum dibuka pada pratinjau.</p>
-            : <EventParticipation key={event.id} eventId={event.id} inviteToken={result.inviteToken} bookingToken={result.bookingToken} seats={seats} onParticipationChange={() => setAttempt(value => value + 1)} />}
+            : <EventParticipation key={event.id} eventId={event.id} inviteToken={result.inviteToken} bookingToken={result.bookingToken} seats={seats} priceOptions={event.price_options??[]} onParticipationChange={() => setAttempt(value => value + 1)} />}
         </div>
       </div>
     </article>

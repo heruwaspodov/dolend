@@ -2,6 +2,10 @@
 
 Prefix `/dolend-api/v1`. Organizer wajib JWT Google terverifikasi. Guest memakai `x-booking-token`; event unlisted memakai `x-invite-token`; UUID tagihan atau event tidak memberi akses. Semua body menolak field tambahan.
 
+`GET /events/code/:code` menyelesaikan kode publik event ke DTO event yang sama dengan `GET /events/:id`. Kode tidak memberi akses ke event unlisted tanpa `x-invite-token`; booking guest tetap memakai token scoped tersendiri.
+
+`PUT /events/:id/price-options` mengatur kategori harga pada event harga tetap sebelum ada peserta. Organizer mengirim `expected_version` dan daftar 2–20 kategori; jumlah kuota harus sama dengan kapasitas event. Setelah peserta pertama tercatat, perubahan kategori ditolak agar tagihan lama tetap konsisten.
+
 | Endpoint | Fungsi |
 | --- | --- |
 | GET /organizer/events | Daftar event yang dapat dikelola beserta status planning dan lock |
