@@ -49,15 +49,57 @@ export function PaymentPanel(){
    setInvoice(await paymentRequest<Invoice>(`/invoices/${invoice.id}`,auth.token,{headers}));setAttempt(crypto.randomUUID());setMessage('Bukti diterima. Menunggu review organizer.');
   }catch(error){setMessage(error instanceof Error?error.message:'Bukti belum dapat dikirim.');}finally{setBusy(false);}
  }
+ async function refreshInvoice(){
+  if(!invoice)return;
+  setBusy(true);
+  try{
+   const headers:Record<string,string>=auth.booking?{'x-booking-token':auth.booking}:{};
+   setInvoice(await paymentRequest<Invoice>(`/invoices/${invoice.id}`,auth.token,{headers}));
+   setMessage('QRIS diperbarui.');
+  }catch(error){setMessage(error instanceof Error?error.message:'QRIS belum dapat diperbarui.');}
+  finally{setBusy(false);}
+ }
  if(noCharge)return <ReturnMessage kind="payment"/>;
- return <section className="mx-auto max-w-xl space-y-5 rounded-xl border bg-card p-5 sm:p-8"><h1 className="text-2xl font-bold">Pembayaran iuran</h1><p role="status" aria-live="polite">{message}</p>{invoice&&<InvoiceSummary invoice={invoice} busy={busy} now={now} onSubmit={submitInvoice}/>} {charge&&<><p>Tagihan terkunci: {money(charge.amount)}</p><p>{charge.balance<0?'Kelebihan bayar':'Sisa tagihan'}: {money(Math.abs(charge.balance))}</p><ul className="space-y-4">{charge.methods.map(m=><li key={m.id} className="space-y-2 border-t pt-3"><p>{m.recipient_name} · {m.type==='static_qris'?'QRIS statis':m.type==='cash'?'Tunai':'Transfer bank'}</p>{m.bank_details&&<p>{m.bank_details.bank} · {m.bank_details.account}</p>}{m.qris_url&&<Button asChild variant="outline" className="min-h-11"><a href={m.qris_url} target="_blank" rel="noreferrer">Buka / simpan gambar QRIS</a></Button>}</li>)}</ul><p className="text-sm text-muted-foreground">Masukkan nominal sesuai tagihan di aplikasi bank. Dana langsung ke organizer. Untuk tunai, organizer mencatat penerimaan.</p><form onSubmit={submit} className="space-y-4"><div className="space-y-2"><Label htmlFor="pay-method">Metode yang digunakan</Label><SearchableSelect id="pay-method" name="method" required>{charge.methods.filter(m=>m.type!=='cash').map(m=><option key={m.id} value={m.id}>{m.recipient_name} · {m.type==='static_qris'?'QRIS':'Transfer'}</option>)}</SearchableSelect></div><div className="space-y-2"><Label htmlFor="pay-amount">Nominal yang dibayar (Rp)</Label><Input id="pay-amount" name="amount" type="number" min={1} max={1e12} step={1} required defaultValue={Math.max(charge.balance,1)}/></div><div className="space-y-2"><Label htmlFor="pay-proof">Bukti opsional (PNG/JPG, maksimal 2 MiB)</Label><Input id="pay-proof" name="proof" type="file" accept="image/png,image/jpeg"/></div><Button type="submit" disabled={busy||!charge.methods.some(m=>m.type!=='cash')} className="min-h-11">{busy?'Mengirim…':'Saya sudah bayar'}</Button></form><ul className="divide-y">{charge.records.map(r=><li className="py-3" key={r.id}>{money(r.amount)} · {r.status==='verified'?'Terverifikasi':r.status==='rejected'?'Ditolak':'Menunggu verifikasi'}</li>)}</ul></>}</section>;
+ return <section className="mx-auto max-w-xl space-y-5 rounded-xl border bg-card p-5 sm:p-8"><h1 className="text-2xl font-bold">Pembayaran iuran</h1><p role="status" aria-live="polite">{message}</p>{invoice&&<InvoiceSummary invoice={invoice} busy={busy} now={now} onSubmit={submitInvoice} onRefresh={refreshInvoice}/>} {charge&&<><p>Tagihan terkunci: {money(charge.amount)}</p><p>{charge.balance<0?'Kelebihan bayar':'Sisa tagihan'}: {money(Math.abs(charge.balance))}</p><ul className="space-y-4">{charge.methods.map(m=><li key={m.id} className="space-y-2 border-t pt-3"><p>{m.recipient_name} · {m.type==='static_qris'?'QRIS statis':m.type==='cash'?'Tunai':'Transfer bank'}</p>{m.bank_details&&<p>{m.bank_details.bank} · {m.bank_details.account}</p>}{m.qris_url&&<Button asChild variant="outline" className="min-h-11"><a href={m.qris_url} target="_blank" rel="noreferrer">Buka / simpan gambar QRIS</a></Button>}</li>)}</ul><p className="text-sm text-muted-foreground">Masukkan nominal sesuai tagihan di aplikasi bank. Dana langsung ke organizer. Untuk tunai, organizer mencatat penerimaan.</p><form onSubmit={submit} className="space-y-4"><div className="space-y-2"><Label htmlFor="pay-method">Metode yang digunakan</Label><SearchableSelect id="pay-method" name="method" required>{charge.methods.filter(m=>m.type!=='cash').map(m=><option key={m.id} value={m.id}>{m.recipient_name} · {m.type==='static_qris'?'QRIS':'Transfer'}</option>)}</SearchableSelect></div><div className="space-y-2"><Label htmlFor="pay-amount">Nominal yang dibayar (Rp)</Label><Input id="pay-amount" name="amount" type="number" min={1} max={1e12} step={1} required defaultValue={Math.max(charge.balance,1)}/></div><div className="space-y-2"><Label htmlFor="pay-proof">Bukti opsional (PNG/JPG, maksimal 2 MiB)</Label><Input id="pay-proof" name="proof" type="file" accept="image/png,image/jpeg"/></div><Button type="submit" disabled={busy||!charge.methods.some(m=>m.type!=='cash')} className="min-h-11">{busy?'Mengirim…':'Saya sudah bayar'}</Button></form><ul className="divide-y">{charge.records.map(r=><li className="py-3" key={r.id}>{money(r.amount)} · {r.status==='verified'?'Terverifikasi':r.status==='rejected'?'Ditolak':'Menunggu verifikasi'}</li>)}</ul></>}</section>;
 }
 
-function InvoiceSummary({invoice,busy,now,onSubmit}:{invoice:Invoice;busy:boolean;now:number;onSubmit:(event:FormEvent<HTMLFormElement>)=>void}) {
+function InvoiceSummary({invoice,busy,now,onSubmit,onRefresh}:{invoice:Invoice;busy:boolean;now:number;onSubmit:(event:FormEvent<HTMLFormElement>)=>void;onRefresh:()=>void}) {
  const status=invoice.status==='paid'?'Lunas':invoice.status==='waived'?'Dibebaskan':invoice.status==='void'?'Dibatalkan':invoice.overdue?'Lewat jatuh tempo':'Belum dibayar';
  const holdActive=invoice.participant_status==='held'&&invoice.status==='open';
  const remainingSeconds=Math.max(0,Math.ceil((Date.parse(invoice.due_at)-now)/1000));
  const holdExpired=invoice.participant_status==='expired'||(holdActive&&remainingSeconds===0);
  const countdown=`${Math.floor(remainingSeconds/60).toString().padStart(2,'0')}:${(remainingSeconds%60).toString().padStart(2,'0')}`;
- return <div className="space-y-4"><div className="rounded-lg bg-muted p-4"><p className="text-sm text-muted-foreground">{invoice.invoice_number}</p><p className="mt-1 text-2xl font-bold">{money(invoice.amount_due)}</p><p className="mt-2 text-sm">{status} · jatuh tempo {new Intl.DateTimeFormat('id-ID',{dateStyle:'medium',timeStyle:'short'}).format(new Date(invoice.due_at))}</p></div>{(holdActive||invoice.participant_status==='expired')&&<p className={holdExpired?'text-sm font-medium text-rose-700':'text-sm text-muted-foreground'}>{holdExpired?'Waktu pembayaran habis. Kursi tidak lagi ditahan.':`Selesaikan pembayaran dalam ${countdown}.`}</p>}{invoice.methods.length>0?<ul className="space-y-3">{invoice.methods.map(method=>{const details=method.instruction_snapshot;const bankDetails=details.bank_details&&typeof details.bank_details==='object'?details.bank_details as Record<string,unknown>:details;return <li key={method.id} className="rounded-lg border p-4"><p className="font-medium">{method.method_type==='manual_bank_transfer'?'Transfer manual':method.method_type==='qris'?'QRIS':'Pembayaran online'}</p>{typeof bankDetails.bank==='string'&&<p className="mt-2 text-sm">{bankDetails.bank}{typeof bankDetails.account==='string'?` · ${bankDetails.account}`:''}</p>}</li>;})}</ul>:invoice.status==='open'&&<p className="text-sm text-muted-foreground">Instruksi pembayaran belum tersedia. Hubungi organizer.</p>}{invoice.status==='open'&&invoice.methods.length>0&&<form className="space-y-4" onSubmit={onSubmit}><fieldset disabled={busy||holdExpired} className="space-y-4"><Label htmlFor="invoice-method">Metode pembayaran</Label><SearchableSelect id="invoice-method" name="method">{invoice.methods.map(method=><option key={method.id} value={method.id}>Transfer manual</option>)}</SearchableSelect><Label htmlFor="invoice-proof">Bukti pembayaran (PNG/JPG, maksimal 2 MiB)</Label><Input id="invoice-proof" name="proof" type="file" accept="image/png,image/jpeg" required/><Button type="submit" disabled={busy||holdExpired} className="min-h-11">{busy?'Mengirim…':'Kirim bukti pembayaran'}</Button></fieldset></form>}{invoice.attempts.length>0&&<ul className="divide-y">{invoice.attempts.map(attempt=><li key={attempt.id} className="py-3 text-sm">Percobaan pembayaran · {attempt.status}</li>)}</ul>}</div>;
+ return <div className="space-y-4">
+  <div className="rounded-lg bg-muted p-4">
+   <p className="text-sm text-muted-foreground">{invoice.invoice_number}</p>
+   <p className="mt-1 text-2xl font-bold">{money(invoice.amount_due)}</p>
+   <p className="mt-2 text-sm">{status} · jatuh tempo {new Intl.DateTimeFormat('id-ID',{dateStyle:'medium',timeStyle:'short'}).format(new Date(invoice.due_at))}</p>
+  </div>
+  {(holdActive||invoice.participant_status==='expired')&&<p className={holdExpired?'text-sm font-medium text-rose-700':'text-sm text-muted-foreground'}>{holdExpired?'Waktu pembayaran habis. Kursi tidak lagi ditahan.':`Selesaikan pembayaran dalam ${countdown}.`}</p>}
+  {invoice.methods.length>0?<ul className="space-y-3">{invoice.methods.map(method=>{
+   const details=method.instruction_snapshot;
+   const bankDetails=details.bank_details&&typeof details.bank_details==='object'?details.bank_details as Record<string,unknown>:details;
+   return <li key={method.id} className="rounded-lg border p-4">
+    <p className="font-medium">{method.method_type==='manual_bank_transfer'?'Transfer bank':method.method_type==='qris'?'QRIS statis':'Pembayaran online'}</p>
+    {typeof details.recipient_name==='string'&&<p className="mt-1 text-sm">{details.recipient_name}</p>}
+    {typeof bankDetails.bank==='string'&&<p className="mt-2 text-sm">{bankDetails.bank}{typeof bankDetails.account==='string'?` · ${bankDetails.account}`:''}</p>}
+    {typeof details.qris_url==='string'&&<div className="mt-3 flex flex-wrap gap-2">
+     <Button asChild variant="outline" className="min-h-11"><a href={details.qris_url} target="_blank" rel="noreferrer">Buka / simpan QRIS</a></Button>
+     <Button type="button" variant="ghost" className="min-h-11" disabled={busy} onClick={onRefresh}>Perbarui tautan QRIS</Button>
+    </div>}
+   </li>;
+  })}</ul>:invoice.status==='open'&&<p className="text-sm text-muted-foreground">Instruksi pembayaran belum tersedia. Hubungi organizer.</p>}
+  {invoice.status==='open'&&invoice.methods.length>0&&<form className="space-y-4" onSubmit={onSubmit}>
+   <fieldset disabled={busy||holdExpired} className="space-y-4">
+    <Label htmlFor="invoice-method">Metode pembayaran</Label>
+    <SearchableSelect id="invoice-method" name="method" required>
+     {invoice.methods.map(method=><option key={method.id} value={method.id}>{method.method_type==='qris'?'QRIS statis':'Transfer bank'}</option>)}
+    </SearchableSelect>
+    <Label htmlFor="invoice-proof">Bukti pembayaran (PNG/JPG, maksimal 2 MiB)</Label>
+    <Input id="invoice-proof" name="proof" type="file" accept="image/png,image/jpeg" required/>
+    <Button type="submit" disabled={busy||holdExpired} className="min-h-11">{busy?'Mengirim…':'Kirim bukti pembayaran'}</Button>
+   </fieldset>
+  </form>}
+  {invoice.attempts.length>0&&<ul className="divide-y">{invoice.attempts.map(attempt=><li className="py-3 text-sm" key={attempt.id}>Percobaan pembayaran · {attempt.status}</li>)}</ul>}
+ </div>;
 }

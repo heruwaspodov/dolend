@@ -5,6 +5,7 @@ const eventId = '44444444-4444-4444-8444-444444444444';
 const workspaceId = '55555555-5555-4555-8555-555555555555';
 const activityId = '66666666-6666-4666-8666-666666666666';
 const bankMethodId='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const qrisMethodId='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const session = {
   access_token: 'organizer-browser-test-token', refresh_token: 'organizer-browser-test-refresh', token_type: 'bearer', expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3600,
   user: { id: '11111111-1111-4111-8111-111111111111', aud: 'authenticated', role: 'authenticated', email: 'host@example.com', email_confirmed_at: '2026-10-31T00:00:00.000Z', app_metadata: { provider: 'google', providers: ['google'] }, user_metadata: { full_name: 'Host Dolend' }, identities: [], created_at: '2026-10-31T00:00:00.000Z' },
@@ -20,7 +21,7 @@ test.beforeEach(async({page})=>{
   ])}));
   await page.route(`**/dolend-api/v1/events/${eventId}/share-link`, route => route.fulfill({ json: { data: { link: null, legacy_active: false } } }));
   await page.route('**/dolend-api/v1/activity-types', route => route.fulfill({ json: { data: [{ id: activityId, slug: 'badminton', name: 'Badminton' }] } }));
-  await page.route('**/dolend-api/v1/payment-settings',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:[{id:bankMethodId,type:'bank_transfer',recipient_name:'BCA Host',is_active:true}]})}));
+  await page.route('**/dolend-api/v1/payment-settings',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:[{id:bankMethodId,type:'bank_transfer',recipient_name:'BCA Host',is_active:true},{id:qrisMethodId,type:'static_qris',recipient_name:'QRIS Host',is_active:true}]})}));
 });
 
 async function withSession(page: Page) {
@@ -384,11 +385,14 @@ test('form membuat event harga tetap setelah event',async({page})=>{
   await expect(page.getByRole('group', { name: 'Waktu pembayaran' })).toHaveCount(0);
   await page.getByRole('radio', { name: 'Patungan harga tetap', exact: true }).check();
   await expect(page.getByRole('radio', { name: 'Setelah event', exact: true })).toBeChecked();
-  await page.getByLabel('Harga per peserta (Rp)').fill('50000');await page.getByLabel('Rekening penerima').click();await page.getByRole('option', { name: 'BCA Host', exact: true }).click();await page.getByLabel('Jatuh tempo pembayaran').fill('2026-11-07T21:00');
+  await page.getByLabel('Harga per peserta (Rp)').fill('50000');await page.getByLabel('Metode penerima pembayaran').click();
+  await expect(page.getByRole('option', { name: 'BCA Host · Transfer bank' })).toBeVisible();
+  await page.getByRole('option', { name: 'QRIS Host · QRIS statis' }).click();
+  await page.getByLabel('Jatuh tempo pembayaran').fill('2026-11-07T21:00');
   await page.getByText('Detail lokasi manual', { exact: true }).click();
   await page.getByLabel('Nama tempat').fill('GOR Jakarta');await page.getByLabel('Alamat').fill('Jakarta Pusat');
   await page.getByRole('button',{name:'Buat event'}).click();await expect(page).toHaveURL(`/event/manage/?id=${eventId}`);
-  expect(created).toMatchObject({cost_model:'fixed',payment_timing:'after_event',price_amount:50000,payment_due_at:'2026-11-07T21:00:00+07:00',payment_method_id:bankMethodId});
+  expect(created).toMatchObject({cost_model:'fixed',payment_timing:'after_event',price_amount:50000,payment_due_at:'2026-11-07T21:00:00+07:00',payment_method_id:qrisMethodId});
   expect(created?.estimated_total_cost).toBeUndefined();
 });
 

@@ -23,6 +23,17 @@ type VenueSnapshot = {name:string;address:string;maps_url:string;latitude?:numbe
 export function organizerPaymentMethodDto(row: Record<string, unknown>) {
   return { id: row.id, type: row.type, recipient_name: row.recipient_name, is_active: row.is_active, created_at: row.created_at };
 }
+export async function invoicePaymentMethodDto(
+  method:{id:string;method_type:string;instruction_snapshot:unknown},
+  signedDownloadUrl:(reference:string,expiresIn:number)=>Promise<string>,
+) {
+  if(method.method_type!=='qris')return method;
+  const snapshot=method.instruction_snapshot as Record<string,unknown>;
+  if(typeof snapshot.storage_path!=='string')return method;
+  let qris_url:string;
+  try{qris_url=await signedDownloadUrl(snapshot.storage_path,120);}catch{throw new FinanceError('STORAGE_UNAVAILABLE');}
+  return {...method,instruction_snapshot:{recipient_name:snapshot.recipient_name,qris_url}};
+}
 export function manualPaymentReviewDto(row: Record<string, unknown>, proofUrl: string | null) {
   return { id: row.id, amount: row.amount, status: row.status, proof_url: proofUrl };
 }
@@ -588,7 +599,8 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
       const {data:methods,error:methodsError}=await client().from('event_payment_methods').select('id,method_type,instruction_snapshot').eq('event_id',participant.event_id).eq('enabled',true).order('created_at');
       const {data:attempts,error:attemptsError}=await client().from('payment_attempts').select('id,method_type,amount,currency,status,expires_at,review_deadline,exception_reason,created_at').eq('invoice_id',invoice.id).order('created_at',{ascending:false});
       if(methodsError||attemptsError)throw new FinanceError('STORAGE_UNAVAILABLE');
-      return {data:{...invoice,participant_status:participant.status,overdue:invoice.status==='open'&&Date.parse(invoice.due_at)<Date.now(),methods:methods??[],attempts:attempts??[]}};
+      const visibleMethods=await Promise.all((methods??[]).map(method=>invoicePaymentMethodDto(method,(reference,expiry)=>files().signedDownloadUrl(reference,expiry))));
+      return {data:{...invoice,participant_status:participant.status,overdue:invoice.status==='open'&&Date.parse(invoice.due_at)<Date.now(),methods:visibleMethods,attempts:attempts??[]}};
     },{params:t.Object({id:uuid})})
     .post('/invoices/:id/attempts',async ({request,params,body})=>{
       const access=await invoiceAccess(params.id,request);

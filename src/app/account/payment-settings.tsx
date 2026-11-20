@@ -59,7 +59,7 @@ export function PaymentSettings({token}:{token:string}) {
               <option value="static_qris">QRIS statis</option>
               <option value="cash">Tunai</option>
             </SearchableSelect>
-            <p className="text-xs text-[#615d59]">Event harga tetap menggunakan rekening Transfer bank yang aktif.</p>
+            <p className="text-xs text-[#615d59]">Event harga tetap dapat menggunakan Transfer bank atau QRIS statis yang aktif.</p>
           </div>
           <div className="grid gap-2">
             <Label htmlFor="payment-recipient">Nama penerima / merchant</Label>

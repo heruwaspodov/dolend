@@ -1,6 +1,6 @@
 import { createApp } from './app.ts';
 import { reverseGeoapify, searchGeoapify } from './venues.ts';
-import { manualPaymentReviewDto, manualPaymentRoutes, organizerPaymentMethodDto } from './manual-payments.ts';
+import { invoicePaymentMethodDto, manualPaymentReviewDto, manualPaymentRoutes, organizerPaymentMethodDto } from './manual-payments.ts';
 import { AccountServiceError, type AccountIdentity, type AccountService, type Profile, type ProfilePatch } from './account.ts';
 import { GuestBookingError, type GuestBookingService } from './guest-booking.ts';
 import type { EventInviteService } from './event-invite.ts';
@@ -423,6 +423,20 @@ Deno.test('manual payment DTOs exclude raw storage and internal payment fields',
   assert(JSON.stringify(review) === JSON.stringify({
     id: 'payment-id', amount: 1000, status: 'pending_verification', proof_url: 'https://signed.example.test/proof',
   }), 'payment review DTO contains raw evidence path or internal fields');
+});
+
+Deno.test('static QRIS invoice method exposes only a short-lived signed image URL', async () => {
+  const method={id:'method-id',method_type:'qris',instruction_snapshot:{recipient_name:'QRIS Organizer',storage_path:'qris/private.png',source_method_id:'private-id'}};
+  let signed=false;
+  const visible=await invoicePaymentMethodDto(method,async(reference,expiry)=>{
+    assert(reference==='qris/private.png'&&expiry===120,'wrong QRIS signing request');
+    signed=true;
+    return 'https://signed.example.test/qris';
+  });
+  assert(signed,'QRIS image was not signed');
+  assert(JSON.stringify(visible)===JSON.stringify({id:'method-id',method_type:'qris',instruction_snapshot:{recipient_name:'QRIS Organizer',qris_url:'https://signed.example.test/qris'}}),'private QRIS metadata leaked');
+  const bank={id:'bank-id',method_type:'manual_bank_transfer',instruction_snapshot:{recipient_name:'Bank Organizer',bank_details:{bank:'BCA',account:'123'}}};
+  assert(await invoicePaymentMethodDto(bank,async()=>{throw new Error('Bank signing should not run');})===bank,'bank details changed');
 });
 
 Deno.test('event planning requires an optimistic version', async () => {

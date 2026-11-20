@@ -80,6 +80,39 @@ try {
   assert.deepEqual((await query("select action from public.audit_logs where entity_id=$1 and action in ('event.archive','event.restore') order by action", [archiveFixture.id])).map(row => row.action), ['event.archive', 'event.restore']);
   checks += 5;
   const join=async(e,userId=otherUser,actor=other)=> (await query('select * from public.join_event($1,$2,$3)',[e.id,userId,actor]))[0];
+  const [{id:qrisMethod}]=await query(`insert into public.organizer_payment_methods(organizer_id,type,recipient_name,storage_path)
+    values($1,'static_qris','QRIS fixture',$2) returning id`,[organizer,`qris/${organizer}/${crypto.randomUUID()}.png`]);
+  const [{id:cashMethod}]=await query(`insert into public.organizer_payment_methods(organizer_id,type,recipient_name)
+    values($1,'cash','Tunai fixture') returning id`,[organizer]);
+  const createQrisEvent=`select id from public.create_billed_event($1,$2,(select id from public.activity_types limit 1),
+    'Event QRIS fixture','',now()+interval '3 days',now()+interval '3 days 2 hours',now()+interval '2 days',
+    'Asia/Jakarta',2,'public',$3::jsonb,'before_event',15000,null,15,$4)`;
+  const qrisArgs=[organizer,venueWorkspace,JSON.stringify({name:'Venue QRIS',address:'Jakarta',maps_url:''}),qrisMethod];
+  await expectFailure(createQrisEvent,[...qrisArgs.slice(0,3),cashMethod],/INVALID_PAYMENT_METHOD/);
+  await db.query('update public.organizer_payment_methods set is_active=false where id=$1',[qrisMethod]);
+  await expectFailure(createQrisEvent,qrisArgs,/INVALID_PAYMENT_METHOD/);
+  await db.query('update public.organizer_payment_methods set is_active=true where id=$1',[qrisMethod]);
+  const [{id:qrisEvent}]=await query(createQrisEvent,qrisArgs);
+  const [qrisEventMethod]=await query('select id,method_type,provider,provider_method,instruction_snapshot from public.event_payment_methods where event_id=$1',[qrisEvent]);
+  assert.equal(qrisEventMethod.method_type,'qris');
+  assert.equal(qrisEventMethod.provider,'manual');
+  assert.equal(qrisEventMethod.provider_method,'static_qris');
+  assert.equal(qrisEventMethod.instruction_snapshot.recipient_name,'QRIS fixture');
+  assert.equal(typeof qrisEventMethod.instruction_snapshot.storage_path,'string'); checks++;
+  const qrisParticipant=await join({id:qrisEvent});
+  const [{id:qrisInvoice}]=await query('select id from public.invoices where participant_id=$1',[qrisParticipant.id]);
+  const [qrisAttempt]=await query('select * from public.create_payment_attempt($1,$2,$3,$4)',[qrisInvoice,qrisEventMethod.id,'qris-manual-1',other]);
+  assert.equal(qrisAttempt.method_type,'qris'); checks++;
+  await expectFailure('select * from public.approve_manual_payment($1,$2,$3,$4)',[qrisAttempt.id,other,'approve','Bukan organizer'],/ORGANIZER_REQUIRED/);
+  await query('select * from public.submit_manual_evidence($1,$2,$3,$4,$5)',[qrisAttempt.id,'fixture/qris-proof.png','image/png',10,other]);
+  await query('select * from public.approve_manual_payment($1,$2,$3,$4)',[qrisAttempt.id,organizer,'approve','Pembayaran QRIS diterima']);
+  await query('select * from public.approve_manual_payment($1,$2,$3,$4)',[qrisAttempt.id,organizer,'approve','Pembayaran QRIS diterima']);
+  assert.equal((await query('select status from public.invoices where id=$1',[qrisInvoice]))[0].status,'paid');
+  assert.equal((await query("select count(*)::int n from public.payment_ledger where invoice_id=$1 and entry_type='receipt'",[qrisInvoice]))[0].n,1); checks++;
+  const [{id:qrisRefund}]=await query('select id from public.request_refund($1,$2,$3,$4,$5)',[qrisAttempt.id,organizer,15000,'Refund QRIS','qris-refund-1']);
+  await expectFailure('select * from public.record_refund($1,$2,$3)',[qrisRefund,organizer,'qris-refund'],/REFUND_EVIDENCE_REQUIRED/);
+  await query('select * from public.record_refund($1,$2,$3,$4)',[qrisRefund,organizer,'qris-refund','fixture/qris-refund.png']);
+  assert.equal((await query("select count(*)::int n from public.payment_ledger where invoice_id=$1 and entry_type='refund'",[qrisInvoice]))[0].n,1); checks++;
   const free=await event(); const participant=await join(free);
   await expectFailure('select public.record_event_attendance($1,$2,$3)',[participant.id,organizer,'attended'],/ATTENDANCE_NOT_STARTED/);
   await expectFailure('select public.record_event_attendance($1,$2,$3)',[participant.id,other,'attended'],/ORGANIZER_REQUIRED/);
@@ -133,7 +166,7 @@ try {
   assert.equal(noShow.status,'no_show');
   assert.equal((await query('select status from public.invoices where participant_id=$1',[attendanceParticipant.id])).length,0);checks++;
   assert.equal(participant.status,'confirmed'); assert.equal((await join(free)).id,participant.id);
-  assert.equal((await query('select count(*)::int n from public.invoices'))[0].n,0); checks++;
+  assert.equal((await query('select count(*)::int n from public.invoices where participant_id=$1',[participant.id]))[0].n,0); checks++;
   await expectFailure('select * from public.join_event($1,$2,$3)',[free.id,otherUser,organizer],/ACTOR_MISMATCH/);
   await expectFailure('update public.events set capacity=0 where id=$1',[free.id],/CAPACITY_BELOW_OCCUPANCY|check constraint/);
   const before=await event('before_event',1); const held=await join(before);

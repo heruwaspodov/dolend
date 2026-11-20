@@ -76,7 +76,7 @@ export function EventCreateForm() {
     if (!session) return;
     const controller = new AbortController();
     void organizerRequest<PaymentMethod[]>('/payment-settings', session.access_token, { signal: controller.signal })
-      .then(methods => { setPaymentMethods(methods.filter(method => method.type === 'bank_transfer' && method.is_active)); setPaymentMethodsError(''); setPaymentMethodsLoaded(true); })
+      .then(methods => { setPaymentMethods(methods.filter(method => method.is_active && (method.type === 'bank_transfer' || method.type === 'static_qris'))); setPaymentMethodsError(''); setPaymentMethodsLoaded(true); })
       .catch(reason => { if (reason.name !== 'AbortError') { setPaymentMethodsError(reason.message); setPaymentMethodsLoaded(true); } });
     return () => controller.abort();
   }, [session, paymentRefreshKey]);
@@ -191,18 +191,18 @@ export function EventCreateForm() {
           </div>}
           {fixedPrice && <div>
             <div className="flex items-center justify-between gap-2">
-              <Label htmlFor="payment-method">Rekening penerima</Label>
+              <Label htmlFor="payment-method">Metode penerima pembayaran</Label>
               <Button type="button" variant="ghost" size="sm" className="min-h-11 gap-1 text-[#005bab]" onClick={() => setPaymentRefreshKey(key => key + 1)}>
                 <RefreshCw className="size-4" aria-hidden="true" />Muat ulang
               </Button>
             </div>
             <SearchableSelect id="payment-method" name="payment_method_id" required className="mt-2">
-              <option value="">Pilih rekening</option>
-              {paymentMethods.map(method => <option key={method.id} value={method.id}>{method.recipient_name}</option>)}
+              <option value="">Pilih metode</option>
+              {paymentMethods.map(method => <option key={method.id} value={method.id}>{method.recipient_name} · {method.type === 'static_qris' ? 'QRIS statis' : 'Transfer bank'}</option>)}
             </SearchableSelect>
-            {paymentMethodsError ? <p className="mt-2 text-xs text-rose-700" role="alert">Gagal memuat rekening: {paymentMethodsError}</p>
-              : paymentMethodsLoaded && paymentMethods.length === 0 ? <p className="mt-2 text-xs text-amber-800">Belum ada rekening Transfer bank aktif. Tambahkan atau aktifkan di <a href="/account/#payment-settings-title" className="underline underline-offset-2">Pengaturan pembayaran</a>.</p>
-                : !paymentMethodsLoaded ? <p className="mt-2 text-xs text-[#615d59]" role="status">Memuat rekening…</p> : null}
+            {paymentMethodsError ? <p className="mt-2 text-xs text-rose-700" role="alert">Gagal memuat metode: {paymentMethodsError}</p>
+              : paymentMethodsLoaded && paymentMethods.length === 0 ? <p className="mt-2 text-xs text-amber-800">Belum ada Transfer bank atau QRIS statis aktif. Tambahkan atau aktifkan di <a href="/account/#payment-settings-title" className="underline underline-offset-2">Pengaturan pembayaran</a>.</p>
+                : !paymentMethodsLoaded ? <p className="mt-2 text-xs text-[#615d59]" role="status">Memuat metode pembayaran…</p> : null}
           </div>}
           {fixedPrice && paymentTiming === 'before_event' && <div>
             <Label htmlFor="hold-minutes">Durasi tahan kursi (menit)</Label>
