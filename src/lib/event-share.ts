@@ -27,8 +27,10 @@ export function canShareEvent(status: string, startsAt?: string, timezone?: stri
 }
 
 export function canonicalEventUrl(origin:string,publicCode:string|undefined,eventId:string,inviteToken?:string) {
-  const url=publicCode?new URL(`/d/${encodeURIComponent(publicCode)}`,origin):new URL('/event/',origin);
-  if(!publicCode)url.searchParams.set('id',eventId);
+  const hostname=new URL(origin).hostname;
+  const useShortLink=Boolean(publicCode) && !['localhost','127.0.0.1','[::1]'].includes(hostname);
+  const url=useShortLink && publicCode?new URL(`/d/${encodeURIComponent(publicCode)}`,origin):new URL('/event/',origin);
+  if(!useShortLink)url.searchParams.set('id',eventId);
   if(inviteToken)url.hash=new URLSearchParams({invite:inviteToken}).toString();
   return url.toString();
 }
