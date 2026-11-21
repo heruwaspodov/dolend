@@ -49,6 +49,8 @@ test('session Google memuat dan menyimpan profil sendiri', async ({ page }) => {
   await page.route('**/auth/v1/logout*', (route) => route.fulfill({ status: 204, body: '' }));
   await page.goto('/account/');
   await expect(page.getByRole('heading', { name: 'Dolen Browser' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Pengaturan pembayaran' })).toBeVisible();
+  await expect(page.getByLabel('Gunakan metode pada event')).toHaveCount(0);
   await page.getByLabel('Tentang kamu').fill('Badminton tiap Jumat');
   await page.getByRole('button', { name: 'Simpan profil' }).click();
   await expect(page.getByText('Profil berhasil diperbarui.', { exact: true })).toBeVisible();

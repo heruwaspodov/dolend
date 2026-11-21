@@ -12,13 +12,10 @@ export function PaymentSettings({token}:{token:string}) {
   const [methods,setMethods]=useState<Method[]>([]);
   const [message,setMessage]=useState('');
   const [busy,setBusy]=useState(false);
-  const [events,setEvents]=useState<{id:string;title:string}[]>([]);
-  const [eventId,setEventId]=useState('');
   const [type,setType]=useState('bank_transfer');
   const [loading,setLoading]=useState(true);
   useEffect(()=>{
     const controller=new AbortController();
-    void paymentRequest<{id:string;title:string}[]>('/organizer/events',token,{signal:controller.signal}).then(setEvents).catch(e=>{if(e.name!=='AbortError')setMessage(e.message);});
     paymentRequest<Method[]>('/payment-settings',token,{signal:controller.signal}).then(setMethods).catch(e=>{if(e.name!=='AbortError')setMessage(e.message);}).finally(()=>setLoading(false));
     return ()=>controller.abort();
   },[token]);
@@ -34,7 +31,7 @@ export function PaymentSettings({token}:{token:string}) {
         storage_path=uploaded.storage_path;
       }
       const method=await paymentRequest<Method>('/payment-settings',token,{method:'POST',body:JSON.stringify({type,recipient_name:String(values.get('recipient')),storage_path,...(type==='bank_transfer'?{bank_details:{bank:String(values.get('bank')),account:String(values.get('account'))}}:{})})});
-      setMethods(current=>[...current,method]);setMessage('Metode pembayaran tersimpan. Aktifkan pada event yang sesuai.');form.reset();
+      setMethods(current=>[...current,method]);setMessage('Metode pembayaran tersimpan.');form.reset();
     }catch(e){setMessage(e instanceof Error?e.message:'Gagal menyimpan.');}finally{setBusy(false);}
   }
   async function toggle(method:Method){
@@ -42,17 +39,12 @@ export function PaymentSettings({token}:{token:string}) {
     try{const result=await paymentRequest<Method>(`/payment-settings/${method.id}`,token,{method:'PATCH',body:JSON.stringify({is_active:!method.is_active})});setMethods(current=>current.map(m=>m.id===result.id?result:m));}
     catch(e){setMessage(e instanceof Error?e.message:'Gagal mengubah metode.');}finally{setBusy(false);}
   }
-  async function enable(method:Method,enabled:boolean){
-    if(!eventId)return;setBusy(true);
-    try{await paymentRequest(`/events/${eventId}/payment-methods`,token,{method:'POST',body:JSON.stringify({method_id:method.id,enabled})});setMessage(enabled?'Metode diaktifkan untuk event terpilih.':'Metode dimatikan untuk event terpilih.');}
-    catch(e){setMessage(e instanceof Error?e.message:'Gagal mengubah metode event.');}finally{setBusy(false);}
-  }
   return (
     <WorkspaceFormSection id="payment-settings-title" title="Pengaturan pembayaran" description="Dana masuk langsung ke organizer. Gunakan QRIS resmi milikmu.">
       <div className="space-y-5">
         <form onSubmit={save} className="grid gap-4 sm:grid-cols-2" aria-labelledby="add-method-title">
           <h3 id="add-method-title" className="text-sm font-semibold sm:col-span-2">Tambah metode pembayaran</h3>
-          <div className="grid gap-2">
+          <div className="flex flex-col gap-2">
             <Label htmlFor="payment-type">Metode</Label>
             <SearchableSelect id="payment-type" value={type} onValueChange={e => setType(e)}>
               <option value="bank_transfer">Transfer bank</option>
@@ -61,7 +53,7 @@ export function PaymentSettings({token}:{token:string}) {
             </SearchableSelect>
             <p className="text-xs text-[#615d59]">Event harga tetap dapat menggunakan Transfer bank atau QRIS statis yang aktif.</p>
           </div>
-          <div className="grid gap-2">
+          <div className="flex flex-col gap-2">
             <Label htmlFor="payment-recipient">Nama penerima / merchant</Label>
             <Input id="payment-recipient" name="recipient" required maxLength={120} className={workspaceFormControl} />
           </div>
@@ -94,13 +86,6 @@ export function PaymentSettings({token}:{token:string}) {
         <p role="status" className="text-sm empty:sr-only">{message}</p>
         <section className="space-y-4 border-t pt-6" aria-labelledby="saved-methods-title">
           <h3 id="saved-methods-title" className="text-base font-semibold">Metode tersimpan</h3>
-          <div className="grid gap-2">
-            <Label htmlFor="method-event">Gunakan metode pada event</Label>
-            <SearchableSelect id="method-event" value={eventId} onValueChange={e => setEventId(e)}>
-              <option value="">Pilih event</option>
-              {events.map(event => <option key={event.id} value={event.id}>{event.title}</option>)}
-            </SearchableSelect>
-          </div>
           {loading ? <p className="text-sm text-[#615d59]">Memuat metode pembayaran…</p> : !methods.length ? (
             <p className="text-sm text-[#615d59]">Belum ada metode pembayaran.</p>
           ) : (
@@ -116,12 +101,6 @@ export function PaymentSettings({token}:{token:string}) {
                   <Button variant="outline" className="min-h-11" disabled={busy} onClick={() => toggle(method)}>
                     {method.is_active ? 'Nonaktifkan' : 'Aktifkan'}
                   </Button>
-                  {eventId && method.is_active && (
-                    <div className="flex flex-wrap gap-2">
-                      <Button variant="outline" disabled={busy} className="min-h-11" onClick={() => enable(method, true)}>Gunakan di event</Button>
-                      <Button variant="outline" disabled={busy} className="min-h-11" onClick={() => enable(method, false)}>Matikan di event</Button>
-                    </div>
-                  )}
                 </li>
               ))}
             </ul>
