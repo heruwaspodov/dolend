@@ -254,6 +254,18 @@ test('organizer membuat satu tautan dan menyalinnya setelah reload',async({page,
   expect(await page.evaluate(()=>navigator.clipboard.readText())).toBe(expected);
 });
 
+test('organizer membagikan kode unik tanpa token undangan',async({page})=>{
+  await withSession(page);
+  const code='23456789AB';
+  const event={...publicEvent,public_code:code,status:'confirmed',starts_at:new Date(Date.now()+86_400_000).toISOString(),ends_at:new Date(Date.now()+2*86_400_000).toISOString()};
+  await page.route(`**/dolend-api/v1/organizer/events/${eventId}`,route=>route.fulfill({json:{data:event}}));
+  await page.route(`**/dolend-api/v1/events/${eventId}/roster`,route=>route.fulfill({json:{data:{estimated_total_cost:240000,contributions_locked_at:null,payment_timing:'before_event',estimated_per_person:null,summary:{charged:0,received:0,refunded:0,adjustments:0,outstanding:0,credit:0},participants:[]}}}));
+  await page.goto(`/event/manage/?id=${eventId}`);
+  const origin=new URL(page.url()).origin;
+  await expect(page.getByLabel('Tautan yang dibagikan')).toHaveValue(`${origin}/d/${code}`);
+  await expect(page.getByRole('button',{name:'Buat tautan undangan'})).toHaveCount(0);
+});
+
 test('venue workspace tetap bisa dipakai saat pencarian luar mencapai batas', async ({ page }) => {
   await withSession(page);
   const venue = {

@@ -171,7 +171,7 @@ export function EventDetail() {
         <div className="border-t border-[#e6e3df] pt-5 sm:pt-6">
           {isEventPreview
             ? <p className="text-sm text-[#615d59]">Pendaftaran aktivitas belum dibuka pada pratinjau.</p>
-            : <EventParticipation key={event.id} eventId={event.id} inviteToken={result.inviteToken} bookingToken={result.bookingToken} seats={seats} priceOptions={event.price_options??[]} onParticipationChange={() => setAttempt(value => value + 1)} />}
+            : <EventParticipation key={event.id} eventId={event.id} eventCode={codeRequest || undefined} inviteToken={result.inviteToken} bookingToken={result.bookingToken} seats={seats} priceOptions={event.price_options??[]} onParticipationChange={() => setAttempt(value => value + 1)} />}
         </div>
       </div>
     </article>

@@ -416,6 +416,8 @@ Referensi: [Geoapify Autocomplete](https://apidocs.geoapify.com/docs/geocoding/a
 
 **Status: Selesai dan live, 3 November 2026.** Event create kini memilih public atau unlisted. Canonical link memakai shell statis `/event/?id=<uuid>`; token unlisted 256-bit berada di fragment, disimpan database hanya sebagai SHA-256, diteruskan ke API lewat header, dan dipertahankan ketika guest mendapat booking token. Organizer dapat membuat undangan dengan expiry, melihat metadata tanpa hash, mencabut secara idempotent, menyalin link, atau membuka share WhatsApp secara eksplisit. Public read, member join, dan guest booking memverifikasi akses event; discovery tetap hanya public. Migration additive diterapkan ke project `fpbefabsqryxmnmxufjw`, `dolend-api` dideploy, smoke hosted 120/120 lulus, dan workflow commit `7439c63` berhasil menerbitkan Firebase Hosting.
 
+**Revisi produk 21 November 2026:** tautan baru memakai `/d/<public_code>` tanpa token undangan; kode unik cukup untuk membuka detail dan mendaftar ke event unlisted yang berstatus terlihat. UUID tanpa kode tetap dibatasi. Token undangan lama tetap mengikuti expiry dan revoke; kode unik tidak memiliki expiry/revoke tersendiri. Ini mengubah mekanisme share T11 tanpa mengubah status bukti historis di atas.
+
 - **Description:** buat canonical link dan teks ajakan, copy link, undangan unlisted, revoke dan expiry.
 - **Deliverables:** share builder, invite API/UI, public event DTO, invite token handling.
 - **Dependencies:** T03, T10.

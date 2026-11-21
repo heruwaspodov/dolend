@@ -132,10 +132,10 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
     await rpc('manual_event_access', { p_event: event, p_actor: id });
     return id;
   }
-  async function publicEventAccess(event:string,request:Request) {
+  async function publicEventAccess(event:string,request:Request,publicCode?:string) {
     if(!eventInviteService)throw new FinanceError('STORAGE_UNAVAILABLE');
     try {
-      if(!await eventInviteService.canAccess(event,request.headers.get('x-invite-token'),request.headers.get('x-booking-token')))throw new FinanceError('FORBIDDEN');
+      if(!await eventInviteService.canAccess(event,request.headers.get('x-invite-token'),request.headers.get('x-booking-token'),publicCode??request.headers.get('x-event-code')))throw new FinanceError('FORBIDDEN');
     } catch(error) {
       if(error instanceof FinanceError)throw error;
       throw new FinanceError('STORAGE_UNAVAILABLE');
@@ -315,7 +315,7 @@ export function manualPaymentRoutes(accounts: AccountService | null | undefined,
       const {data,error}=await client().from('events').select('id').eq('public_code',params.code).maybeSingle();
       if(error)throw new FinanceError('STORAGE_UNAVAILABLE');
       if(!data)throw new FinanceError('FORBIDDEN');
-      await publicEventAccess(data.id,request);
+      await publicEventAccess(data.id,request,params.code);
       return {data:await eventDto(data.id,true,query.roster_page)};
     },{params:t.Object({code:t.String({pattern:'^[23456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]{10}$'})}),query:eventRosterQuery})
     .get('/events/:id',async ({params,request,query}) => {

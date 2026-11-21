@@ -5,6 +5,28 @@ const eventId = '55555555-5555-4555-8555-555555555555';
 const bookingToken = 'a'.repeat(43);
 const inviteToken = 'i'.repeat(43);
 
+test('tautan kode unik membuka event dan membuat booking tanpa token undangan', async ({ page }) => {
+  const code='23456789AB';
+  const cors={ 'access-control-allow-origin':'*', 'access-control-allow-methods':'GET, POST, OPTIONS', 'access-control-allow-headers':'apikey, authorization, content-type, x-event-code' };
+  await page.route(`**/d/${code}*`, async route => route.fulfill({ response: await page.request.get('/event/') }));
+  await page.route(`**/dolend-api/v1/events/code/${code}`, route => route.fulfill({json:{data:{
+    id:eventId,public_code:code,title:'Badminton Kode',description:'Main bersama.',starts_at:'2026-12-10T12:00:00.000Z',ends_at:'2026-12-10T14:00:00.000Z',timezone:'Asia/Jakarta',capacity:8,participants_count:0,venue:{name:'GOR Uji',address:'Jakarta',maps_url:''},price_amount:0,currency:'IDR',cost_model:'free',
+  }},headers:cors}));
+  await page.route(`**/dolend-api/v1/events/${eventId}/guest-bookings`, route => {
+    if(route.request().method()==='OPTIONS')return route.fulfill({status:204,headers:cors});
+    expect(route.request().headers()['x-event-code']).toBe(code);
+    expect(route.request().headers()['x-invite-token']).toBeUndefined();
+    return route.fulfill({status:201,json:{data:{participant_id:eventId,status:'confirmed',booking_token:bookingToken}},headers:cors});
+  });
+  await page.goto(`/d/${code}`);
+  await expect(page.getByRole('heading',{name:'Badminton Kode'})).toBeVisible();
+  await page.getByLabel('Nama').fill('Tamu Uji');
+  await page.getByLabel('Nomor WhatsApp').fill('0812 3456 7890');
+  await page.getByRole('button',{name:'Booking tempat'}).click();
+  await expect(page.getByRole('heading',{name:'Status booking'})).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`/d/${code}/?#booking=`));
+});
+
 test('guest membuat booking dan membuka ulang status dari token fragment', async ({ page, context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   await page.route('https://tiles.openfreemap.org/styles/liberty', route => route.fulfill({

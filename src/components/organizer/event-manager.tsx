@@ -56,11 +56,11 @@ export function EventManager() {
   const load = useCallback(async (token: string) => {
     setLoading(true);
     try {
-      const [nextEvent, nextRoster, nextShare] = await Promise.all([
+      const [nextEvent, nextRoster] = await Promise.all([
         organizerRequest<ManagedEvent & OrganizerEventBasics>(`/organizer/events/${eventId}`, token),
         organizerRequest<EventRoster>(`/events/${eventId}/roster`, token),
-        organizerRequest<EventShare>(`/events/${eventId}/share-link`, token).catch(() => null),
       ]);
+      const nextShare = nextEvent.public_code ? null : await organizerRequest<EventShare>(`/events/${eventId}/share-link`, token).catch(() => null);
       setEvent(nextEvent); setRoster(nextRoster); setShare(nextShare); setShareNotice(null);
       setPriceOptionsDraft(nextEvent.price_options?.length
         ? nextEvent.price_options.map(option=>({id:option.id,name:option.name,amount:String(option.amount),quota:String(option.quota)}))
@@ -218,7 +218,7 @@ export function EventManager() {
   }
 
   async function copyShareLink(url: string) {
-    if (share?.link && Date.parse(share.link.expires_at) <= Date.now()) {
+    if (!event?.public_code && share?.link && Date.parse(share.link.expires_at) <= Date.now()) {
       setShare({ link: null, legacy_active: false });
       setShareNotice({ kind: 'error', text: 'Tautan undangan sudah kedaluwarsa.' });
       return;
@@ -241,7 +241,7 @@ export function EventManager() {
   const statusAllowsSharing = canShareEvent(event.status);
   const isPast = statusAllowsSharing && !canShareEvent(event.status, event.starts_at, event.timezone);
   const shareAllowed = canShareEvent(event.status, event.starts_at, event.timezone);
-  const shareLink = shareAllowed && (event.visibility === 'public' || share?.link)
+  const shareLink = shareAllowed && (event.public_code || event.visibility === 'public' || share?.link)
     ? canonicalEventUrl(window.location.origin,event.public_code,eventId,event.visibility === 'unlisted' ? share?.link?.token : undefined)
     : '';
 
@@ -400,7 +400,7 @@ export function EventManager() {
       ) : shareLink ? <div>
         <Label htmlFor="share-link">Tautan yang dibagikan</Label>
         <Input id="share-link" readOnly value={shareLink} className={field} />
-        {share?.link && <p className="mt-2 text-sm text-[#615d59]">Berlaku sampai {new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short', timeZone: event.timezone }).format(new Date(share.link.expires_at))}.</p>}
+        {!event.public_code && share?.link && <p className="mt-2 text-sm text-[#615d59]">Berlaku sampai {new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short', timeZone: event.timezone }).format(new Date(share.link.expires_at))}.</p>}
         <Button type="button" variant="outline" className="mt-3 min-h-11" onClick={() => void copyShareLink(shareLink)}><Copy aria-hidden="true" />Salin tautan</Button>
       </div> : event.status === 'cancelled' || event.status === 'completed' ? (
         <p className="text-sm text-[#615d59]">Tautan aktif tidak tersedia.</p>

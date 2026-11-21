@@ -63,7 +63,7 @@ export function createApp({ allowedOrigins, pocMode = false, accountService, gue
         set.headers['vary'] = 'Origin';
       }
       set.headers['access-control-allow-methods'] = 'GET, PATCH, POST, DELETE, OPTIONS';
-      set.headers['access-control-allow-headers'] = 'authorization, apikey, content-type, idempotency-key, x-booking-token, x-invite-token, x-photo-consent';
+      set.headers['access-control-allow-headers'] = 'authorization, apikey, content-type, idempotency-key, x-booking-token, x-event-code, x-invite-token, x-photo-consent';
       if (request.method === 'OPTIONS') { set.status = 204; return new Response(null, { status: 204 }); }
       if (request.method === 'POST' && request.headers.get('content-type')?.includes('application/json') && (request.body === null || request.headers.get('content-length') === '0')) {
         set.status = 400;
@@ -216,9 +216,9 @@ export function createApp({ allowedOrigins, pocMode = false, accountService, gue
           set.status = 503;
           return { error: { code: 'INVITE_STORAGE_UNAVAILABLE', message: 'Akses event belum dapat diperiksa.' }, request_id: requestId };
         }
-        if (!await eventInvites.canAccess(params.id, request.headers.get('x-invite-token'))) {
+        if (!await eventInvites.canAccess(params.id, request.headers.get('x-invite-token'), null, request.headers.get('x-event-code'))) {
           set.status = 403;
-          return { error: { code: 'INVITE_REQUIRED', message: 'Undangan event tidak valid atau sudah berakhir.' }, request_id: requestId };
+          return { error: { code: 'INVITE_REQUIRED', message: 'Tautan event tidak valid atau sudah tidak tersedia.' }, request_id: requestId };
         }
         const booking = await guestBookings.create({
           eventId: params.id,

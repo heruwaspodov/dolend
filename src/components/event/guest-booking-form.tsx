@@ -18,7 +18,7 @@ const statusLabel: Record<string,string> = {
 };
 
 type PriceOption={id:string;name:string;amount:number;quota:number;taken:number;remaining:number};
-export function GuestBookingForm({ eventId,inviteToken,bookingToken,canBook = true,priceOptions=[],onParticipationChange }: { eventId: string; inviteToken?:string;bookingToken?:string;canBook?:boolean;priceOptions?:PriceOption[];onParticipationChange:()=>void }) {
+export function GuestBookingForm({ eventId,eventCode,inviteToken,bookingToken,canBook = true,priceOptions=[],onParticipationChange }: { eventId: string; eventCode?:string;inviteToken?:string;bookingToken?:string;canBook?:boolean;priceOptions?:PriceOption[];onParticipationChange:()=>void }) {
   const [displayName, setDisplayName] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
   const [status, setStatus] = useState('');
@@ -59,7 +59,7 @@ export function GuestBookingForm({ eventId,inviteToken,bookingToken,canBook = tr
     setSubmitting(true);
     setError('');
     try {
-      const booking = await createGuestBooking(eventId, { display_name: displayName.trim(), whatsapp: whatsapp.trim(),...(priceOptionId?{price_option_id:priceOptionId}:{}) },inviteToken);
+      const booking = await createGuestBooking(eventId, { display_name: displayName.trim(), whatsapp: whatsapp.trim(),...(priceOptionId?{price_option_id:priceOptionId}:{}) },inviteToken,eventCode);
       const hash = new URLSearchParams({ ...(inviteToken?{invite:inviteToken}:{}),booking: booking.booking_token }).toString();
       window.history.replaceState(window.history.state, '', `${window.location.pathname}${window.location.search}#${hash}`);
       setStatus(booking.status);

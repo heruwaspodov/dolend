@@ -33,11 +33,11 @@ async function responseData(response: Response) {
   return payload.data;
 }
 
-export async function createGuestBooking(eventId: string, input: { display_name: string; whatsapp: string; price_option_id?: string },inviteToken?:string) {
+export async function createGuestBooking(eventId: string, input: { display_name: string; whatsapp: string; price_option_id?: string },inviteToken?:string,eventCode?:string) {
   const response = await fetch(apiUrl(`/events/${eventId}/guest-bookings`), {
     method: 'POST',
     cache: 'no-store',
-    headers: { ...apiHeaders(), 'content-type': 'application/json',...(inviteToken?{'x-invite-token':inviteToken}:{}) },
+    headers: { ...apiHeaders(), 'content-type': 'application/json',...(inviteToken?{'x-invite-token':inviteToken}:{}),...(eventCode?{'x-event-code':eventCode}:{}) },
     body: JSON.stringify(input),
   });
   return responseData(response) as Promise<{ participant_id: string; status: string; booking_token: string; invoice_id?:string|null }>;

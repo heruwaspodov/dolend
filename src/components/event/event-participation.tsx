@@ -16,7 +16,7 @@ const statusText:Record<string,string>={
 };
 
 type PriceOption={id:string;name:string;amount:number;quota:number;taken:number;remaining:number};
-export function EventParticipation({eventId,inviteToken,bookingToken,seats,priceOptions,onParticipationChange}:{eventId:string;inviteToken?:string;bookingToken?:string;seats:number;priceOptions:PriceOption[];onParticipationChange:()=>void}) {
+export function EventParticipation({eventId,eventCode,inviteToken,bookingToken,seats,priceOptions,onParticipationChange}:{eventId:string;eventCode?:string;inviteToken?:string;bookingToken?:string;seats:number;priceOptions:PriceOption[];onParticipationChange:()=>void}) {
   const {session,ready}=useOrganizerSession();
   const [participation,setParticipation]=useState<OwnParticipation|null|undefined>(undefined);
   const [busy,setBusy]=useState('');
@@ -32,13 +32,13 @@ export function EventParticipation({eventId,inviteToken,bookingToken,seats,price
     return ()=>controller.abort();
   },[bookingToken,eventId,ready,session]);
 
-  if(bookingToken)return <GuestBookingForm eventId={eventId} inviteToken={inviteToken} bookingToken={bookingToken} priceOptions={priceOptions} onParticipationChange={onParticipationChange}/>;
+  if(bookingToken)return <GuestBookingForm eventId={eventId} eventCode={eventCode} inviteToken={inviteToken} bookingToken={bookingToken} priceOptions={priceOptions} onParticipationChange={onParticipationChange}/>;
   if(!ready||(session&&participation===undefined))return <div aria-busy="true"><p className="flex items-center gap-2 text-sm text-muted-foreground"><LoaderCircle className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true"/>Memeriksa partisipasi…</p></div>;
-  if(!session)return <div className="space-y-4"><GuestBookingForm eventId={eventId} inviteToken={inviteToken} canBook={seats > 0} priceOptions={priceOptions} onParticipationChange={onParticipationChange}/><p className="text-sm text-muted-foreground"><Link href="/account/" className="inline-flex min-h-11 items-center font-medium text-primary underline underline-offset-4">Masuk dengan Google</Link> jika ingin ikut sebagai member.</p></div>;
+  if(!session)return <div className="space-y-4"><GuestBookingForm eventId={eventId} eventCode={eventCode} inviteToken={inviteToken} canBook={seats > 0} priceOptions={priceOptions} onParticipationChange={onParticipationChange}/><p className="text-sm text-muted-foreground"><Link href="/account/" className="inline-flex min-h-11 items-center font-medium text-primary underline underline-offset-4">Masuk dengan Google</Link> jika ingin ikut sebagai member.</p></div>;
 
   async function join() {
     if(!session)return;setBusy('join');setError('');
-    try{setParticipation(await joinEventAsMember(eventId,session.access_token,inviteToken,priceOptionId||undefined));onParticipationChange();}
+    try{setParticipation(await joinEventAsMember(eventId,session.access_token,inviteToken,priceOptionId||undefined,eventCode));onParticipationChange();}
     catch(reason){const code=reason instanceof Error&&'code' in reason?reason.code:'';setError(code==='EVENT_FULL'?'Event baru saja penuh.':code==='PRICE_OPTION_FULL'?'Kuota kategori ini baru saja habis.':code==='PRICE_OPTION_REQUIRED'?'Pilih kategori harga terlebih dahulu.':code==='REGISTRATION_CLOSED'?'Pendaftaran event sudah ditutup.':reason instanceof Error?reason.message:'Belum dapat ikut event.');}
     finally{setBusy('');}
   }

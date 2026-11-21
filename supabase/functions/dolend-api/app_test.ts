@@ -3,7 +3,7 @@ import { reverseGeoapify, searchGeoapify } from './venues.ts';
 import { invoicePaymentMethodDto, manualPaymentReviewDto, manualPaymentRoutes, organizerPaymentMethodDto } from './manual-payments.ts';
 import { AccountServiceError, type AccountIdentity, type AccountService, type Profile, type ProfilePatch } from './account.ts';
 import { GuestBookingError, type GuestBookingService } from './guest-booking.ts';
-import type { EventInviteService } from './event-invite.ts';
+import { createSupabaseEventInviteService, type EventInviteService } from './event-invite.ts';
 import type { PrivateUploadService } from './private-uploads.ts';
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -169,9 +169,9 @@ Deno.test('guest booking returns a one-time bearer token and maps safe errors', 
   assert(recovered.headers.get('cache-control')==='no-store','recovered token response is cacheable');
   assert((await recovered.json()).data.booking_token==='recovered-token','recovered token missing');
 });
-Deno.test('guest booking rejects a missing or revoked event invitation',async()=>{
+Deno.test('guest booking requires a valid invite or matching event code',async()=>{
   let created=false;
-  const protectedApp=createApp({allowedOrigins:[],eventInviteService:{canAccess:async(_event,token)=>token==='valid-invite'},guestBookingService:{
+  const protectedApp=createApp({allowedOrigins:[],eventInviteService:{canAccess:async(_event,token,_booking,code)=>token==='valid-invite'||code==='23456789AB'},guestBookingService:{
     create:async()=>{created=true;return {participant_id:'44444444-4444-4444-8444-444444444444',status:'confirmed',booking_token:'booking'};},
     get:async()=>null,recover:async()=>{throw new GuestBookingError('BOOKING_UNAVAILABLE');},
   }});
@@ -179,6 +179,11 @@ Deno.test('guest booking rejects a missing or revoked event invitation',async()=
   assert(response.status===403,`missing invite accepted: ${response.status}`);
   assert((await response.json()).error.code==='INVITE_REQUIRED','wrong invite error');
   assert(!created,'booking was created before invite verification');
+  const body=JSON.stringify({display_name:'Guest',whatsapp:'081234567890'});
+  const wrongCode=await protectedApp.handle(new Request(`${base}/events/44444444-4444-4444-8444-444444444444/guest-bookings`,{method:'POST',headers:{'content-type':'application/json','x-event-code':'33456789AB'},body}));
+  assert(wrongCode.status===403&&!created,'wrong event code accepted');
+  const codeBooking=await protectedApp.handle(new Request(`${base}/events/44444444-4444-4444-8444-444444444444/guest-bookings`,{method:'POST',headers:{'content-type':'application/json','x-event-code':'23456789AB'},body}));
+  assert(codeBooking.status===201&&created,'matching event code rejected');
 });
 Deno.test('POC route absent by default', async () => {
   const production = createApp({ allowedOrigins: [] });
@@ -325,7 +330,7 @@ Deno.test('event roster exposes display names only after event access is verifie
   };
   try {
     const validInvite = 'i'.repeat(43);
-    const invites: EventInviteService = { canAccess: async (_, token) => token === validInvite };
+    const invites: EventInviteService = { canAccess: async (_, token, _booking, code) => token === validInvite || code === '23456789AB' };
     const routes = manualPaymentRoutes(null, 'http://supabase.test', 'test-key', undefined, null, null, invites);
     const endpoint = `http://localhost/events/${identity.id}?roster_page=2`;
     const denied = await routes.handle(new Request(endpoint));
@@ -335,8 +340,32 @@ Deno.test('event roster exposes display names only after event access is verifie
     const { data } = await response.json();
     assert(rosterRequests === 1, 'Denied request queried the roster');
     assert(JSON.stringify(data.participant_roster) === JSON.stringify({ page: 2, names: ['Tamu Contoh', 'Anggota Contoh'] }), 'Unexpected roster projection');
+    const codeResponse=await routes.handle(new Request('http://localhost/events/code/23456789AB?roster_page=2'));
+    assert(codeResponse.ok,'Code-only link could not load event detail');
+    assert(Number(rosterRequests)===2,'Code-only event did not return roster');
   } finally {
     globalThis.fetch = originalFetch;
+  }
+});
+
+Deno.test('event code grants access only to its own visible event', async () => {
+  const originalFetch=globalThis.fetch;
+  let status='confirmed';
+  globalThis.fetch=async input=>{
+    const url=new URL(String(input));
+    assert(url.pathname==='/rest/v1/events','Unexpected code access query');
+    assert(url.searchParams.get('id')===`eq.${identity.id}`,'Code lookup changed event scope');
+    return Response.json({visibility:'unlisted',status,public_code:'23456789AB'});
+  };
+  try {
+    const invites=createSupabaseEventInviteService('http://supabase.test','service-key');
+    assert(await invites.canAccess(identity.id,null,null,'23456789AB'),'Matching code was rejected');
+    assert(!await invites.canAccess(identity.id,null,null,'33456789AB'),'Different code granted access');
+    assert(!await invites.canAccess(identity.id),'Event ID granted access without a code');
+    status='cancelled';
+    assert(!await invites.canAccess(identity.id,null,null,'23456789AB'),'Cancelled event exposed by code');
+  } finally {
+    globalThis.fetch=originalFetch;
   }
 });
 
